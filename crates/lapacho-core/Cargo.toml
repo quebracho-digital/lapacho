@@ -1,0 +1,15 @@
+[package]
+name = "lapacho-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+uuid = { workspace = true }
+rusqlite = { workspace = true }
