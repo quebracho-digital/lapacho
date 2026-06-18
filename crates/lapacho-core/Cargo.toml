@@ -13,3 +13,6 @@ serde_json = { workspace = true }
 regex = { workspace = true }
 uuid = { workspace = true }
 rusqlite = { workspace = true }
+aes-gcm = { workspace = true }
+getrandom = { workspace = true }
+base64 = { workspace = true }

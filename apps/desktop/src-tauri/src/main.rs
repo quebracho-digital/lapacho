@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use lapacho_core::types::{PersistLevel, UIClipboardItem};
-use lapacho_core::{PluginDefinition, PluginResponse, plugins, process_text, storage};
+use lapacho_core::{PluginDefinition, PluginResponse, crypto, plugins, process_text, storage};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// How often the monitor polls the system clipboard.
@@ -36,6 +36,32 @@ struct AppState {
     /// Hash of the last clipboard value processed. Prevents re-ingesting our
     /// own writes (when the user copies an item back) and de-dupes repeats.
     last_seen: Arc<Mutex<Option<u64>>>,
+    /// AES-256 key used to encrypt the history at rest. `[u8; 32]` is `Copy`.
+    key: [u8; crypto::KEY_LEN],
+}
+
+/// Loads the AES-256 key from `path`, creating and persisting a fresh random one
+/// (0600 perms on unix) the first time. The key lives next to the DB: this
+/// protects against DB exfiltration and stolen backups, not against an attacker
+/// who already has full read access to the app data dir. Future hardening:
+/// derive it from a passphrase or store it in the OS keyring.
+fn load_or_create_key(path: &std::path::Path) -> Result<[u8; crypto::KEY_LEN], String> {
+    if path.exists() {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| "archivo de clave con tamaño inválido".to_string())
+    } else {
+        let key = crypto::generate_key()?;
+        std::fs::write(path, key).map_err(|e| e.to_string())?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        }
+        Ok(key)
+    }
 }
 
 fn hash_str(s: &str) -> u64 {
@@ -67,7 +93,7 @@ fn persist_level_to_str(level: PersistLevel) -> &'static str {
 /// Returns the persisted history as UI-safe items (never includes `raw_content`).
 #[tauri::command]
 fn get_history(state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, String> {
-    let items = storage::load_history(&state.db_path)?;
+    let items = storage::load_history(&state.db_path, &state.key)?;
     Ok(items.into_iter().map(UIClipboardItem::from).collect())
 }
 
@@ -99,7 +125,7 @@ fn set_persist_level(level: String, state: State<'_, AppState>) -> Result<(), St
 /// The monitor is primed to ignore this value so it is not re-captured.
 #[tauri::command]
 fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
-    let items = storage::load_history(&state.db_path)?;
+    let items = storage::load_history(&state.db_path, &state.key)?;
     let item = items
         .into_iter()
         .find(|i| i.id == id)
@@ -134,6 +160,7 @@ fn run_monitor(
     db_path: PathBuf,
     persist_level: Arc<Mutex<PersistLevel>>,
     last_seen: Arc<Mutex<Option<u64>>>,
+    key: [u8; crypto::KEY_LEN],
 ) {
     let mut clipboard = match arboard::Clipboard::new() {
         Ok(c) => c,
@@ -163,7 +190,7 @@ fn run_monitor(
 
         let item = process_text(&text);
         let level = *persist_level.lock().unwrap();
-        if let Err(e) = storage::save_item(&db_path, &item, level) {
+        if let Err(e) = storage::save_item(&db_path, &item, level, &key) {
             eprintln!("lapacho: failed to save clipboard item: {e}");
         }
         let _ = storage::run_cleanup(&db_path, level);
@@ -189,6 +216,7 @@ fn main() {
 
             let db_path = data_dir.join("history.db");
             let plugins_dir = data_dir.join("plugins");
+            let key = load_or_create_key(&data_dir.join("history.key"))?;
             storage::init_db(&db_path)?;
             let _ = plugins::init_plugins_dir(&plugins_dir);
 
@@ -200,10 +228,11 @@ fn main() {
                 plugins_dir,
                 persist_level: persist_level.clone(),
                 last_seen: last_seen.clone(),
+                key,
             });
 
             let handle = app.handle().clone();
-            std::thread::spawn(move || run_monitor(handle, db_path, persist_level, last_seen));
+            std::thread::spawn(move || run_monitor(handle, db_path, persist_level, last_seen, key));
 
             Ok(())
         })

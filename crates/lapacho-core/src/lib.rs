@@ -1,3 +1,4 @@
+pub mod crypto;
 pub mod detectors;
 pub mod ingest;
 pub mod plugins;
