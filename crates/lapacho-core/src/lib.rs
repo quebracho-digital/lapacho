@@ -7,6 +7,7 @@ pub mod storage;
 pub mod types;
 
 pub use ingest::{mask_display, process_text};
+pub use storage::{HistoryRepo, SqliteRepo};
 pub use types::{
     ClipboardItem, DetectedType, PersistLevel, PluginDefinition, PluginResponse, Sensitivity,
     UIClipboardItem,

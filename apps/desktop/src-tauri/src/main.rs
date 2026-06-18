@@ -18,8 +18,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use lapacho_core::storage::{HistoryRepo, SqliteRepo};
 use lapacho_core::types::{PersistLevel, UIClipboardItem};
-use lapacho_core::{PluginDefinition, PluginResponse, crypto, plugins, process_text, storage};
+use lapacho_core::{PluginDefinition, PluginResponse, crypto, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// How often the monitor polls the system clipboard.
@@ -30,14 +31,14 @@ const EVENT_NEW_ITEM: &str = "clipboard-new";
 
 /// Backend state shared between Tauri commands and the monitor thread.
 struct AppState {
-    db_path: PathBuf,
+    /// History storage behind the [`HistoryRepo`] abstraction. The concrete
+    /// backend (and the encryption key) is owned by the repo, not by the state.
+    repo: Arc<dyn HistoryRepo>,
     plugins_dir: PathBuf,
     persist_level: Arc<Mutex<PersistLevel>>,
     /// Hash of the last clipboard value processed. Prevents re-ingesting our
     /// own writes (when the user copies an item back) and de-dupes repeats.
     last_seen: Arc<Mutex<Option<u64>>>,
-    /// AES-256 key used to encrypt the history at rest. `[u8; 32]` is `Copy`.
-    key: [u8; crypto::KEY_LEN],
 }
 
 /// Loads the AES-256 key from `path`, creating and persisting a fresh random one
@@ -93,18 +94,18 @@ fn persist_level_to_str(level: PersistLevel) -> &'static str {
 /// Returns the persisted history as UI-safe items (never includes `raw_content`).
 #[tauri::command]
 fn get_history(state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, String> {
-    let items = storage::load_history(&state.db_path, &state.key)?;
+    let items = state.repo.load()?;
     Ok(items.into_iter().map(UIClipboardItem::from).collect())
 }
 
 #[tauri::command]
 fn delete_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
-    storage::delete_item(&state.db_path, &id)
+    state.repo.delete(&id)
 }
 
 #[tauri::command]
 fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
-    storage::clear_all(&state.db_path)
+    state.repo.clear()
 }
 
 #[tauri::command]
@@ -118,14 +119,14 @@ fn get_persist_level(state: State<'_, AppState>) -> String {
 fn set_persist_level(level: String, state: State<'_, AppState>) -> Result<(), String> {
     let lvl = persist_level_from_str(&level);
     *state.persist_level.lock().unwrap() = lvl;
-    storage::run_cleanup(&state.db_path, lvl)
+    state.repo.cleanup(lvl)
 }
 
 /// Copies a stored item's original content back to the system clipboard.
 /// The monitor is primed to ignore this value so it is not re-captured.
 #[tauri::command]
 fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
-    let items = storage::load_history(&state.db_path, &state.key)?;
+    let items = state.repo.load()?;
     let item = items
         .into_iter()
         .find(|i| i.id == id)
@@ -157,10 +158,9 @@ fn run_plugin(
 
 fn run_monitor(
     app: AppHandle,
-    db_path: PathBuf,
+    repo: Arc<dyn HistoryRepo>,
     persist_level: Arc<Mutex<PersistLevel>>,
     last_seen: Arc<Mutex<Option<u64>>>,
-    key: [u8; crypto::KEY_LEN],
 ) {
     let mut clipboard = match arboard::Clipboard::new() {
         Ok(c) => c,
@@ -190,10 +190,10 @@ fn run_monitor(
 
         let item = process_text(&text);
         let level = *persist_level.lock().unwrap();
-        if let Err(e) = storage::save_item(&db_path, &item, level, &key) {
+        if let Err(e) = repo.save(&item, level) {
             eprintln!("lapacho: failed to save clipboard item: {e}");
         }
-        let _ = storage::run_cleanup(&db_path, level);
+        let _ = repo.cleanup(level);
 
         // Emit the UI-safe projection (masked for credentials/secrets).
         // Don't swallow the error: a failed emit is exactly the kind of bug
@@ -217,22 +217,22 @@ fn main() {
             let db_path = data_dir.join("history.db");
             let plugins_dir = data_dir.join("plugins");
             let key = load_or_create_key(&data_dir.join("history.key"))?;
-            storage::init_db(&db_path)?;
+            // The repo owns the path + key and initializes the schema on open.
+            let repo: Arc<dyn HistoryRepo> = Arc::new(SqliteRepo::new(db_path, key)?);
             let _ = plugins::init_plugins_dir(&plugins_dir);
 
             let persist_level = Arc::new(Mutex::new(PersistLevel::None));
             let last_seen = Arc::new(Mutex::new(None));
 
             app.manage(AppState {
-                db_path: db_path.clone(),
+                repo: repo.clone(),
                 plugins_dir,
                 persist_level: persist_level.clone(),
                 last_seen: last_seen.clone(),
-                key,
             });
 
             let handle = app.handle().clone();
-            std::thread::spawn(move || run_monitor(handle, db_path, persist_level, last_seen, key));
+            std::thread::spawn(move || run_monitor(handle, repo, persist_level, last_seen));
 
             Ok(())
         })

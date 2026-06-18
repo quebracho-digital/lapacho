@@ -44,8 +44,8 @@ pub fn mask_display(sanitized: &str, sensitivity: Sensitivity) -> String {
 /// Processes a raw text clipboard payload into a complete [`ClipboardItem`].
 ///
 /// Generates a fresh UUID and a current timestamp. The returned item is ready
-/// to be handed to [`storage::save_item`](crate::storage::save_item); whether it
-/// is actually persisted depends on the configured
+/// to be handed to [`HistoryRepo::save`](crate::storage::HistoryRepo::save);
+/// whether it is actually persisted depends on the configured
 /// [`PersistLevel`](crate::types::PersistLevel).
 pub fn process_text(raw: &str) -> ClipboardItem {
     let detected_type = classify_text(raw);
