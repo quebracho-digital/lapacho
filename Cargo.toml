@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/lapacho-core",
+    "apps/desktop/src-tauri",
 ]
 
 [workspace.package]

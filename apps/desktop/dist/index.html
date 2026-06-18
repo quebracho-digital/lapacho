@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lapacho</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 14px/1.4 system-ui, sans-serif;
+        background: #16130f;
+        color: #ece6dd;
+      }
+      header {
+        padding: 12px 16px;
+        background: #c2185b; /* lapacho flower */
+        color: #fff;
+        font-weight: 600;
+      }
+      header small { font-weight: 400; opacity: 0.85; }
+      #controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 16px;
+        border-bottom: 1px solid #2a241c;
+      }
+      #controls select, #controls button {
+        background: #2a241c; color: #ece6dd;
+        border: 1px solid #3a3228; border-radius: 6px; padding: 4px 8px;
+      }
+      #controls button { cursor: pointer; }
+      ul { list-style: none; margin: 0; padding: 0; }
+      li.item {
+        padding: 8px 16px;
+        border-bottom: 1px solid #221d16;
+        display: flex; gap: 8px; align-items: flex-start;
+      }
+      li.item .body { flex: 1; min-width: 0; }
+      li.item .content {
+        white-space: pre-wrap; word-break: break-word;
+        max-height: 4.2em; overflow: hidden;
+      }
+      li.item .meta { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+      .tag {
+        font-size: 10px; padding: 1px 6px; border-radius: 999px;
+        text-transform: uppercase; letter-spacing: 0.04em;
+      }
+      .s-None { background: #2a3a2a; color: #9bd49b; }
+      .s-Personal { background: #3a3320; color: #d9c177; }
+      .s-Credential { background: #3a2a20; color: #e0a86a; }
+      .s-Secret { background: #3a2020; color: #e07a7a; }
+      .item.sens .content { font-family: monospace; letter-spacing: 0.1em; opacity: 0.8; }
+      .row-actions button {
+        background: none; border: none; color: #8a8076; cursor: pointer; font-size: 13px;
+      }
+      .row-actions button:hover { color: #ece6dd; }
+      #empty { padding: 24px 16px; opacity: 0.5; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <header>Lapacho <small>· portapapeles seguro</small></header>
+    <div id="controls">
+      <label>
+        Persistencia:
+        <select id="persist">
+          <option value="none">Paranoia</option>
+          <option value="sensitive">Balanceado</option>
+          <option value="all">Todo</option>
+        </select>
+      </label>
+      <button id="clear">Limpiar historial</button>
+    </div>
+    <ul id="list"></ul>
+    <div id="empty">Copiá algo para verlo aparecer aquí…</div>
+
+    <script>
+      const { invoke } = window.__TAURI__.core;
+      const { listen } = window.__TAURI__.event;
+      const list = document.getElementById("list");
+      const empty = document.getElementById("empty");
+
+      function timeAgo(ts) {
+        const s = Math.max(0, Math.floor(Date.now() / 1000) - ts);
+        if (s < 60) return `hace ${s}s`;
+        if (s < 3600) return `hace ${Math.floor(s / 60)}m`;
+        return `hace ${Math.floor(s / 3600)}h`;
+      }
+
+      function rowFor(it) {
+        const sensitive = it.sensitivity === "Credential" || it.sensitivity === "Secret";
+        const li = document.createElement("li");
+        li.className = "item" + (sensitive ? " sens" : "");
+        li.dataset.id = it.id;
+        li.innerHTML = `
+          <div class="body">
+            <div class="content"></div>
+            <div class="meta">
+              <span class="tag s-${it.sensitivity}">${it.sensitivity}</span>
+              · ${it.detected_type} · <span class="t"></span>
+            </div>
+          </div>
+          <div class="row-actions">
+            <button class="copy" title="Copiar">⧉</button>
+            <button class="del" title="Borrar">✕</button>
+          </div>`;
+        li.querySelector(".content").textContent = it.display_content;
+        li.querySelector(".t").textContent = timeAgo(it.timestamp);
+        li.querySelector(".copy").onclick = () => invoke("copy_item", { id: it.id });
+        li.querySelector(".del").onclick = async () => {
+          await invoke("delete_item", { id: it.id });
+          li.remove();
+          updateEmpty();
+        };
+        return li;
+      }
+
+      function updateEmpty() {
+        empty.style.display = list.children.length ? "none" : "block";
+      }
+
+      async function refresh() {
+        const items = await invoke("get_history");
+        list.innerHTML = "";
+        for (const it of items) list.appendChild(rowFor(it));
+        updateEmpty();
+      }
+
+      async function init() {
+        document.getElementById("persist").value = await invoke("get_persist_level");
+        document.getElementById("persist").onchange = (e) =>
+          invoke("set_persist_level", { level: e.target.value }).then(refresh);
+        document.getElementById("clear").onclick = () =>
+          invoke("clear_history").then(refresh);
+        await listen("clipboard://new", (e) => {
+          list.insertBefore(rowFor(e.payload), list.firstChild);
+          updateEmpty();
+        });
+        await refresh();
+      }
+
+      init();
+    </script>
+  </body>
+</html>
