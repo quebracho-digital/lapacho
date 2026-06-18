@@ -25,7 +25,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 /// How often the monitor polls the system clipboard.
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 /// Event emitted to the frontend when a new clipboard item is captured.
-const EVENT_NEW_ITEM: &str = "clipboard://new";
+/// Kept to a plain `a-z-` name to avoid any event-name validation surprises.
+const EVENT_NEW_ITEM: &str = "clipboard-new";
 
 /// Backend state shared between Tauri commands and the monitor thread.
 struct AppState {
@@ -168,7 +169,11 @@ fn run_monitor(
         let _ = storage::run_cleanup(&db_path, level);
 
         // Emit the UI-safe projection (masked for credentials/secrets).
-        let _ = app.emit(EVENT_NEW_ITEM, UIClipboardItem::from(item));
+        // Don't swallow the error: a failed emit is exactly the kind of bug
+        // that makes the UI look like it isn't updating in real time.
+        if let Err(e) = app.emit(EVENT_NEW_ITEM, UIClipboardItem::from(item)) {
+            eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM}: {e}");
+        }
     }
 }
 

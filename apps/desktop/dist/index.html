@@ -128,17 +128,34 @@
         updateEmpty();
       }
 
+      // Polling fallback: if the live event ever fails to arrive, the list
+      // still updates within a couple of seconds. Re-renders only when the most
+      // recent item actually changed, so there's no flicker.
+      async function pollIfChanged() {
+        try {
+          const items = await invoke("get_history");
+          const topId = items[0] ? items[0].id : null;
+          const shownId = list.firstChild ? list.firstChild.dataset.id : null;
+          if (topId !== shownId || items.length !== list.children.length) {
+            list.innerHTML = "";
+            for (const it of items) list.appendChild(rowFor(it));
+            updateEmpty();
+          }
+        } catch (_) {}
+      }
+
       async function init() {
         document.getElementById("persist").value = await invoke("get_persist_level");
         document.getElementById("persist").onchange = (e) =>
           invoke("set_persist_level", { level: e.target.value }).then(refresh);
         document.getElementById("clear").onclick = () =>
           invoke("clear_history").then(refresh);
-        await listen("clipboard://new", (e) => {
+        await listen("clipboard-new", (e) => {
           list.insertBefore(rowFor(e.payload), list.firstChild);
           updateEmpty();
         });
         await refresh();
+        setInterval(pollIfChanged, 2000);
       }
 
       init();
