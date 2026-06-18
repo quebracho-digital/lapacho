@@ -12,15 +12,17 @@
     windows_subsystem = "windows"
 )]
 
+mod keystore;
+
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use lapacho_core::storage::{HistoryRepo, SqliteRepo};
+use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
 use lapacho_core::types::{PersistLevel, UIClipboardItem};
-use lapacho_core::{PluginDefinition, PluginResponse, crypto, plugins, process_text};
+use lapacho_core::{PluginDefinition, PluginResponse, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// How often the monitor polls the system clipboard.
@@ -36,33 +38,12 @@ struct AppState {
     repo: Arc<dyn HistoryRepo>,
     plugins_dir: PathBuf,
     persist_level: Arc<Mutex<PersistLevel>>,
+    /// Retention policy (sensitive TTL + size cap). Driven by the admin; mutable
+    /// at runtime so a config/sync update takes effect without a restart.
+    retention: Arc<Mutex<RetentionPolicy>>,
     /// Hash of the last clipboard value processed. Prevents re-ingesting our
     /// own writes (when the user copies an item back) and de-dupes repeats.
     last_seen: Arc<Mutex<Option<u64>>>,
-}
-
-/// Loads the AES-256 key from `path`, creating and persisting a fresh random one
-/// (0600 perms on unix) the first time. The key lives next to the DB: this
-/// protects against DB exfiltration and stolen backups, not against an attacker
-/// who already has full read access to the app data dir. Future hardening:
-/// derive it from a passphrase or store it in the OS keyring.
-fn load_or_create_key(path: &std::path::Path) -> Result<[u8; crypto::KEY_LEN], String> {
-    if path.exists() {
-        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-        bytes
-            .as_slice()
-            .try_into()
-            .map_err(|_| "archivo de clave con tamaño inválido".to_string())
-    } else {
-        let key = crypto::generate_key()?;
-        std::fs::write(path, key).map_err(|e| e.to_string())?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
-        }
-        Ok(key)
-    }
 }
 
 fn hash_str(s: &str) -> u64 {
@@ -113,13 +94,34 @@ fn get_persist_level(state: State<'_, AppState>) -> String {
     persist_level_to_str(*state.persist_level.lock().unwrap()).to_string()
 }
 
-/// Updates the persistence policy and immediately reconciles the stored
-/// history with the new policy (a stricter level prunes now-forbidden items).
+/// Updates the persistence policy and runs a cleanup pass with the current
+/// retention policy.
 #[tauri::command]
 fn set_persist_level(level: String, state: State<'_, AppState>) -> Result<(), String> {
     let lvl = persist_level_from_str(&level);
     *state.persist_level.lock().unwrap() = lvl;
-    state.repo.cleanup(lvl)
+    let policy = *state.retention.lock().unwrap();
+    state.repo.cleanup(&policy)
+}
+
+/// Returns the current TTL (in seconds) after which sensitive items are purged,
+/// or `null` if time-based expiry is disabled.
+#[tauri::command]
+fn get_sensitive_ttl(state: State<'_, AppState>) -> Option<u64> {
+    state.retention.lock().unwrap().sensitive_ttl_secs
+}
+
+/// Sets the sensitive-item TTL (seconds; `null` to disable) and immediately
+/// applies it. This is the seam the Quebracho admin/sync layer drives once the
+/// per-user/group policy has been resolved to a single value.
+#[tauri::command]
+fn set_sensitive_ttl(secs: Option<u64>, state: State<'_, AppState>) -> Result<(), String> {
+    let policy = {
+        let mut guard = state.retention.lock().unwrap();
+        guard.sensitive_ttl_secs = secs;
+        *guard
+    };
+    state.repo.cleanup(&policy)
 }
 
 /// Copies a stored item's original content back to the system clipboard.
@@ -160,6 +162,7 @@ fn run_monitor(
     app: AppHandle,
     repo: Arc<dyn HistoryRepo>,
     persist_level: Arc<Mutex<PersistLevel>>,
+    retention: Arc<Mutex<RetentionPolicy>>,
     last_seen: Arc<Mutex<Option<u64>>>,
 ) {
     let mut clipboard = match arboard::Clipboard::new() {
@@ -193,7 +196,8 @@ fn run_monitor(
         if let Err(e) = repo.save(&item, level) {
             eprintln!("lapacho: failed to save clipboard item: {e}");
         }
-        let _ = repo.cleanup(level);
+        let policy = *retention.lock().unwrap();
+        let _ = repo.cleanup(&policy);
 
         // Emit the UI-safe projection (masked for credentials/secrets).
         // Don't swallow the error: a failed emit is exactly the kind of bug
@@ -216,23 +220,28 @@ fn main() {
 
             let db_path = data_dir.join("history.db");
             let plugins_dir = data_dir.join("plugins");
-            let key = load_or_create_key(&data_dir.join("history.key"))?;
-            // The repo owns the path + key and initializes the schema on open.
+            // Key from the OS keyring (file fallback). The repo owns path + key
+            // and initializes the schema on open.
+            let key = keystore::load_or_create_key(&data_dir)?;
             let repo: Arc<dyn HistoryRepo> = Arc::new(SqliteRepo::new(db_path, key)?);
             let _ = plugins::init_plugins_dir(&plugins_dir);
 
             let persist_level = Arc::new(Mutex::new(PersistLevel::None));
+            let retention = Arc::new(Mutex::new(RetentionPolicy::default()));
             let last_seen = Arc::new(Mutex::new(None));
 
             app.manage(AppState {
                 repo: repo.clone(),
                 plugins_dir,
                 persist_level: persist_level.clone(),
+                retention: retention.clone(),
                 last_seen: last_seen.clone(),
             });
 
             let handle = app.handle().clone();
-            std::thread::spawn(move || run_monitor(handle, repo, persist_level, last_seen));
+            std::thread::spawn(move || {
+                run_monitor(handle, repo, persist_level, retention, last_seen)
+            });
 
             Ok(())
         })
@@ -242,6 +251,8 @@ fn main() {
             clear_history,
             get_persist_level,
             set_persist_level,
+            get_sensitive_ttl,
+            set_sensitive_ttl,
             copy_item,
             list_plugins,
             run_plugin

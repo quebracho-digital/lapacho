@@ -3,8 +3,36 @@ use crate::types::{ClipboardItem, DetectedType, PersistLevel, Sensitivity};
 use rusqlite::{Connection, params};
 use std::path::{Path, PathBuf};
 
-const CREDENTIAL_TTL_SECS: u64 = 7200;
-const HISTORY_LIMIT: usize = 100;
+/// Default time-to-live for sensitive items: 2 hours.
+const DEFAULT_SENSITIVE_TTL_SECS: u64 = 7200;
+/// Default hard cap on the number of items kept.
+const DEFAULT_MAX_ITEMS: usize = 100;
+
+/// Time- and size-based retention for the history.
+///
+/// Sensitive items (credentials and secrets) are purged after
+/// `sensitive_ttl_secs` **regardless of the persistence level** — a security
+/// requirement, not a user preference. The value is meant to be driven by the
+/// Quebracho admin (global / per-user / per-group / per-role); it reaches the
+/// client already resolved to a single number, so this open core stays free of
+/// the multi-tenant policy engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetentionPolicy {
+    /// Seconds a sensitive item is kept before deletion. `None` disables
+    /// time-based expiry entirely.
+    pub sensitive_ttl_secs: Option<u64>,
+    /// Hard cap on the number of items kept (most recent wins).
+    pub max_items: usize,
+}
+
+impl Default for RetentionPolicy {
+    fn default() -> Self {
+        Self {
+            sensitive_ttl_secs: Some(DEFAULT_SENSITIVE_TTL_SECS),
+            max_items: DEFAULT_MAX_ITEMS,
+        }
+    }
+}
 
 /// Storage backend for the clipboard history.
 ///
@@ -22,8 +50,9 @@ pub trait HistoryRepo: Send + Sync {
     fn delete(&self, id: &str) -> Result<(), String>;
     /// Removes every item.
     fn clear(&self) -> Result<(), String>;
-    /// Enforces the retention policy for `level` (credential TTL, size cap).
-    fn cleanup(&self, level: PersistLevel) -> Result<(), String>;
+    /// Enforces `policy`: expires sensitive items past their TTL and caps the
+    /// total number of items kept.
+    fn cleanup(&self, policy: &RetentionPolicy) -> Result<(), String>;
 }
 
 /// SQLite-backed [`HistoryRepo`].
@@ -216,13 +245,15 @@ impl HistoryRepo for SqliteRepo {
         Ok(())
     }
 
-    fn cleanup(&self, level: PersistLevel) -> Result<(), String> {
+    fn cleanup(&self, policy: &RetentionPolicy) -> Result<(), String> {
         let conn = self.conn()?;
 
-        if level != PersistLevel::All {
-            let cutoff = now_secs().saturating_sub(CREDENTIAL_TTL_SECS);
+        if let Some(ttl) = policy.sensitive_ttl_secs {
+            let cutoff = now_secs().saturating_sub(ttl);
+            // Sensitive = credentials + secrets; they expire regardless of the
+            // persistence level.
             let _ = conn.execute(
-                "DELETE FROM history WHERE sensitivity = 'Credential' AND timestamp < ?1",
+                "DELETE FROM history WHERE sensitivity IN ('Credential', 'Secret') AND timestamp < ?1",
                 params![cutoff],
             );
         }
@@ -232,7 +263,7 @@ impl HistoryRepo for SqliteRepo {
             "DELETE FROM history WHERE id NOT IN (
                 SELECT id FROM history ORDER BY timestamp DESC LIMIT ?1
             )",
-            params![HISTORY_LIMIT],
+            params![policy.max_items],
         );
         Ok(())
     }
@@ -307,27 +338,38 @@ mod tests {
     }
 
     #[test]
-    fn credential_ttl_cleanup() {
+    fn sensitive_ttl_cleanup() {
         let (repo, db) = repo();
         let now = now_secs();
 
-        repo.save(&dummy("old", Sensitivity::Credential, now - 8000), PersistLevel::Sensitive)
+        // Saved under All so credentials *and* secrets land on disk.
+        repo.save(&dummy("old_cred", Sensitivity::Credential, now - 8000), PersistLevel::All)
             .unwrap();
-        repo.save(&dummy("new", Sensitivity::Credential, now - 600), PersistLevel::Sensitive)
+        repo.save(&dummy("old_secret", Sensitivity::Secret, now - 8000), PersistLevel::All)
             .unwrap();
-        repo.save(&dummy("txt", Sensitivity::None, now - 8000), PersistLevel::Sensitive)
+        repo.save(&dummy("new_cred", Sensitivity::Credential, now - 600), PersistLevel::All)
+            .unwrap();
+        repo.save(&dummy("txt", Sensitivity::None, now - 8000), PersistLevel::All)
             .unwrap();
 
-        repo.cleanup(PersistLevel::Sensitive).unwrap();
-        let h = repo.load().unwrap();
-        assert_eq!(h.len(), 2);
-        assert!(!h.iter().any(|x| x.id == "old"));
+        repo.cleanup(&RetentionPolicy::default()).unwrap();
+        let ids: Vec<String> = repo.load().unwrap().into_iter().map(|x| x.id).collect();
+        // Sensitive + stale → gone, even under PersistLevel::All.
+        assert!(!ids.contains(&"old_cred".to_string()));
+        assert!(!ids.contains(&"old_secret".to_string()));
+        // Fresh sensitive and non-sensitive (any age) → kept.
+        assert!(ids.contains(&"new_cred".to_string()));
+        assert!(ids.contains(&"txt".to_string()));
 
-        // PersistLevel::All skips the TTL.
-        repo.save(&dummy("old2", Sensitivity::Credential, now - 8000), PersistLevel::All)
+        // A `None` TTL disables time-based expiry entirely.
+        repo.save(&dummy("old_cred2", Sensitivity::Credential, now - 8000), PersistLevel::All)
             .unwrap();
-        repo.cleanup(PersistLevel::All).unwrap();
-        assert!(repo.load().unwrap().iter().any(|x| x.id == "old2"));
+        let no_ttl = RetentionPolicy {
+            sensitive_ttl_secs: None,
+            ..RetentionPolicy::default()
+        };
+        repo.cleanup(&no_ttl).unwrap();
+        assert!(repo.load().unwrap().iter().any(|x| x.id == "old_cred2"));
 
         let _ = std::fs::remove_file(&db);
     }

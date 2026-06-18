@@ -45,6 +45,24 @@ pub fn encrypt(plaintext: &str, key: &[u8; KEY_LEN]) -> Result<String, String> {
     Ok(STANDARD.encode(blob))
 }
 
+/// Codifica una clave como base64, para guardarla en un almacén de secretos que
+/// solo acepta texto (p. ej. el keyring del SO).
+pub fn key_to_base64(key: &[u8; KEY_LEN]) -> String {
+    STANDARD.encode(key)
+}
+
+/// Decodifica una clave producida por [`key_to_base64`]. Falla si el texto no es
+/// base64 válido o no decodifica a exactamente [`KEY_LEN`] bytes.
+pub fn key_from_base64(s: &str) -> Result<[u8; KEY_LEN], String> {
+    let bytes = STANDARD
+        .decode(s.trim())
+        .map_err(|e| format!("base64: {e}"))?;
+    bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| "clave con tamaño inválido".to_string())
+}
+
 /// Descifra un blob producido por [`encrypt`]. Falla si la clave es incorrecta
 /// o si el contenido fue manipulado.
 pub fn decrypt(blob_b64: &str, key: &[u8; KEY_LEN]) -> Result<String, String> {
@@ -124,5 +142,19 @@ mod tests {
     fn empty_string_round_trip() {
         let key = test_key();
         assert_eq!(decrypt(&encrypt("", &key).unwrap(), &key).unwrap(), "");
+    }
+
+    #[test]
+    fn key_base64_round_trip() {
+        let key = generate_key().unwrap();
+        let encoded = key_to_base64(&key);
+        assert_eq!(key_from_base64(&encoded).unwrap(), key);
+    }
+
+    #[test]
+    fn key_from_base64_rejects_bad_input() {
+        assert!(key_from_base64("not base64!!!").is_err());
+        // Valid base64 but wrong length (16 bytes, not 32).
+        assert!(key_from_base64(&STANDARD.encode([0u8; 16])).is_err());
     }
 }

@@ -17,3 +17,11 @@ arboard = "3"
 lapacho-core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# OS keyring for the encryption key. Linux: persistent D-Bus Secret Service
+# (GNOME Keyring / KWallet); macOS: Keychain; Windows: Credential Manager.
+keyring = { version = "3", features = [
+    "apple-native",
+    "windows-native",
+    "sync-secret-service",
+    "crypto-rust",
+] }
