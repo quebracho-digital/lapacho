@@ -18,6 +18,10 @@ tauri = { version = "2", features = ["tray-icon"] }
 # so it needs no webview capability entry.
 tauri-plugin-global-shortcut = "2"
 arboard = "3"
+# Image clipboard support: PNG encode/decode + tray thumbnail resize.
+image = { version = "0.25", default-features = false, features = ["png"] }
+base64 = { workspace = true }
+uuid = { workspace = true }
 # `mlock`: pin the encryption key into RAM so it never reaches swap.
 lapacho-core = { workspace = true, features = ["mlock"] }
 serde = { workspace = true }

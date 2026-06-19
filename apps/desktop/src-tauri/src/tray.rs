@@ -12,8 +12,9 @@
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use base64::Engine as _;
 use lapacho_core::types::Sensitivity;
-use tauri::menu::{Menu, MenuBuilder, MenuItem, PredefinedMenuItem};
+use tauri::menu::{IconMenuItem, Menu, MenuBuilder, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
 
@@ -57,6 +58,17 @@ fn item_label(display: &str, sensitivity: Sensitivity, content_type: &str) -> St
     }
 }
 
+/// Decodes an 18×18 RGBA thumbnail (base64, as produced by `images.rs`) into a
+/// native menu icon. `None` if it doesn't decode to exactly 18×18×4 bytes.
+fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {
+    let bytes = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
+    if bytes.len() == 18 * 18 * 4 {
+        Some(tauri::image::Image::new_owned(bytes, 18, 18))
+    } else {
+        None
+    }
+}
+
 /// Builds the full tray menu: the newest clips, a separator, then the static
 /// "Abrir Lapacho…" / "Salir" entries.
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
@@ -74,6 +86,15 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         for it in items.iter().take(TRAY_ITEMS) {
             let label = item_label(&it.display_content, it.sensitivity, &it.content_type);
             // The id is the item's UUID; the menu-event handler routes it to copy.
+            // Image items carry their 18×18 thumbnail as a native menu icon.
+            if it.content_type == "image" {
+                if let Some(icon) = it.thumbnail.as_deref().and_then(tray_icon_from_thumb) {
+                    let entry =
+                        IconMenuItem::with_id(app, &it.id, &label, true, Some(icon), None::<&str>)?;
+                    builder = builder.item(&entry);
+                    continue;
+                }
+            }
             let entry = MenuItem::with_id(app, &it.id, &label, true, None::<&str>)?;
             builder = builder.item(&entry);
         }

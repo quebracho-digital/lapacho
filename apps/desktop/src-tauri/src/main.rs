@@ -12,6 +12,7 @@
     windows_subsystem = "windows"
 )]
 
+mod images;
 mod keystore;
 mod tray;
 
@@ -55,6 +56,12 @@ pub(crate) struct AppState {
 fn hash_str(s: &str) -> u64 {
     let mut h = DefaultHasher::new();
     s.hash(&mut h);
+    h.finish()
+}
+
+fn hash_bytes(b: &[u8]) -> u64 {
+    let mut h = DefaultHasher::new();
+    b.hash(&mut h);
     h.finish()
 }
 
@@ -151,10 +158,19 @@ fn load_item(id: &str, state: &AppState) -> Result<ClipboardItem, String> {
 /// Shared by the `copy_item` command and the tray's click handler.
 pub(crate) fn copy_raw(id: &str, state: &AppState) -> Result<(), String> {
     let item = load_item(id, state)?;
+    // Prime the monitor to ignore our own write. Images and text both key off
+    // `raw_content` (for images that's the PNG base64, which the monitor
+    // re-derives deterministically when it reads the image back).
     *state.last_seen.lock().unwrap() = Some(hash_str(&item.raw_content));
 
     let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
-    clipboard.set_text(item.raw_content).map_err(|e| e.to_string())
+    if item.content_type == "image" {
+        let data = images::image_data_from_b64(&item.raw_content)
+            .ok_or_else(|| "imagen inválida en el historial".to_string())?;
+        clipboard.set_image(data).map_err(|e| e.to_string())
+    } else {
+        clipboard.set_text(item.raw_content).map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -178,6 +194,14 @@ struct ExportResult {
 #[tauri::command]
 fn export_item(id: String, state: State<'_, AppState>) -> Result<ExportResult, String> {
     let item = load_item(&id, &state)?;
+    // For images, the "export" is the PNG data-URL; the text threat scanner
+    // doesn't apply to a base64 blob, so skip it.
+    if item.content_type == "image" {
+        return Ok(ExportResult {
+            content: item.display_content,
+            threats: Vec::new(),
+        });
+    }
     let threats = assess(&item.raw_content);
     Ok(ExportResult {
         content: item.raw_content,
@@ -207,6 +231,9 @@ fn run_plugin(
     state: State<'_, AppState>,
 ) -> Result<UIClipboardItem, String> {
     let source = load_item(&item_id, &state)?;
+    if source.content_type == "image" {
+        return Err("Los plugins operan sobre texto, no sobre imágenes.".to_string());
+    }
     let resp = plugins::execute_plugin(&state.plugins_dir, &plugin_id, &source.raw_content)?;
     if !resp.success {
         return Err(resp.error.unwrap_or_else(|| "Plugin failed".to_string()));
@@ -248,40 +275,71 @@ fn run_monitor(
         }
     };
 
-    loop {
-        std::thread::sleep(POLL_INTERVAL);
-
-        let text = match clipboard.get_text() {
-            Ok(t) if !t.is_empty() => t,
-            // Empty, non-text (e.g. an image), or transient read error: skip.
-            _ => continue,
-        };
-
-        let hash = hash_str(&text);
-        {
-            let mut last = last_seen.lock().unwrap();
-            if *last == Some(hash) {
-                continue;
-            }
-            *last = Some(hash);
-        }
-
-        let item = process_text(&text);
+    // Persist (respecting the active level), run retention, push the UI-safe
+    // projection live, and refresh the tray. Shared by the text and image paths.
+    // A failed emit is not swallowed: that's exactly the bug that makes the UI
+    // look like it isn't updating in real time.
+    let persist_and_emit = |item: ClipboardItem| {
         let level = *persist_level.lock().unwrap();
         if let Err(e) = repo.save(&item, level) {
             eprintln!("lapacho: failed to save clipboard item: {e}");
         }
         let policy = *retention.lock().unwrap();
         let _ = repo.cleanup(&policy);
-
-        // Emit the UI-safe projection (masked for credentials/secrets).
-        // Don't swallow the error: a failed emit is exactly the kind of bug
-        // that makes the UI look like it isn't updating in real time.
         if let Err(e) = app.emit(EVENT_NEW_ITEM, UIClipboardItem::from(item)) {
             eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM}: {e}");
         }
-        // Refresh the native tray menu with the new clip at the top.
         tray::schedule_rebuild(&app);
+    };
+
+    // Cheap change-gate so an image sitting on the clipboard isn't re-encoded
+    // to PNG on every poll.
+    let mut last_img_rgba: Option<u64> = None;
+
+    loop {
+        std::thread::sleep(POLL_INTERVAL);
+
+        // 1. Text takes priority over images.
+        if let Ok(text) = clipboard.get_text() {
+            if !text.is_empty() {
+                last_img_rgba = None; // a text copy supersedes the image gate
+                let hash = hash_str(&text);
+                {
+                    let mut last = last_seen.lock().unwrap();
+                    if *last == Some(hash) {
+                        continue;
+                    }
+                    *last = Some(hash);
+                }
+                persist_and_emit(process_text(&text));
+                continue;
+            }
+        }
+
+        // 2. Otherwise, look for an image.
+        if let Ok(img) = clipboard.get_image() {
+            let rgba_hash = hash_bytes(&img.bytes);
+            if last_img_rgba == Some(rgba_hash) {
+                continue; // unchanged image — skip the expensive encode
+            }
+            last_img_rgba = Some(rgba_hash);
+
+            let item = match images::process_image(img.width, img.height, &img.bytes) {
+                Some(it) => it,
+                None => continue,
+            };
+            // Gate on the PNG base64 (deterministic) so copying an image back to
+            // the clipboard isn't re-captured as a brand-new item.
+            let png_hash = hash_str(&item.raw_content);
+            {
+                let mut last = last_seen.lock().unwrap();
+                if *last == Some(png_hash) {
+                    continue;
+                }
+                *last = Some(png_hash);
+            }
+            persist_and_emit(item);
+        }
     }
 }
 

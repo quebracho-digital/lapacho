@@ -5,6 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lapacho</title>
     <link data-trunk rel="rust" data-wasm-opt="z" />
+
+    <!-- Mermaid live-diagram rendering. Vendored (offline), loaded as a UMD
+         global. securityLevel:strict makes mermaid sanitize untrusted input. -->
+    <link data-trunk rel="copy-file" href="vendor/mermaid.min.js" />
+    <script src="mermaid.min.js"></script>
+    <script>
+      if (window.mermaid) {
+        window.mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "strict" });
+      }
+      // Called from Rust (request_animation_frame) once the container is in the
+      // DOM. A no-op if the bundle didn't load, so the source text stays shown.
+      window.renderMermaid = function (elementId, code) {
+        var el = document.getElementById(elementId);
+        if (!el || !window.mermaid || !code) return;
+        try {
+          window.mermaid
+            .render(elementId + "-svg", code)
+            .then(function (r) {
+              var t = document.getElementById(elementId);
+              if (t) t.innerHTML = r.svg;
+            })
+            .catch(function (err) {
+              console.error(err);
+              var t = document.getElementById(elementId);
+              if (t) t.innerHTML = "<div class='mermaid-error'>Mermaid: no se pudo renderizar (revisá la sintaxis).</div>";
+            });
+        } catch (e) {
+          console.error(e);
+        }
+      };
+    </script>
+
     <style>
       :root { color-scheme: dark; }
       * { box-sizing: border-box; }
@@ -98,6 +130,52 @@
       .sev-Danger { background: #3a2020; color: #e89090; }
       .threats-ok { color: #9bd49b; font-size: 12px; margin-top: 8px; }
       .hint { font-size: 11px; opacity: 0.6; margin-top: 4px; }
+
+      /* ---- images ---- */
+      li.item .content img.thumb {
+        max-height: 3.6em; max-width: 100%;
+        border-radius: 4px; border: 1px solid #2a241c; display: block;
+      }
+      .image-view {
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; display: flex; justify-content: center;
+      }
+      .image-view img { max-width: 100%; max-height: 50vh; }
+
+      /* ---- rich preview by detected_type (maximize modal) ---- */
+      .body-render { margin-bottom: 4px; }
+      .svg-preview {
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; display: flex; justify-content: center;
+      }
+      .svg-preview img { max-width: 100%; max-height: 40vh; }
+      .code-pretty {
+        white-space: pre; overflow: auto; tab-size: 2;
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; max-height: 40vh; font-family: monospace; font-size: 12px;
+        margin: 0;
+      }
+      .mermaid-wrap {
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; max-height: 45vh; overflow: auto; display: flex; justify-content: center;
+      }
+      .mermaid { font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+      .mermaid svg { max-width: 100%; height: auto; }
+      .mermaid-error { color: #e89090; font-size: 12px; }
+      .markdown-body {
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px 12px; max-height: 40vh; overflow: auto;
+      }
+      .markdown-body :first-child { margin-top: 0; }
+      .markdown-body :last-child { margin-bottom: 0; }
+      .markdown-body pre {
+        background: #0f0d0a; border-radius: 4px; padding: 8px; overflow: auto;
+      }
+      .markdown-body code { font-family: monospace; font-size: 12px; }
+      .markdown-body a { color: #e0a86a; }
+      .markdown-body img { max-width: 100%; }
+      .markdown-body table { border-collapse: collapse; }
+      .markdown-body th, .markdown-body td { border: 1px solid #3a3228; padding: 2px 6px; }
     </style>
   </head>
   <body></body>

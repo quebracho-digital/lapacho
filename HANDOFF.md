@@ -73,8 +73,7 @@ GNOME) y la fluidez real del menú.
 Diferido (eran "opcionales" en el plan original):
 - **Auto-paste** tras copiar (crate `enigo`, ya en cache local) — simula Ctrl+V;
   necesita prueba por-plataforma.
-- **Icono por ítem** (thumbnail 18×18) en el menú — llega con el soporte de
-  imágenes (paso 3).
+- ~~Icono por ítem (thumbnail 18×18) en el menú~~ → **hecho** con imágenes (#3).
 - **Popup en el cursor** (ventana pre-creada y oculta) como alternativa al menú
   nativo — el menú nativo ya cubre la fluidez; revisar si Leo lo quiere.
 
@@ -99,47 +98,64 @@ Verificado: test `recopy_moves_to_top_instead_of_duplicating` + suite 46/46,
 clippy limpio. (El fixture `dummy` ahora usa contenido único por id, porque con
 dedup reusar un string colapsaría ítems distintos.)
 
-### 3. Soporte de imágenes — PORTAR de RustyBoard
+### 3. Soporte de imágenes — ✅ HECHO (2026-06-19)
 
-El schema ya está listo: `ClipboardItem` tiene `content_type` y
-`thumbnail: Option<String>` (heredados de RustyBoard a propósito).
+Procesamiento en el backend (`apps/desktop/src-tauri/src/images.rs`); core sigue
+puro (sin deps de imagen). Deps nuevas en src-tauri: `image` (feat `png`),
+`base64`, `uuid`.
 
-Deps a sumar al workspace: `image = { version = "0.25", default-features =
-false, features = ["png"] }` (arboard y base64 ya están).
+- **Captura**: el monitor prioriza texto; si no hay, `clipboard.get_image()` →
+  `process_image(w, h, rgba)`. Doble gate: hash de los **bytes RGBA** (barato,
+  evita re-encodear cada 500 ms) + hash del **PNG base64** (determinístico, evita
+  recapturar nuestro propio paste). El dedup por contenido de `storage` es la red
+  de seguridad si el round-trip difiere.
+- **`raw_content`** = PNG base64 crudo; **`display_content`** =
+  `"data:image/png;base64,…"` → el front lo muestra con `<img>` (lista: thumbnail
+  CSS; modal: grande). **`thumbnail`** = RGBA 18×18 base64 → **icono por ítem en
+  el menú del tray** (`IconMenuItem` + `tauri::image::Image::new_owned`).
+- **Pegar de vuelta** (`copy_raw`): si `content_type == "image"`, decodifica
+  `raw_content` → `image::load_from_memory` → `arboard::set_image`.
+- `sensitivity = None`, `detected_type = Text` (la UI/tray ramifican por
+  `content_type == "image"`). El front muestra "Imagen" como etiqueta de tipo.
+- **Export**: para imágenes devuelve el data-URL sin correr `assess` (no es
+  texto). **Plugins**: rechazados sobre imágenes (operan sobre texto).
+- Verificado: 2 tests en `images.rs` (roundtrip + dimensiones inválidas),
+  clippy backend + wasm limpios, `trunk build` OK. **El render real lo probás vos
+  en GUI.**
 
-Approach (con refs a `RustyBoard/src-tauri/src/lib.rs`):
+Pendiente menor: el tamaño del PNG en `display_content` puede inflar el SQLite
+con `max_items=100` (hoy se guarda raw + display); evaluar deduplicar el blob.
 
-- **Captura**: en el monitor, branch `clipboard.get_image()` →
-  `arboard::ImageData { width, height, bytes (RGBA) }`; dedup por hash de bytes
-  (`last_image_hash`). → `process_image` (lib.rs:513).
-- **`display_content`** = `"data:image/png;base64,…"` (PNG completo como data-URL)
-  → el frontend lo muestra con `<img src=… />`. Encode: `encode_image_to_png`
-  (lib.rs:433): `ImageBuffer<Rgba<u8>>::from_raw` → `write_to(Png)` → base64.
-  Render frontend: `RustyBoard/src/app.rs:440`.
-- **`thumbnail`** = base64 de un RGBA **18×18 crudo** (no PNG; `18*18*4` bytes),
-  vía `image::imageops::resize(…, 18, 18, Lanczos3)` → `generate_image_thumbnail`
-  (lib.rs:450). Sirve de **icono del tray** (`tauri::image::Image::new_owned`).
-- **Pegar de vuelta**: data-URL → bytes → `image::load_from_memory` →
-  `to_rgba8()` → `arboard::ImageData` → `clipboard.set_image()` (lib.rs:84).
+### 4. Render por `detected_type` (frontend) — ✅ HECHO (2026-06-19)
 
-Específico de lapacho (decisiones a tomar):
+Render rico **en el modal de "maximizar"**, con toggle **Raw/Vista** (la lista se
+mantiene compacta y fluida). Solo se renderiza si el ítem **no es sensible**
+(los sensibles llegan redactados). En `apps/desktop/ui/src/app.rs`:
 
-- `sensitivity = None` (no hay clasificación de texto en imágenes).
-- `detected_type`: hoy `DetectedType` no tiene variante `Image`; o se agrega, o se
-  distingue solo por `content_type == "image"` (como RustyBoard).
-- **Cifrado**: el data-URL y el thumbnail se cifran como strings (el `Cipher` ya
-  opera sobre cualquier String). Cuidado con el **tamaño**: un PNG completo en
-  `display_content` puede inflar el SQLite con `max_items=100`. Evaluar guardar
-  los bytes una sola vez (no duplicar en raw + display).
-- **Amenazas / export**: `threats::assess` corre sobre texto. Para imágenes,
-  saltear el escaneo (un data-URL base64 no tiene amenazas de texto) o tratarlo
-  aparte. El "export" de una imagen es el data-URL.
-- `run_monitor` hoy solo hace `get_text()`; sumar la rama `get_image()`.
+- **SVG** → `<img src="data:image/svg+xml;base64,…">`. **Decisión de seguridad:**
+  NO se usa `innerHTML` (como RustyBoard) sino `<img>`, así un script dentro del
+  SVG no puede ejecutarse ni tocar el bridge de Tauri. Más seguro que RustyBoard.
+- **Markdown** → `pulldown-cmark` (Rust→wasm). Se escapa el HTML crudo del origen
+  y se neutralizan links `javascript:`/`data:` antes de inyectar (único path con
+  `inner_html`).
+- **JSON** → `serde_json` pretty-print (fallback al raw si no parsea).
+- **Mermaid** → **diagrama vivo** (decisión de Leo). `mermaid.min.js` vendorizado
+  en `apps/desktop/ui/vendor/` (UMD, ~3.2MB, `mermaid@10`), copiado por Trunk
+  (`copy-file`) e iniciado con `securityLevel: "strict"`. El render se dispara con
+  `request_animation_frame` tras montar el contenedor; `window.renderMermaid`
+  (index.html) hace `mermaid.render` → SVG. **Degradación:** si falta el bundle,
+  el contenedor sigue mostrando el código fuente. `extract_mermaid_code` pela el
+  fence ```` ```mermaid ````.
+  - ⚠️ **`vendor/mermaid.min.js` NO está versionado aún** (untracked; `dist/` sí
+    está en `.gitignore`, `vendor/` no). Decidir: commitear el blob (~3.2MB, build
+    offline reproducible) o gitignorearlo + script de descarga. Sin ese archivo,
+    el diagrama no renderiza (cae a vista de código).
+- **URL/Text** → texto plano (igual que RustyBoard).
 
-### 4. Render por `detected_type` (frontend)
-
-SVG inline (ya saneado en backend), Markdown, JSON formateado, preview de Mermaid.
-RustyBoard tiene render por `content_type` en `src/app.rs` como referencia.
+Deps UI nuevas: `pulldown-cmark` (feat `html`, sin `getopts`), `serde_json`,
+`base64`. Verificado: `cargo clippy --target wasm32` limpio + `trunk build` OK.
+**El wasm dev subió 1.9→2.9 MB** → ver paso #8 (`--release` lo achica mucho).
+Pendiente render inline en la lista (thumbnails) — va con imágenes (#3).
 
 ### 5. Búsqueda / filtrado del historial.
 
@@ -151,7 +167,8 @@ RustyBoard tiene render por `content_type` en `src/app.rs` como referencia.
   `security.rs`.
 - Más detectores en `threats::REGISTRY` (SQL injection, XSS avanzado) — el registro
   modular ya lo soporta sin tocar `assess()`.
-- `trunk build --release` para optimizar el wasm (hoy 1.9 MB sin optimizar).
+- `trunk build --release` para optimizar el wasm (hoy ~2.9 MB sin optimizar;
+  `mermaid.min.js` ~3.2 MB es asset JS aparte, no entra al wasm).
 - Decidir si versionar `apps/desktop/src-tauri/gen/`.
 
 ---
