@@ -13,10 +13,12 @@
     "withGlobalTauri": true,
     "windows": [
       {
+        "label": "main",
         "title": "Lapacho",
         "width": 440,
         "height": 660,
-        "resizable": true
+        "resizable": true,
+        "visible": false
       }
     ],
     "security": {

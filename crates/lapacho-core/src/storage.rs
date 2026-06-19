@@ -43,6 +43,11 @@ impl Default for RetentionPolicy {
 /// different impl.
 pub trait HistoryRepo: Send + Sync {
     /// Persists `item` if `level` allows it; a no-op (returns `Ok`) otherwise.
+    ///
+    /// Identity is the **content**: if an item with the same `raw_content`
+    /// already exists, it is moved to the top (its timestamp refreshed) instead
+    /// of inserting a duplicate — re-copying an old clip resurfaces it, the way
+    /// Diodon de-dupes by content hash.
     fn save(&self, item: &ClipboardItem, level: PersistLevel) -> Result<(), String>;
     /// Returns the most recent history, newest first.
     fn load(&self) -> Result<Vec<ClipboardItem>, String>;
@@ -117,6 +122,38 @@ impl SqliteRepo {
         );
         Ok(())
     }
+
+    /// Returns the id of an already-stored item whose content equals `raw`
+    /// (newest first), or `None`. This is how `save` de-dupes by content.
+    ///
+    /// We compare **decrypted** plaintext rather than storing a content hash on
+    /// purpose: a hash in the clear would let anyone with the database confirm a
+    /// guessed value (dictionary attack), weakening encryption at rest. The
+    /// history is small (capped by [`RetentionPolicy::max_items`]), so scanning
+    /// and decrypting it on save is cheap.
+    fn existing_id_for_content(
+        &self,
+        conn: &Connection,
+        raw: &str,
+    ) -> Result<Option<String>, String> {
+        let mut stmt = conn
+            .prepare("SELECT id, raw_content FROM history ORDER BY timestamp DESC")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| e.to_string())?;
+        for (id, enc_raw) in rows.flatten() {
+            // Skip rows that don't decrypt (wrong key / legacy), like `load`.
+            if let Ok(plain) = self.cipher.decrypt(&enc_raw) {
+                if plain == raw {
+                    return Ok(Some(id));
+                }
+            }
+        }
+        Ok(None)
+    }
 }
 
 impl HistoryRepo for SqliteRepo {
@@ -130,11 +167,24 @@ impl HistoryRepo for SqliteRepo {
             return Ok(());
         }
 
+        let conn = self.conn()?;
+
+        // Content dedup: if this exact content is already stored, move it to the
+        // top (refresh its timestamp) instead of inserting a duplicate, keeping
+        // the original id. Re-copying an old clip resurfaces it.
+        if let Some(existing_id) = self.existing_id_for_content(&conn, &item.raw_content)? {
+            conn.execute(
+                "UPDATE history SET timestamp = ?1 WHERE id = ?2",
+                params![item.timestamp, existing_id],
+            )
+            .map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+
         // Encryption at rest: the clipboard content never hits the disk in clear.
         let enc_raw = self.cipher.encrypt(&item.raw_content)?;
         let enc_display = self.cipher.encrypt(&item.display_content)?;
 
-        let conn = self.conn()?;
         conn.execute(
             "INSERT OR REPLACE INTO history
              (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail)
@@ -299,7 +349,9 @@ mod tests {
     fn dummy(id: &str, sensitivity: Sensitivity, ts: u64) -> ClipboardItem {
         ClipboardItem {
             id: id.to_string(),
-            raw_content: "raw".into(),
+            // Distinct content per id: identity is the content, so reusing one
+            // string across ids would (correctly) de-dupe them into one row.
+            raw_content: format!("raw-{id}"),
             display_content: "display".into(),
             content_type: "text".into(),
             sensitivity,
@@ -391,6 +443,37 @@ mod tests {
 
         repo.clear().unwrap();
         assert!(repo.load().unwrap().is_empty());
+
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn recopy_moves_to_top_instead_of_duplicating() {
+        let (repo, db) = repo();
+
+        // Two distinct clips (dummy gives "raw-a" / "raw-b").
+        repo.save(&dummy("a", Sensitivity::None, 1000), PersistLevel::All)
+            .unwrap();
+        repo.save(&dummy("b", Sensitivity::None, 1001), PersistLevel::All)
+            .unwrap();
+        assert_eq!(repo.load().unwrap().len(), 2);
+
+        // Re-copying "a"'s content arrives as a brand-new item: fresh uuid,
+        // later timestamp, identical raw content.
+        let mut again = dummy("a-again", Sensitivity::None, 2000);
+        again.raw_content = "raw-a".into();
+        repo.save(&again, PersistLevel::All).unwrap();
+
+        let h = repo.load().unwrap();
+        // No duplicate row was created.
+        assert_eq!(h.len(), 2);
+        // The re-copied content moved to the top, keeping the original id and
+        // taking the refreshed timestamp.
+        assert_eq!(h[0].raw_content, "raw-a");
+        assert_eq!(h[0].id, "a");
+        assert_eq!(h[0].timestamp, 2000);
+        // The other item is untouched.
+        assert!(h.iter().any(|x| x.id == "b" && x.raw_content == "raw-b"));
 
         let _ = std::fs::remove_file(&db);
     }

@@ -14,7 +14,8 @@ intacto, se *renderiza* saneado, y al exportar se avisa de amenazas sin alterarl
 - `security` — saneo (texto + SVG) y clasificación de sensibilidad (regex + entropía).
 - `ingest` — pipeline que compone todo + enmascarado para display.
 - `storage` — **abstracción `HistoryRepo`** (trait) sobre SQLite (WAL); niveles de
-  persistencia, **TTL de sensibles configurable** (`RetentionPolicy`) y cap de tamaño.
+  persistencia, **TTL de sensibles configurable** (`RetentionPolicy`), cap de tamaño
+  y **dedup por contenido** (recopiar mueve al tope, no duplica — sin hash en claro).
 - `crypto` — **AES-256-GCM en reposo**; `SecretKey` (zeroize) + `Cipher` residente
   (boxed, zeroize, mlock opcional vía feature `mlock`).
 - `threats` — **escáner modular** (trait `Detector` + `REGISTRY`): active-content,
@@ -48,9 +49,11 @@ intacto, se *renderiza* saneado, y al exportar se avisa de amenazas sin alterarl
 
 ### 🎨 Frontend / UX
 
-- [ ] **Bandeja del sistema + atajo global (Ctrl+Shift+V) + popup en el cursor**,
-  lanzando solo a tray. *Prioridad* — el listado del tray debe sentirse fluido
-  (ventana pre-creada y oculta, no recrear en cada apertura; posicionar al cursor).
+- [x] **Bandeja del sistema (menú nativo) + atajo global (Ctrl+Shift+V), lanzando
+  solo a tray** (`src-tauri/src/tray.rs`). El listado es un menú nativo del
+  indicador (fluido, no webview), reconstruido debounced en cada cambio. *Falta
+  probar en GUI real.* Diferido: auto-paste (`enigo`), icono por ítem (con
+  imágenes), y el popup-en-el-cursor (el menú nativo ya da la fluidez).
 - [ ] Render por `detected_type`: SVG inline (saneado), Markdown, JSON formateado,
   preview de Mermaid.
 - [ ] Búsqueda / filtrado del historial.
