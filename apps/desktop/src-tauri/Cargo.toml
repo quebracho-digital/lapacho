@@ -11,6 +11,11 @@ rust-version.workspace = true
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[dev-dependencies]
+# Lets the image-sanitization tests build a PNG that *carries* a tEXt metadata
+# chunk, to prove our re-encode strips it. Same major as `image`'s `png` dep.
+png = "0.17"
+
 [dependencies]
 # `tray-icon`: native system-tray indicator + menu (the fluid recent-clips list).
 tauri = { version = "2", features = ["tray-icon"] }
