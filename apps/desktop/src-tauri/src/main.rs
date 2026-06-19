@@ -22,7 +22,7 @@ use std::time::Duration;
 
 use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
 use lapacho_core::types::{PersistLevel, UIClipboardItem};
-use lapacho_core::{PluginDefinition, PluginResponse, plugins, process_text};
+use lapacho_core::{PluginDefinition, PluginResponse, disclose, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// How often the monitor polls the system clipboard.
@@ -124,20 +124,38 @@ fn set_sensitive_ttl(secs: Option<u64>, state: State<'_, AppState>) -> Result<()
     state.repo.cleanup(&policy)
 }
 
-/// Copies a stored item's original content back to the system clipboard.
-/// The monitor is primed to ignore this value so it is not re-captured.
-#[tauri::command]
-fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
+/// Loads a single history item by id and resolves the content the active
+/// persistence level allows to leave the backend (the "doble vía"). This is the
+/// shared seam behind every outbound channel — `copy_item`, `export_item`, and
+/// eventually plugins — so disclosure is decided in exactly one place.
+fn disclosed_content(id: &str, state: &AppState) -> Result<String, String> {
+    let level = *state.persist_level.lock().unwrap();
     let items = state.repo.load()?;
     let item = items
         .into_iter()
         .find(|i| i.id == id)
         .ok_or_else(|| "Item not found in history".to_string())?;
+    Ok(disclose(&item, level).to_string())
+}
 
-    *state.last_seen.lock().unwrap() = Some(hash_str(&item.raw_content));
+/// Copies a stored item back to the system clipboard, disclosing raw or
+/// sanitized content per the active persistence level. The monitor is primed
+/// with exactly what we write so it is not re-captured as a new item.
+#[tauri::command]
+fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let content = disclosed_content(&id, &state)?;
+    *state.last_seen.lock().unwrap() = Some(hash_str(&content));
 
     let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
-    clipboard.set_text(item.raw_content).map_err(|e| e.to_string())
+    clipboard.set_text(content).map_err(|e| e.to_string())
+}
+
+/// Returns a stored item's content for decoupling (save to a file, share, etc.).
+/// Governed by the same disclosure policy as `copy_item`: in a paranoid
+/// persistence level the export comes back sanitized, never the raw secret.
+#[tauri::command]
+fn export_item(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    disclosed_content(&id, &state)
 }
 
 #[tauri::command]
@@ -268,6 +286,7 @@ fn main() {
             get_sensitive_ttl,
             set_sensitive_ttl,
             copy_item,
+            export_item,
             list_plugins,
             run_plugin
         ])
