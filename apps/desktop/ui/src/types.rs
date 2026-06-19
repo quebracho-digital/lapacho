@@ -8,7 +8,7 @@
 
 use serde::Deserialize;
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub enum Sensitivity {
     None,
     Personal,
@@ -31,7 +31,7 @@ impl Sensitivity {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub enum DetectedType {
     Text,
     Svg,

@@ -54,11 +54,17 @@ intacto, se *renderiza* saneado, y al exportar se avisa de amenazas sin alterarl
   indicador (fluido, no webview), reconstruido debounced en cada cambio. *Falta
   probar en GUI real.* Diferido: auto-paste (`enigo`), icono por ítem (con
   imágenes), y el popup-en-el-cursor (el menú nativo ya da la fluidez).
-- [ ] Render por `detected_type`: SVG inline (saneado), Markdown, JSON formateado,
-  preview de Mermaid.
+- [x] Render por `detected_type` en el modal de maximizar (toggle Raw/Vista):
+  **SVG** (vía `<img data:>`, no innerHTML — más seguro), **Markdown**
+  (`pulldown-cmark`), **JSON** (pretty), **Mermaid** (diagrama vivo con
+  `mermaid.min.js` vendorizado, strict, degrada a código). Falta probar en GUI.
 - [ ] Búsqueda / filtrado del historial.
-- [ ] Soporte de imágenes (thumbnail RGBA 18×18 ya previsto en `ClipboardItem`).
-- [ ] Optimizar el wasm para release (`trunk build --release`; hoy 1.9 MB sin optimizar).
+- [x] Soporte de imágenes: captura `get_image()`, PNG data-URL + thumbnail 18×18
+  (`src-tauri/src/images.rs`), `<img>` en lista/modal y **icono por ítem en el
+  tray**, pegar de vuelta con `set_image`. Falta probar en GUI.
+- [ ] Optimizar el wasm para release (`trunk build --release`; hoy ~2.9 MB sin
+  optimizar tras sumar markdown/json/base64). Aparte: `mermaid.min.js` ~3.2 MB es
+  un asset JS separado (no entra al wasm).
 
 ### 🔐 Seguridad
 

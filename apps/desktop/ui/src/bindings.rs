@@ -18,6 +18,18 @@ extern "C" {
 
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "event"])]
     async fn listen(event: &str, handler: &js_sys::Function) -> JsValue;
+
+    // `window.renderMermaid(elementId, code)` is defined in index.html. It is a
+    // no-op if the mermaid bundle failed to load, so calling it is always safe.
+    #[wasm_bindgen(js_namespace = window, js_name = renderMermaid)]
+    fn render_mermaid_raw(element_id: &str, code: &str);
+}
+
+/// Renders a Mermaid diagram into the DOM element `element_id`, replacing its
+/// contents with the generated (mermaid-sanitized) SVG. If the bundle is
+/// missing, the element keeps showing the diagram source as plain text.
+pub fn render_mermaid(element_id: &str, code: &str) {
+    render_mermaid_raw(element_id, code);
 }
 
 /// Turn a rejected-promise value into a readable error string.

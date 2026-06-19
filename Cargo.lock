@@ -2137,6 +2137,8 @@ name = "lapacho-desktop"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "base64 0.22.1",
+ "image",
  "keyring",
  "lapacho-core",
  "libc",
@@ -2145,6 +2147,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-global-shortcut",
+ "uuid",
 ]
 
 [[package]]
