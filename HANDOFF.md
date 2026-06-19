@@ -140,16 +140,15 @@ mantiene compacta y fluida). Solo se renderiza si el ítem **no es sensible**
   `inner_html`).
 - **JSON** → `serde_json` pretty-print (fallback al raw si no parsea).
 - **Mermaid** → **diagrama vivo** (decisión de Leo). `mermaid.min.js` vendorizado
-  en `apps/desktop/ui/vendor/` (UMD, ~3.2MB, `mermaid@10`), copiado por Trunk
-  (`copy-file`) e iniciado con `securityLevel: "strict"`. El render se dispara con
+  en `apps/desktop/ui/vendor/` (UMD, ~3.2MB), copiado por Trunk (`copy-file`) e
+  iniciado con `securityLevel: "strict"`. El render se dispara con
   `request_animation_frame` tras montar el contenedor; `window.renderMermaid`
   (index.html) hace `mermaid.render` → SVG. **Degradación:** si falta el bundle,
   el contenedor sigue mostrando el código fuente. `extract_mermaid_code` pela el
   fence ```` ```mermaid ````.
-  - ⚠️ **`vendor/mermaid.min.js` NO está versionado aún** (untracked; `dist/` sí
-    está en `.gitignore`, `vendor/` no). Decidir: commitear el blob (~3.2MB, build
-    offline reproducible) o gitignorearlo + script de descarga. Sin ese archivo,
-    el diagrama no renderiza (cae a vista de código).
+  - `vendor/mermaid.min.js` **versionado en el repo** (decisión 2026-06-19):
+    build offline reproducible, sin dependencia de CDN en CI ni en máquinas sin
+    internet. Ver protocolo de actualización en §&nbsp;"Dependencias vendorizadas".
 - **URL/Text** → texto plano (igual que RustyBoard).
 
 Deps UI nuevas: `pulldown-cmark` (feat `html`, sin `getopts`), `serde_json`,
@@ -180,6 +179,217 @@ Se toma la **UX del tray** (menú nativo + dedup por hash + auto-paste opcional)
 compartido por el sistema, sin mantenimiento) — incompatible con la tesis de
 lapacho (cifrado en reposo, retención/TTL deliberada). Tampoco se busca
 "historial infinito": lapacho expira sensibles a propósito.
+
+## Dependencias vendorizadas
+
+Assets JS incluidos en el repo para builds offline reproducibles. Actualizar bajo
+protocolo explícito; **no tocar sin seguir los pasos de verificación**.
+
+| Asset | Versión | SHA-256 | Ruta |
+|-------|---------|---------|------|
+| mermaid.min.js | 3.4.2 | `eda3a0ad572bbe69a318c1be0163e8233dd824f3f12939e5168feba207767151` | `apps/desktop/ui/vendor/` |
+
+### Cuándo revisar
+
+- **Mensual** (primera semana): revisar si hay versión nueva.
+- **Inmediato** si aparece un CVE que afecte XSS / parsing en Mermaid (este
+  renderer recibe input directo del portapapeles).
+
+### Chequear si hay actualización
+
+```bash
+# Versión latest en npm (no instala nada)
+npm show mermaid version
+
+# Changelog desde la versión actual:
+# https://github.com/mermaid-js/mermaid/releases
+```
+
+Comparar con la versión registrada en la tabla de arriba.
+Si hay versión nueva **y** el changelog no muestra breaking changes relevantes
+(API de `mermaid.render()`, `securityLevel`, inicialización UMD), **esperar 2–3
+semanas** antes de actualizar — salvo CVE activo. Ese tiempo deja que la
+comunidad reporte regressions o problemas silenciosos antes de que los
+absorbamos.
+
+### Protocolo de actualización
+
+```bash
+# 1. Descargar el nuevo bundle
+NEW=<VERSION>   # ej. 11.4.1
+curl -fLo apps/desktop/ui/vendor/mermaid.min.js \
+  "https://cdn.jsdelivr.net/npm/mermaid@${NEW}/dist/mermaid.min.js"
+
+# 2. Verificar integridad
+sha256sum apps/desktop/ui/vendor/mermaid.min.js
+# Comparar con el hash publicado en el release de GitHub o en npm:
+#   npm show mermaid@${NEW} dist.integrity    (formato sha512, alternativo)
+# Si no coincide: ABORT y reportar.
+
+# 3. Confirmar versión embebida
+grep -oP 'version="\K[^"]+' apps/desktop/ui/vendor/mermaid.min.js | head -1
+```
+
+### Tests antes de commitear
+
+#### A — Análisis estático del bundle (offline, antes de arrancar la app)
+
+```bash
+# 1. Integridad: SHA-256 contra el registrado en la tabla y contra npm
+sha256sum apps/desktop/ui/vendor/mermaid.min.js
+npm show mermaid@<VERSION> dist.shasum   # sha1 del tarball; cruzar también
+#    con el hash del release de GitHub (Assets → mermaid.min.js)
+
+# 2. Versión embebida: debe coincidir exactamente con lo que descargaste
+grep -oP 'version="\K[^"]+' apps/desktop/ui/vendor/mermaid.min.js | head -1
+
+# 3. Delta de tamaño: ±20 % del anterior es normal; más = investigar
+wc -c apps/desktop/ui/vendor/mermaid.min.js
+
+# 4. Strings prohibidos: ninguno de estos tiene lugar en un renderer de diagramas
+grep -c '__TAURI__'           apps/desktop/ui/vendor/mermaid.min.js   # debe ser 0
+grep -c 'document\.cookie'   apps/desktop/ui/vendor/mermaid.min.js   # debe ser 0
+grep -c 'navigator\.sendBeacon' apps/desktop/ui/vendor/mermaid.min.js # debe ser 0
+grep -c 'XMLHttpRequest'      apps/desktop/ui/vendor/mermaid.min.js   # debe ser 0 o mínimo (Mermaid 10+ no lo usa)
+# Si __TAURI__ aparece → ABORT, no commitear, reportar supply-chain incident.
+```
+
+#### B — Build y suite automatizada
+
+```bash
+cargo test --workspace                                   # 46+ tests core+backend
+cd apps/desktop/ui && trunk build                        # Trunk copia el asset
+cargo clippy --target wasm32-unknown-unknown             # wasm limpio
+```
+
+Verificar también que `index.html` sigue inicializando Mermaid con
+`{ startOnLoad: false, securityLevel: "strict" }` — si la nueva versión
+renombra o depreca alguna de estas claves, el CHANGELOG lo dirá.
+
+#### C — Payloads de runtime (manual, GUI, lapacho-específicos)
+
+**Contexto del riesgo:** `withGlobalTauri: true` → cualquier JS en el webview
+puede llamar `copy_item` (escribe al portapapeles), `export_item` (devuelve raw),
+`run_plugin` (lanza proceso hijo), `clear_history`. Hay **dos capas** de defensa:
+
+1. **Mermaid `securityLevel:"strict"`** — renderiza en iframe sandboxed; el SVG
+   resultante debe salir sin event handlers ejecutables.
+2. **CSP `script-src 'self' 'wasm-unsafe-eval' blob:`** (sin `'unsafe-inline'`) —
+   incluso si Mermaid falla en sanitizar un `onload`/`onerror`, el browser lo
+   bloquea antes de ejecutar. El script inline fue extraído a
+   `vendor/mermaid-init.js` para no necesitar `'unsafe-inline'`.
+
+Los tests C verifican que **ambas capas** siguen firmes en la versión nueva.
+
+**Preparación:** anotar cuántos ítems tiene el historial antes de los tests.
+Abrir DevTools del webview (si está disponible en Tauri dev).
+
+**C1 — Event handler en etiqueta de nodo**
+```
+```mermaid
+flowchart LR
+  A["<img src=x onerror=window.__TAURI__.core.invoke('clear_history')>"] --> B
+```
+```
+Esperado: el historial NO se borra. El `onerror` no debe ejecutarse.
+
+**C2 — SVG con `onload` (vector clásico)**
+```
+```mermaid
+flowchart LR
+  A["<svg onload=window.__TAURI__.core.invoke('clear_history')>pwned</svg>"] --> B
+```
+```
+Esperado: historial intacto; ningún comando invocado.
+
+**C3 — Script tag explícito**
+```
+```mermaid
+flowchart LR
+  A["<script>window.__TAURI__.core.invoke('clear_history')</script>"] --> B
+```
+```
+Esperado: historial intacto; el `<script>` es strip-eado por el sanitizador.
+
+**C4 — Exfiltración de historia via copy_item**
+```
+```mermaid
+flowchart LR
+  A["<img src=x onerror=window.__TAURI__.core.invoke('copy_item',{id:'cualquier-id-real'})>"] --> B
+```
+```
+Esperado: portapapeles NO sobreescrito con el contenido del ítem.
+
+**C5 — Ejecución de plugin via XSS**
+```
+```mermaid
+flowchart LR
+  A["<img src=x onerror=window.__TAURI__.core.invoke('run_plugin',{pluginId:'x',itemId:'y'})>"] --> B
+```
+```
+Esperado: ningún proceso hijo lanzado; el historial no adquiere ítems nuevos
+inesperados.
+
+**Verificación post-C:** el conteo de ítems en el historial debe ser igual al
+inicial. Si algún test falla (comando ejecutado = el sanitizador cedió):
+ABORT → no actualizar → aplicar el plan de CVE activo de la sección anterior.
+
+#### D — Aislamiento de red
+
+Mermaid no debería hacer llamadas de red durante el render. Verificar mientras
+se renderiza un diagrama real en la app:
+
+```bash
+# En otra terminal mientras la app renderiza un diagrama
+ss -tnp | grep lapacho
+# No debe aparecer ninguna conexión saliente nueva
+```
+
+Si aparece tráfico hacia un CDN externo → nueva versión cambió comportamiento
+(fonts, analytics, etc.) → revisar changelog y decidir si aceptar.
+
+#### E — Golden path (regresión de UX)
+
+Copiar este bloque al portapapeles y abrir el modal en la app:
+
+```
+```mermaid
+flowchart LR
+  A[Inicio] --> B{¿OK?}
+  B -->|Sí| C[Fin]
+  B -->|No| D[Reintentar]
+```
+```
+
+Verificar: diagrama SVG visible (no texto crudo), toggle Raw/Vista funciona,
+cerrar modal limpia el estado.
+
+### Si se encuentra un CVE activo
+
+1. Evaluar si el CVE es alcanzable. La defensa actual es `securityLevel:"strict"`
+   (iframe sandboxed). **No hay CSP configurada** (`csp: null` en `tauri.conf.json`)
+   + `withGlobalTauri: true` → si el sandboxing cede, el JS en el webview accede
+   directamente a `copy_item`, `export_item`, `run_plugin`. Asumir alcanzable
+   salvo prueba en contrario.
+2. Si es alcanzable: **deshabilitar el renderer Mermaid temporalmente** — en
+   `app.rs`, el bloque `DetectedType::Mermaid` cae al brazo `_` (texto plano)
+   con solo cambiar el match. Commitear hotfix.
+3. Actualizar a la versión parcheada siguiendo el protocolo de arriba.
+4. Re-habilitar y ejecutar los tests C completos antes de commitear.
+
+**CSP configurada (2026-06-19):** `tauri.conf.json` ya tiene
+`script-src 'self' 'wasm-unsafe-eval' blob:` sin `'unsafe-inline'`. El script
+inline de Mermaid fue movido a `vendor/mermaid-init.js`. Verificado headless
+(`trunk build` limpio). **Validar en GUI** que WASM y Mermaid cargan — si algo
+falla (pantalla en blanco o diagrama no renderiza), ajustar `connect-src` o
+`frame-src` para el WebKit2GTK de la plataforma.
+
+### Después de actualizar
+
+Editar la tabla de §&nbsp;"Dependencias vendorizadas" con la nueva versión y el
+nuevo SHA-256, luego commitear `vendor/mermaid.min.js` junto con HANDOFF.md.
+
+---
 
 ## Mapa de archivos
 
