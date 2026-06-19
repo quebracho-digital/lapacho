@@ -64,16 +64,17 @@ pub trait HistoryRepo: Send + Sync {
 /// reads or deletes.
 pub struct SqliteRepo {
     db_path: PathBuf,
-    key: [u8; crypto::KEY_LEN],
+    cipher: crypto::Cipher,
 }
 
 impl SqliteRepo {
     /// Opens (creating and migrating if needed) the history database at
-    /// `db_path`, encrypting content with `key`.
-    pub fn new(db_path: impl Into<PathBuf>, key: [u8; crypto::KEY_LEN]) -> Result<Self, String> {
+    /// `db_path`, encrypting content with `key`. The key is consumed to build a
+    /// resident [`Cipher`] and then dropped (zeroized).
+    pub fn new(db_path: impl Into<PathBuf>, key: crypto::SecretKey) -> Result<Self, String> {
         let repo = Self {
             db_path: db_path.into(),
-            key,
+            cipher: crypto::Cipher::new(&key),
         };
         repo.init()?;
         Ok(repo)
@@ -130,8 +131,8 @@ impl HistoryRepo for SqliteRepo {
         }
 
         // Encryption at rest: the clipboard content never hits the disk in clear.
-        let enc_raw = crypto::encrypt(&item.raw_content, &self.key)?;
-        let enc_display = crypto::encrypt(&item.display_content, &self.key)?;
+        let enc_raw = self.cipher.encrypt(&item.raw_content)?;
+        let enc_display = self.cipher.encrypt(&item.display_content)?;
 
         let conn = self.conn()?;
         conn.execute(
@@ -193,11 +194,11 @@ impl HistoryRepo for SqliteRepo {
         for r in rows.flatten() {
             // Rows that don't decrypt (wrong key, corruption, legacy plaintext)
             // are skipped rather than aborting the whole load.
-            let raw_content = match crypto::decrypt(&r.enc_raw, &self.key) {
+            let raw_content = match self.cipher.decrypt(&r.enc_raw) {
                 Ok(v) => v,
                 Err(_) => continue,
             };
-            let display_content = match crypto::decrypt(&r.enc_display, &self.key) {
+            let display_content = match self.cipher.decrypt(&r.enc_display) {
                 Ok(v) => v,
                 Err(_) => continue,
             };
@@ -272,7 +273,7 @@ impl HistoryRepo for SqliteRepo {
 /// Convenience for callers (and tests) that just need a path + key to bring up a
 /// repository. Equivalent to [`SqliteRepo::new`]; spelled out as a free function
 /// so call sites read as "open the history at this path".
-pub fn open(db_path: &Path, key: [u8; crypto::KEY_LEN]) -> Result<SqliteRepo, String> {
+pub fn open(db_path: &Path, key: crypto::SecretKey) -> Result<SqliteRepo, String> {
     SqliteRepo::new(db_path, key)
 }
 
@@ -291,7 +292,7 @@ mod tests {
 
     fn repo() -> (SqliteRepo, PathBuf) {
         let db = std::env::temp_dir().join(format!("lp_test_{}.db", uuid::Uuid::new_v4()));
-        let repo = SqliteRepo::new(&db, TEST_KEY).unwrap();
+        let repo = SqliteRepo::new(&db, crypto::SecretKey::from_bytes(TEST_KEY)).unwrap();
         (repo, db)
     }
 
@@ -419,7 +420,7 @@ mod tests {
         assert_eq!(h[0].raw_content, marker);
 
         // A repo with the wrong key over the same file recovers nothing.
-        let wrong = SqliteRepo::new(&db, [1u8; 32]).unwrap();
+        let wrong = SqliteRepo::new(&db, crypto::SecretKey::from_bytes([1u8; 32])).unwrap();
         assert!(wrong.load().unwrap().is_empty());
 
         let _ = std::fs::remove_file(&db);

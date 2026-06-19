@@ -212,7 +212,21 @@ fn run_monitor(
 // Entry point
 // ---------------------------------------------------------------------------
 
+/// Disables core dumps so a crash can't write decrypted secrets (clipboard
+/// content, key material) to a core file. Linux-only; a no-op elsewhere.
+#[cfg(target_os = "linux")]
+fn harden_process() {
+    // SAFETY: prctl with PR_SET_DUMPABLE is a simple, thread-safe process flag.
+    unsafe {
+        libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0);
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn harden_process() {}
+
 fn main() {
+    harden_process();
     tauri::Builder::default()
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;

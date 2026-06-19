@@ -14,9 +14,14 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 arboard = "3"
-lapacho-core = { workspace = true }
+# `mlock`: pin the encryption key into RAM so it never reaches swap.
+lapacho-core = { workspace = true, features = ["mlock"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# Linux-only: disable core dumps so a crash can't spill secrets to a core file.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
 # OS keyring for the encryption key. Linux: persistent D-Bus Secret Service
 # (GNOME Keyring / KWallet); macOS: Keychain; Windows: Credential Manager.
 keyring = { version = "3", features = [
