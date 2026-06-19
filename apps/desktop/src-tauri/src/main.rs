@@ -22,7 +22,7 @@ use std::time::Duration;
 
 use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
 use lapacho_core::types::{ClipboardItem, PersistLevel, UIClipboardItem};
-use lapacho_core::{PluginDefinition, PluginResponse, Threat, assess, plugins, process_text};
+use lapacho_core::{PluginDefinition, Threat, assess, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// How often the monitor polls the system clipboard.
@@ -175,13 +175,42 @@ fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginDefinition>, Str
     plugins::load_plugins(&state.plugins_dir)
 }
 
+/// Runs a plugin over a stored item's **raw** content and saves the plugin's
+/// output as a new history item.
+///
+/// The plugin receives the original content intact (the "doble vía": plugins
+/// operate on raw, never on the masked projection). Its output is routed back
+/// through the same ingest pipeline as the clipboard monitor, so the response
+/// is stored raw and gets a freshly classified, sanitized display — masked if
+/// the plugin happened to produce a secret. The new item is emitted to the UI
+/// and returned.
 #[tauri::command]
 fn run_plugin(
     plugin_id: String,
-    input: String,
+    item_id: String,
+    app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<PluginResponse, String> {
-    plugins::execute_plugin(&state.plugins_dir, &plugin_id, &input)
+) -> Result<UIClipboardItem, String> {
+    let source = load_item(&item_id, &state)?;
+    let resp = plugins::execute_plugin(&state.plugins_dir, &plugin_id, &source.raw_content)?;
+    if !resp.success {
+        return Err(resp.error.unwrap_or_else(|| "Plugin failed".to_string()));
+    }
+
+    // Store the output raw; the pipeline derives the sanitized display. Saving
+    // respects the active persist level (a no-op if the level forbids it), just
+    // like the monitor — the item is still shown live either way.
+    let item = process_text(&resp.result_raw_content);
+    let level = *state.persist_level.lock().unwrap();
+    if let Err(e) = state.repo.save(&item, level) {
+        eprintln!("lapacho: failed to save plugin output: {e}");
+    }
+
+    let ui = UIClipboardItem::from(item);
+    if let Err(e) = app.emit(EVENT_NEW_ITEM, ui.clone()) {
+        eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM} for plugin output: {e}");
+    }
+    Ok(ui)
 }
 
 // ---------------------------------------------------------------------------
