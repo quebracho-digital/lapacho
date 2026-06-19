@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "identifier": "digital.quebracho.lapacho",
   "build": {
-    "frontendDist": "../dist"
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": { "cwd": "../ui", "script": "trunk serve" },
+    "beforeBuildCommand": { "cwd": "../ui", "script": "trunk build" }
   },
   "app": {
     "withGlobalTauri": true,

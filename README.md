@@ -9,8 +9,9 @@ Parte del ecosistema **Quebracho Digital**. Reemplaza a los prototipos
 `quebracho-client` y `RustyBoard`.
 
 > **Estado:** en desarrollo. El núcleo (`lapacho-core`) es estable y está
-> testeado; la app de escritorio tiene el backend funcionando y una UI
-> placeholder.
+> testeado; la app de escritorio tiene el backend completo (cifrado en reposo,
+> keyring, escáner de amenazas) y un frontend Leptos/WASM que compila. Falta la
+> bandeja del sistema + atajo global.
 
 ## Características
 
@@ -47,7 +48,8 @@ lapacho/
 │  └─ ingest       # pipeline que compone todo + enmascarado
 └─ apps/desktop/
    ├─ src-tauri/   # backend Tauri 2 (monitor de portapapeles + comandos)
-   └─ dist/        # frontend (placeholder funcional; Leptos planeado)
+   ├─ ui/          # frontend Leptos/WASM (crate standalone, build con Trunk)
+   └─ legacy-ui/   # UI vanilla original, conservada como referencia
 ```
 
 `lapacho-core` no depende de Tauri ni de ningún framework de UI: es reutilizable
@@ -83,11 +85,14 @@ cargo tauri dev
 
 - [x] `lapacho-core`: clasificación, saneo, storage, plugins, ingest (testeado)
 - [x] Backend de escritorio: monitor + comandos Tauri
-- [ ] Refresco reactivo de la UI ante captura en vivo (*bug conocido*)
-- [ ] Frontend Leptos/WASM (reemplazo del placeholder)
-- [ ] Cifrado en reposo (AES-256-GCM) del historial sensible
+- [x] Refresco reactivo de la UI ante captura en vivo
+- [x] Cifrado en reposo (AES-256-GCM) + clave en keyring + endurecimiento en memoria
+- [x] Escáner de amenazas modular + acciones por ítem (copiar/exportar/plugin)
+- [x] Frontend Leptos/WASM (reemplazo del placeholder)
 - [ ] Bandeja del sistema + atajo global + popup en el cursor
 - [ ] Soporte de imágenes en el portapapeles
+
+Detalle completo y pendientes: ver [`ROADMAP.md`](ROADMAP.md).
 
 ## Licencia
 

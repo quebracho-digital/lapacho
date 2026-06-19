@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lapacho</title>
+    <link data-trunk rel="rust" data-wasm-opt="z" />
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 14px/1.4 system-ui, sans-serif;
+        background: #16130f;
+        color: #ece6dd;
+      }
+      header {
+        padding: 12px 16px;
+        background: #c2185b; /* lapacho flower */
+        color: #fff;
+        font-weight: 600;
+      }
+      header small { font-weight: 400; opacity: 0.85; }
+      #controls {
+        display: flex; flex-wrap: wrap;
+        gap: 8px; align-items: center;
+        padding: 8px 16px;
+        border-bottom: 1px solid #2a241c;
+      }
+      #controls select, #controls button {
+        background: #2a241c; color: #ece6dd;
+        border: 1px solid #3a3228; border-radius: 6px; padding: 4px 8px;
+      }
+      #controls button { cursor: pointer; }
+      #controls .spacer { flex: 1; }
+      ul { list-style: none; margin: 0; padding: 0; }
+      li.item {
+        padding: 8px 16px;
+        border-bottom: 1px solid #221d16;
+        display: flex; gap: 8px; align-items: flex-start;
+      }
+      li.item .body { flex: 1; min-width: 0; }
+      li.item .content {
+        white-space: pre-wrap; word-break: break-word;
+        max-height: 4.2em; overflow: hidden;
+      }
+      li.item .meta { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+      .tag {
+        font-size: 10px; padding: 1px 6px; border-radius: 999px;
+        text-transform: uppercase; letter-spacing: 0.04em;
+      }
+      .s-None { background: #2a3a2a; color: #9bd49b; }
+      .s-Personal { background: #3a3320; color: #d9c177; }
+      .s-Credential { background: #3a2a20; color: #e0a86a; }
+      .s-Secret { background: #3a2020; color: #e07a7a; }
+      .item.sens .content { font-family: monospace; letter-spacing: 0.1em; opacity: 0.8; }
+      .row-actions { display: flex; gap: 2px; }
+      .row-actions button {
+        background: none; border: none; color: #8a8076; cursor: pointer; font-size: 13px;
+        padding: 2px 4px;
+      }
+      .row-actions button:hover { color: #ece6dd; }
+      #empty { padding: 24px 16px; opacity: 0.5; text-align: center; }
+
+      /* ---- detail / export modal ---- */
+      .overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+        display: flex; align-items: center; justify-content: center; padding: 16px;
+      }
+      .modal {
+        background: #1e1a14; border: 1px solid #3a3228; border-radius: 10px;
+        width: 100%; max-width: 520px; max-height: 90vh; overflow: auto;
+        padding: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      }
+      .modal h2 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+      .modal .full {
+        white-space: pre-wrap; word-break: break-word;
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; max-height: 30vh; overflow: auto; font-family: monospace; font-size: 12px;
+      }
+      .modal .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+      .modal .actions button, .modal .actions select {
+        background: #2a241c; color: #ece6dd; border: 1px solid #3a3228;
+        border-radius: 6px; padding: 5px 10px; cursor: pointer;
+      }
+      .modal .actions .primary { background: #c2185b; border-color: #c2185b; color: #fff; }
+      .close { margin-left: auto; }
+
+      /* ---- threat findings ---- */
+      .threats { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+      .threat {
+        display: flex; gap: 8px; align-items: flex-start;
+        border-radius: 6px; padding: 6px 8px; font-size: 12px;
+      }
+      .threat .ico { font-size: 14px; line-height: 1.2; }
+      .sev-Info { background: #20303a; color: #8fc6e0; }
+      .sev-Warning { background: #3a3320; color: #e0cf8f; }
+      .sev-Danger { background: #3a2020; color: #e89090; }
+      .threats-ok { color: #9bd49b; font-size: 12px; margin-top: 8px; }
+      .hint { font-size: 11px; opacity: 0.6; margin-top: 4px; }
+    </style>
+  </head>
+  <body></body>
+</html>
