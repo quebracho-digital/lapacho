@@ -12,7 +12,11 @@ rust-version.workspace = true
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# `tray-icon`: native system-tray indicator + menu (the fluid recent-clips list).
+tauri = { version = "2", features = ["tray-icon"] }
+# Global shortcut (Ctrl+Shift+V) to toggle the window. Driven from Rust only,
+# so it needs no webview capability entry.
+tauri-plugin-global-shortcut = "2"
 arboard = "3"
 # `mlock`: pin the encryption key into RAM so it never reaches swap.
 lapacho-core = { workspace = true, features = ["mlock"] }

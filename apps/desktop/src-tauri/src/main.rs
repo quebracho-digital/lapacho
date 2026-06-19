@@ -13,10 +13,12 @@
 )]
 
 mod keystore;
+mod tray;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -24,6 +26,7 @@ use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
 use lapacho_core::types::{ClipboardItem, PersistLevel, UIClipboardItem};
 use lapacho_core::{PluginDefinition, Threat, assess, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 /// How often the monitor polls the system clipboard.
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
@@ -32,10 +35,10 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const EVENT_NEW_ITEM: &str = "clipboard-new";
 
 /// Backend state shared between Tauri commands and the monitor thread.
-struct AppState {
+pub(crate) struct AppState {
     /// History storage behind the [`HistoryRepo`] abstraction. The concrete
     /// backend (and the encryption key) is owned by the repo, not by the state.
-    repo: Arc<dyn HistoryRepo>,
+    pub(crate) repo: Arc<dyn HistoryRepo>,
     plugins_dir: PathBuf,
     persist_level: Arc<Mutex<PersistLevel>>,
     /// Retention policy (sensitive TTL + size cap). Driven by the admin; mutable
@@ -44,6 +47,9 @@ struct AppState {
     /// Hash of the last clipboard value processed. Prevents re-ingesting our
     /// own writes (when the user copies an item back) and de-dupes repeats.
     last_seen: Arc<Mutex<Option<u64>>>,
+    /// True while a debounced tray-menu rebuild is already queued, so bursts of
+    /// changes coalesce into one rebuild instead of flooding the main thread.
+    pub(crate) tray_pending: AtomicBool,
 }
 
 fn hash_str(s: &str) -> u64 {
@@ -80,13 +86,17 @@ fn get_history(state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, Strin
 }
 
 #[tauri::command]
-fn delete_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
-    state.repo.delete(&id)
+fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    state.repo.delete(&id)?;
+    tray::schedule_rebuild(&app);
+    Ok(())
 }
 
 #[tauri::command]
-fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
-    state.repo.clear()
+fn clear_history(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    state.repo.clear()?;
+    tray::schedule_rebuild(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -138,13 +148,18 @@ fn load_item(id: &str, state: &AppState) -> Result<ClipboardItem, String> {
 /// Copies a stored item's original content back to the system clipboard,
 /// **intact** (raw) — that is the whole point of keeping the history. The
 /// monitor is primed to ignore this value so it is not re-captured as new.
-#[tauri::command]
-fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
-    let item = load_item(&id, &state)?;
+/// Shared by the `copy_item` command and the tray's click handler.
+pub(crate) fn copy_raw(id: &str, state: &AppState) -> Result<(), String> {
+    let item = load_item(id, state)?;
     *state.last_seen.lock().unwrap() = Some(hash_str(&item.raw_content));
 
     let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
     clipboard.set_text(item.raw_content).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
+    copy_raw(&id, &state)
 }
 
 /// Raw content prepared for save/export, plus the security findings to surface
@@ -210,6 +225,7 @@ fn run_plugin(
     if let Err(e) = app.emit(EVENT_NEW_ITEM, ui.clone()) {
         eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM} for plugin output: {e}");
     }
+    tray::schedule_rebuild(&app);
     Ok(ui)
 }
 
@@ -264,6 +280,8 @@ fn run_monitor(
         if let Err(e) = app.emit(EVENT_NEW_ITEM, UIClipboardItem::from(item)) {
             eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM}: {e}");
         }
+        // Refresh the native tray menu with the new clip at the top.
+        tray::schedule_rebuild(&app);
     }
 }
 
@@ -309,6 +327,7 @@ fn main() {
                 persist_level: persist_level.clone(),
                 retention: retention.clone(),
                 last_seen: last_seen.clone(),
+                tray_pending: AtomicBool::new(false),
             });
 
             let handle = app.handle().clone();
@@ -316,7 +335,36 @@ fn main() {
                 run_monitor(handle, repo, persist_level, retention, last_seen)
             });
 
+            // Native tray with the fluid recent-clips menu.
+            tray::init(app.handle())?;
+
+            // Global shortcut (Ctrl+Shift+V) toggles the main window. Registered
+            // and handled entirely in Rust, so no webview capability is needed.
+            let toggle = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyV);
+            let toggle_for_handler = toggle;
+            app.handle().plugin(
+                tauri_plugin_global_shortcut::Builder::new()
+                    .with_handler(move |app, shortcut, event| {
+                        if event.state == ShortcutState::Pressed && shortcut == &toggle_for_handler
+                        {
+                            tray::toggle_main(app);
+                        }
+                    })
+                    .build(),
+            )?;
+            if let Err(e) = app.global_shortcut().register(toggle) {
+                eprintln!("lapacho: could not register Ctrl+Shift+V: {e}");
+            }
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Launch-to-tray app: closing the window hides it instead of
+            // quitting, so Lapacho keeps watching the clipboard in the tray.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             get_history,
