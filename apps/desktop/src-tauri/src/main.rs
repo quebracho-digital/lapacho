@@ -21,8 +21,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
-use lapacho_core::types::{PersistLevel, UIClipboardItem};
-use lapacho_core::{PluginDefinition, PluginResponse, disclose, plugins, process_text};
+use lapacho_core::types::{ClipboardItem, PersistLevel, UIClipboardItem};
+use lapacho_core::{PluginDefinition, PluginResponse, Threat, assess, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// How often the monitor polls the system clipboard.
@@ -124,38 +124,50 @@ fn set_sensitive_ttl(secs: Option<u64>, state: State<'_, AppState>) -> Result<()
     state.repo.cleanup(&policy)
 }
 
-/// Loads a single history item by id and resolves the content the active
-/// persistence level allows to leave the backend (the "doble vía"). This is the
-/// shared seam behind every outbound channel — `copy_item`, `export_item`, and
-/// eventually plugins — so disclosure is decided in exactly one place.
-fn disclosed_content(id: &str, state: &AppState) -> Result<String, String> {
-    let level = *state.persist_level.lock().unwrap();
-    let items = state.repo.load()?;
-    let item = items
+/// Loads a single history item by id. Shared by the commands that act on one
+/// item (copy, export).
+fn load_item(id: &str, state: &AppState) -> Result<ClipboardItem, String> {
+    state
+        .repo
+        .load()?
         .into_iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| "Item not found in history".to_string())?;
-    Ok(disclose(&item, level).to_string())
+        .ok_or_else(|| "Item not found in history".to_string())
 }
 
-/// Copies a stored item back to the system clipboard, disclosing raw or
-/// sanitized content per the active persistence level. The monitor is primed
-/// with exactly what we write so it is not re-captured as a new item.
+/// Copies a stored item's original content back to the system clipboard,
+/// **intact** (raw) — that is the whole point of keeping the history. The
+/// monitor is primed to ignore this value so it is not re-captured as new.
 #[tauri::command]
 fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
-    let content = disclosed_content(&id, &state)?;
-    *state.last_seen.lock().unwrap() = Some(hash_str(&content));
+    let item = load_item(&id, &state)?;
+    *state.last_seen.lock().unwrap() = Some(hash_str(&item.raw_content));
 
     let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
-    clipboard.set_text(content).map_err(|e| e.to_string())
+    clipboard.set_text(item.raw_content).map_err(|e| e.to_string())
 }
 
-/// Returns a stored item's content for decoupling (save to a file, share, etc.).
-/// Governed by the same disclosure policy as `copy_item`: in a paranoid
-/// persistence level the export comes back sanitized, never the raw secret.
+/// Raw content prepared for save/export, plus the security findings to surface
+/// before it leaves the app. The content is returned **intact** — we never
+/// rewrite what the user chose to keep; we only warn.
+#[derive(serde::Serialize)]
+struct ExportResult {
+    content: String,
+    threats: Vec<Threat>,
+}
+
+/// Prepares an item to be saved/exported (the "grabar" action). Returns the raw
+/// content unchanged together with a threat assessment, so the UI can warn the
+/// user (XSS, hidden unicode, secrets, …) before the value leaves Lapacho's
+/// protections. The user always decides whether to proceed.
 #[tauri::command]
-fn export_item(id: String, state: State<'_, AppState>) -> Result<String, String> {
-    disclosed_content(&id, &state)
+fn export_item(id: String, state: State<'_, AppState>) -> Result<ExportResult, String> {
+    let item = load_item(&id, &state)?;
+    let threats = assess(&item.raw_content);
+    Ok(ExportResult {
+        content: item.raw_content,
+        threats,
+    })
 }
 
 #[tauri::command]
