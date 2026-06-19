@@ -119,9 +119,24 @@ puro (sin deps de imagen). Deps nuevas en src-tauri: `image` (feat `png`),
   `content_type == "image"`). El front muestra "Imagen" como etiqueta de tipo.
 - **Export**: para imágenes devuelve el data-URL sin correr `assess` (no es
   texto). **Plugins**: rechazados sobre imágenes (operan sobre texto).
-- Verificado: 2 tests en `images.rs` (roundtrip + dimensiones inválidas),
-  clippy backend + wasm limpios, `trunk build` OK. **El render real lo probás vos
-  en GUI.**
+- **Saneo de imágenes (anti prompt-injection en metadata):** equivalente para
+  imágenes de `sanitize_text`. arboard entrega **RGBA crudo** y `process_image`
+  re-encodea desde esos píxeles → el PNG guardado **no lleva metadata** (ni EXIF,
+  ni XMP, ni ICC, ni chunks `tEXt`/`iTXt`/`zTXt`). Eso elimina el vector clásico
+  de inyección oculta en metadata (un `UserComment` "ignore all previous
+  instructions…" que leería un modelo de visión río abajo) y de paso quita fugas
+  de privacidad (GPS, serial de cámara). El pegar-de-vuelta también decodifica a
+  RGBA antes de `set_image`, así que sale píxeles limpios. **Invariante:** las
+  imágenes entran **solo como RGBA** (no hay API que guarde bytes codificados del
+  caller en captura) — mantenerlo así; rutear bytes crudos de archivo/clipboard a
+  storage reabriría el vector en silencio. Lo que **no** se cubre por diseño:
+  texto *visible en los píxeles* (necesitaría OCR, que lapacho no hace ni
+  reenvía — plugins rechazan imágenes). Tests `encoded_png_carries_no_metadata` y
+  `injected_metadata_does_not_survive_pipeline` (este último arma un PNG con el
+  payload en un `tEXt` y prueba que no sobrevive el re-encode).
+- Verificado: 4 tests en `images.rs` (roundtrip + dimensiones inválidas + los 2
+  de saneo), suite 50/50, clippy backend + wasm limpios, `trunk build` OK. **El
+  render real lo probás vos en GUI.**
 
 Pendiente menor: el tamaño del PNG en `display_content` puede inflar el SQLite
 con `max_items=100` (hoy se guarda raw + display); evaluar deduplicar el blob.
