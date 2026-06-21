@@ -74,8 +74,13 @@ fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let items = {
         let state = app.state::<AppState>();
-        // Newest-first (the repo orders by timestamp DESC).
-        state.repo.load().unwrap_or_default()
+        let recent = state.tray_recent.lock().unwrap();
+        if !recent.is_empty() {
+            recent.clone()
+        } else {
+            // On startup (before any capture) fall back to persisted history.
+            state.repo.load().unwrap_or_default()
+        }
     };
 
     let mut builder = MenuBuilder::new(app);
