@@ -71,6 +71,17 @@ fn shannon_entropy(text: &str) -> f64 {
     })
 }
 
+/// Like [`classify_sensitivity`], but skips email/phone heuristics — for SVG and
+/// Mermaid payloads where coordinates look like phone numbers.
+pub fn classify_sensitivity_graphics(text: &str) -> Sensitivity {
+    let level = classify_sensitivity(text);
+    if level == Sensitivity::Personal {
+        Sensitivity::None
+    } else {
+        level
+    }
+}
+
 /// Classifies the sensitivity of text content.
 pub fn classify_sensitivity(text: &str) -> Sensitivity {
     let trimmed = text.trim();
@@ -125,11 +136,38 @@ pub fn classify_sensitivity(text: &str) -> Sensitivity {
         }
     }
 
-    if email_re.is_match(trimmed) || phone_re.is_match(trimmed) {
+    if email_re.is_match(trimmed) {
+        return Sensitivity::Personal;
+    }
+    if phone_re.find_iter(trimmed).any(|m| looks_like_phone(m.as_str())) {
         return Sensitivity::Personal;
     }
 
     Sensitivity::None
+}
+
+/// Filters [`PHONE_RE`] hits so SVG path coordinates (e.g. `"440 148"`) are not
+/// treated as phone numbers. Real phones have 7–15 digits and/or explicit phone
+/// punctuation (+, parentheses, dashes).
+fn looks_like_phone(candidate: &str) -> bool {
+    let digits = candidate.chars().filter(|c| c.is_ascii_digit()).count();
+    if !(7..=15).contains(&digits) {
+        return false;
+    }
+    let parts: Vec<&str> = candidate.split_whitespace().collect();
+    if parts.len() == 2
+        && parts
+            .iter()
+            .all(|p| p.chars().all(|c| c.is_ascii_digit()) && (2..=4).contains(&p.len()))
+        && !candidate.contains('+')
+        && !candidate.contains('(')
+        && !candidate.contains(')')
+        && !candidate.contains('-')
+        && !candidate.contains('.')
+    {
+        return false;
+    }
+    true
 }
 
 #[cfg(test)]
@@ -174,5 +212,15 @@ mod tests {
             classify_sensitivity("https://user:password@github.com/rust-lang/rust"),
             Sensitivity::Credential
         );
+        assert_eq!(
+            classify_sensitivity("+54 9 11 1234-5678"),
+            Sensitivity::Personal
+        );
+    }
+
+    #[test]
+    fn svg_coordinates_are_not_phones() {
+        assert_eq!(classify_sensitivity("440 148"), Sensitivity::None);
+        assert_eq!(classify_sensitivity("352 180"), Sensitivity::None);
     }
 }
