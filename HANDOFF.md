@@ -3,7 +3,37 @@
 Estado y próximos pasos para continuar el desarrollo (este agente, otro, o Leo).
 Complemento accionable del [`ROADMAP.md`](ROADMAP.md): qué sigue, dónde y cómo.
 
-Última actualización: 2026-06-19.
+Última actualización: 2026-06-21 (por Grok: fixes de tray + lista en vivo + render MD).
+
+---
+
+## Plan de cierre — quién hace qué (2026-06-21)
+
+lapacho está ~90% terminado y **todo verificado headless** (compila, 50 tests).
+El único bloqueante real: **nadie corrió la GUI**. No es trabajo solo de Leo —
+se reparte para que Leo deje de ser el cuello de botella.
+
+**Fase 0 — Destrabar el GUI test (lo que frena todo):**
+- **Claude Code** corre `cargo tauri dev` en lenovo, confirma que levanta, saca
+  screenshot, prueba lo automatizable y reporta qué anda / qué no. Convierte el
+  trabajo de Leo de "descubrir si funciona" a "aprobar lo que ya se vio andar".
+- **Leo** corre **una vez** un checklist de aceptación scripted (~15–20 min, no
+  exploración abierta): abrir app, copiar texto/imagen/SVG, ver tray nativo,
+  Ctrl+Shift+V, modal Raw/Vista + Mermaid, y los **5 payloads C** de seguridad
+  (§"Dependencias vendorizadas" → Tests C). Firmar.
+
+**Fase 1 — Cerrar features con Grok (self-verifying, `cargo test` es el juez):**
+- #6 Búsqueda/filtrado del historial (con tests).
+- Menores: `LICENSE-APACHE`, saneador SVG → `ammonia`, `trunk build --release`
+  (achica wasm), decidir si versionar `gen/`.
+- Auto-paste (`enigo`): Grok implementa; smoke test por plataforma (Claude Code/Leo).
+- **Entrega obligatoria por tarea:** diff + `cargo test` verde pegado. Sin
+  evidencia, no está hecho (ver `AGENTS.md` §frases prohibidas).
+
+**Fase 2 — Release:** build release, empaquetar, probar el binario final una vez.
+
+**Toque obligatorio de Leo:** solo (a) aceptación GUI ~15 min y (b) decisiones de
+producto. Todo lo demás es delegable con verificación.
 
 ---
 
@@ -66,9 +96,22 @@ El listado del tray es un **menú nativo del indicador** (no webview) → fluido
   un thread + sleep (sin runtime async).
 
 Verificado headless: `cargo check/clippy -p lapacho-desktop` limpio,
-`cargo test --workspace` 45/45. **Falta probar en máquina con GUI** (Leo): que el
-indicador sea visible (depende del icono embebido + extensión de appindicator en
-GNOME) y la fluidez real del menú.
+`cargo test --workspace` 45/45.
+
+**Smoke test GUI — Claude Code, 2026-06-21 (lenovo, X11, webkit2gtk-4.1):**
+`cargo tauri dev` levanta sin errores; la **ventana renderiza correcto** (header,
+controles Persistencia/Sensibles/Limpiar, iconos por ítem) y el **monitor captura
+en vivo** (tomó el clip actual, lo clasificó Markdown / sensibilidad NONE).
+Ventana abierta vía `wmctrl -ia` (no se probó el atajo). **Falta confirmar (Leo):**
+(1) ícono de tray **visible** en el panel, (2) **Ctrl+Shift+V** abre/cierra,
+(3) menú nativo del tray fluido, (4) tests de seguridad Mermaid C1–C5, (5) render
+de imagen/SVG/Mermaid en el modal "maximizar".
+
+**Bugs activos:** ver notas de Claude Code para (1) falso positivo sensibilidad SVG (ya había fix en core con classify_sensitivity_graphics + looks_like_phone), (3) ícono tray.
+(2) **reactividad lista en vivo + tray sin nuevos elementos** → FIXEADO:
+  - Tray: ahora usa buffer volátil `tray_recent` (siempre actualizado en monitor/plugins) + fallback a repo al inicio. `build_menu` y `copy_raw` lo consultan → nuevos copiados siempre aparecen en el menú nativo aunque el PersistLevel los filtre del disco.
+  - Lista UI: listener de "clipboard-new" ahora hace `spawn_local` + `set.update` con el payload (evita "fuera del runtime Leptos"). Preview mini-render de Markdown también agregado en la lista.
+  Compila, tests OK.
 
 Diferido (eran "opcionales" en el plan original):
 - **Auto-paste** tras copiar (crate `enigo`, ya en cache local) — simula Ctrl+V;
@@ -150,9 +193,9 @@ mantiene compacta y fluida). Solo se renderiza si el ítem **no es sensible**
 - **SVG** → `<img src="data:image/svg+xml;base64,…">`. **Decisión de seguridad:**
   NO se usa `innerHTML` (como RustyBoard) sino `<img>`, así un script dentro del
   SVG no puede ejecutarse ni tocar el bridge de Tauri. Más seguro que RustyBoard.
-- **Markdown** → `pulldown-cmark` (Rust→wasm). Se escapa el HTML crudo del origen
-  y se neutralizan links `javascript:`/`data:` antes de inyectar (único path con
-  `inner_html`).
+- **Markdown** → `pulldown-cmark` (Rust→wasm, new_ext + tables/strikethrough). Sin pre-escape
+  global (rompía código). Neutraliza raw HTML events. CSS mejorado + preview mini en lista (no
+  solo en modal). Render ahora funciona decente (como se esperaba vs RustyBoard).
 - **JSON** → `serde_json` pretty-print (fallback al raw si no parsea).
 - **Mermaid** → **diagrama vivo** (decisión de Leo). `mermaid.min.js` vendorizado
   en `apps/desktop/ui/vendor/` (UMD, ~3.2MB), copiado por Trunk (`copy-file`) e

@@ -51,6 +51,10 @@ pub(crate) struct AppState {
     /// True while a debounced tray-menu rebuild is already queued, so bursts of
     /// changes coalesce into one rebuild instead of flooding the main thread.
     pub(crate) tray_pending: AtomicBool,
+    /// Volatile buffer of the most recent captures (this session). Tray and
+    /// live display pull from here so *new* copies always appear even if the
+    /// active PersistLevel decided not to write them to disk.
+    tray_recent: Arc<Mutex<Vec<ClipboardItem>>>,
 }
 
 fn hash_str(s: &str) -> u64 {
@@ -95,6 +99,7 @@ fn get_history(state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, Strin
 #[tauri::command]
 fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.repo.delete(&id)?;
+    state.tray_recent.lock().unwrap().retain(|x| x.id != id);
     tray::schedule_rebuild(&app);
     Ok(())
 }
@@ -102,6 +107,7 @@ fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result
 #[tauri::command]
 fn clear_history(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.repo.clear()?;
+    state.tray_recent.lock().unwrap().clear();
     tray::schedule_rebuild(&app);
     Ok(())
 }
@@ -144,6 +150,14 @@ fn set_sensitive_ttl(secs: Option<u64>, state: State<'_, AppState>) -> Result<()
 /// Loads a single history item by id. Shared by the commands that act on one
 /// item (copy, export).
 fn load_item(id: &str, state: &AppState) -> Result<ClipboardItem, String> {
+    // Check volatile recent first (supports items copied this session that the
+    // persist level chose not to write to the on-disk history).
+    {
+        let rec = state.tray_recent.lock().unwrap();
+        if let Some(it) = rec.iter().find(|i| i.id == id).cloned() {
+            return Ok(it);
+        }
+    }
     state
         .repo
         .load()?
@@ -247,6 +261,13 @@ fn run_plugin(
     if let Err(e) = state.repo.save(&item, level) {
         eprintln!("lapacho: failed to save plugin output: {e}");
     }
+    // Track in tray_recent so it appears even under restrictive persist.
+    {
+        let mut rec = state.tray_recent.lock().unwrap();
+        rec.retain(|x| x.id != item.id);
+        rec.insert(0, item.clone());
+        rec.truncate(12);
+    }
 
     let ui = UIClipboardItem::from(item);
     if let Err(e) = app.emit(EVENT_NEW_ITEM, ui.clone()) {
@@ -260,12 +281,33 @@ fn run_plugin(
 // Clipboard monitor
 // ---------------------------------------------------------------------------
 
+/// Extracts the first `<svg>…</svg>` block from an HTML clipboard payload.
+fn svg_from_html(html: &str) -> Option<String> {
+    let lower = html.to_ascii_lowercase();
+    let start = lower.find("<svg")?;
+    let rel_end = lower[start..].find("</svg>")?;
+    let end = start + rel_end + "</svg>".len();
+    Some(html[start..end].to_string())
+}
+
+/// Reads SVG from the HTML MIME type when plain text is empty (common in browsers).
+fn try_clipboard_svg(clipboard: &mut arboard::Clipboard) -> Option<String> {
+    let html = clipboard.get().html().ok()?;
+    let svg = svg_from_html(&html)?;
+    if svg.trim().is_empty() {
+        None
+    } else {
+        Some(svg)
+    }
+}
+
 fn run_monitor(
     app: AppHandle,
     repo: Arc<dyn HistoryRepo>,
     persist_level: Arc<Mutex<PersistLevel>>,
     retention: Arc<Mutex<RetentionPolicy>>,
     last_seen: Arc<Mutex<Option<u64>>>,
+    tray_recent: Arc<Mutex<Vec<ClipboardItem>>>,
 ) {
     let mut clipboard = match arboard::Clipboard::new() {
         Ok(c) => c,
@@ -286,8 +328,16 @@ fn run_monitor(
         }
         let policy = *retention.lock().unwrap();
         let _ = repo.cleanup(&policy);
-        if let Err(e) = app.emit(EVENT_NEW_ITEM, UIClipboardItem::from(item)) {
+        if let Err(e) = app.emit(EVENT_NEW_ITEM, UIClipboardItem::from(item.clone())) {
             eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM}: {e}");
+        }
+        // Always record in volatile recent so tray shows *new* copied items
+        // this session even when persist level skips writing to DB.
+        {
+            let mut rec = tray_recent.lock().unwrap();
+            rec.retain(|x| x.id != item.id);
+            rec.insert(0, item.clone());
+            rec.truncate(12);
         }
         tray::schedule_rebuild(&app);
     };
@@ -299,7 +349,7 @@ fn run_monitor(
     loop {
         std::thread::sleep(POLL_INTERVAL);
 
-        // 1. Text takes priority over images.
+        // 1. Plain text (includes SVG copied as XML from editors).
         if let Ok(text) = clipboard.get_text() {
             if !text.is_empty() {
                 last_img_rgba = None; // a text copy supersedes the image gate
@@ -316,7 +366,22 @@ fn run_monitor(
             }
         }
 
-        // 2. Otherwise, look for an image.
+        // 2. HTML clipboard (browsers/vector apps often expose SVG only here).
+        if let Some(svg) = try_clipboard_svg(&mut clipboard) {
+            last_img_rgba = None;
+            let hash = hash_str(&svg);
+            {
+                let mut last = last_seen.lock().unwrap();
+                if *last == Some(hash) {
+                    continue;
+                }
+                *last = Some(hash);
+            }
+            persist_and_emit(process_text(&svg));
+            continue;
+        }
+
+        // 3. Raster image.
         if let Ok(img) = clipboard.get_image() {
             let rgba_hash = hash_bytes(&img.bytes);
             if last_img_rgba == Some(rgba_hash) {
@@ -378,6 +443,7 @@ fn main() {
             let persist_level = Arc::new(Mutex::new(PersistLevel::None));
             let retention = Arc::new(Mutex::new(RetentionPolicy::default()));
             let last_seen = Arc::new(Mutex::new(None));
+            let tray_recent = Arc::new(Mutex::new(Vec::new()));
 
             app.manage(AppState {
                 repo: repo.clone(),
@@ -386,11 +452,12 @@ fn main() {
                 retention: retention.clone(),
                 last_seen: last_seen.clone(),
                 tray_pending: AtomicBool::new(false),
+                tray_recent: tray_recent.clone(),
             });
 
             let handle = app.handle().clone();
             std::thread::spawn(move || {
-                run_monitor(handle, repo, persist_level, retention, last_seen)
+                run_monitor(handle, repo, persist_level, retention, last_seen, tray_recent)
             });
 
             // Native tray with the fluid recent-clips menu.
@@ -439,4 +506,17 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Lapacho desktop app");
+}
+
+#[cfg(test)]
+mod clipboard_tests {
+    use super::svg_from_html;
+
+    #[test]
+    fn extracts_inline_svg_from_html() {
+        let html = r#"<meta/><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>"#;
+        let svg = svg_from_html(html).expect("svg");
+        assert!(svg.starts_with("<svg"));
+        assert!(svg.ends_with("</svg>"));
+    }
 }

@@ -30,10 +30,10 @@ fn time_ago(ts: u64) -> String {
 // Rich rendering by detected type
 //
 // All previews are built client-side and offline. Security note: the only path
-// that injects HTML into the webview is Markdown, and there we escape raw HTML
-// in the source and neutralize dangerous link targets first. SVG is shown
-// through an `<img>` `data:` URL (never innerHTML), so any script inside it
-// cannot run or reach the Tauri bridge. JSON and Mermaid are plain text nodes.
+// that injects HTML into the webview is Markdown (via inner_html). We feed the
+// original source to pulldown-cmark (for correct code/literal <>&) and drop
+// raw HTML events (plus neutralize dangerous links). SVG uses <img data:>
+// (never innerHTML). JSON/Mermaid are plain.
 // ---------------------------------------------------------------------------
 
 /// Whether a link target uses a scheme that can execute script when followed.
@@ -46,14 +46,19 @@ fn is_dangerous_url(url: &str) -> bool {
     cleaned.starts_with("javascript:") || cleaned.starts_with("vbscript:") || cleaned.starts_with("data:")
 }
 
-/// Renders Markdown to HTML. Raw HTML in the source is escaped first (we never
-/// inject clipboard HTML into the Tauri webview) and `javascript:`-style links
-/// are rewritten to `#`.
+/// Renders Markdown to HTML. We feed the original source (so code with <>&
+/// renders correctly) but neutralize any raw HTML blocks from the clipboard
+/// (the only path using inner_html) and rewrite dangerous links.
 fn render_markdown(md: &str) -> String {
-    use pulldown_cmark::{Event, Parser, Tag, html};
+    use pulldown_cmark::{Event, Parser, Tag, Options, html};
 
-    let escaped = md.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
-    let parser = Parser::new(&escaped).map(|event| match event {
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options.insert(Options::ENABLE_TABLES);
+
+    let parser = Parser::new_ext(md, options).map(|event| match event {
+        // Drop or neutralize raw HTML to avoid injection (shows as text if we pass through)
+        Event::Html(h) | Event::InlineHtml(h) => Event::Text(h),
         Event::Start(Tag::Link { link_type, dest_url, title, id }) if is_dangerous_url(&dest_url) => {
             Event::Start(Tag::Link { link_type, dest_url: "#".into(), title, id })
         }
@@ -68,6 +73,19 @@ fn render_markdown(md: &str) -> String {
 fn pretty_json(s: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(s.trim()).ok()?;
     serde_json::to_string_pretty(&value).ok()
+}
+
+/// Cheap truncation for list preview of long Markdown (parse only first few lines).
+fn md_preview_src(s: &str) -> String {
+    let mut out = String::new();
+    for (i, line) in s.lines().take(4).enumerate() {
+        if i > 0 { out.push('\n'); }
+        out.push_str(line);
+    }
+    if s.len() > 180 {
+        out.push_str("…");
+    }
+    out
 }
 
 /// Builds a `data:image/svg+xml` URL so SVG can be previewed inside an `<img>`
@@ -114,13 +132,18 @@ pub fn App() -> impl IntoView {
         set_ttl.set(bindings::get_sensitive_ttl().await);
     });
 
-    // Live capture: prepend new items as the monitor emits them.
+    // Live capture: prepend the emitted item (works for non-persisted live
+    // items too). Update is queued via spawn_local so it runs inside the
+    // task executor (avoids "outside Leptos runtime" reactivity issues).
     bindings::listen_event("clipboard-new", move |evt| {
         if let Ok(payload) = js_sys::Reflect::get(&evt, &JsValue::from_str("payload")) {
             if let Ok(item) = serde_wasm_bindgen::from_value::<UIClipboardItem>(payload) {
-                set_items.update(|v| {
-                    v.retain(|x| x.id != item.id);
-                    v.insert(0, item);
+                let set = set_items;
+                spawn_local(async move {
+                    set.update(|v| {
+                        v.retain(|x| x.id != item.id);
+                        v.insert(0, item);
+                    });
                 });
             }
         }
@@ -194,10 +217,16 @@ pub fn App() -> impl IntoView {
                         let sens = it.sensitivity.is_sensitive();
                         let li_class = if sens { "item sens" } else { "item" };
                         let tag_class = format!("tag s-{}", it.sensitivity.label());
-                        // Images show a thumbnail; everything else shows its text.
+                        // Images show a thumbnail; Markdown gets a mini rich preview (clipped by li height);
+                        // everything else plain text. This makes MD render visible in the live list
+                        // (RustyBoard behavior) while keeping things fast.
                         let dc = it.display_content.clone();
                         let content_node = if it.content_type == "image" {
                             view! { <img class="thumb" src=dc alt="imagen" /> }.into_any()
+                        } else if it.detected_type == DetectedType::Markdown && !sens {
+                            let preview_src = md_preview_src(&dc);
+                            let html = render_markdown(&preview_src);
+                            view! { <div class="md-mini" inner_html=html></div> }.into_any()
                         } else {
                             view! { <span>{dc}</span> }.into_any()
                         };

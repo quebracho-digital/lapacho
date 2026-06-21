@@ -58,6 +58,13 @@ intacto, se *renderiza* saneado, y al exportar se avisa de amenazas sin alterarl
   **SVG** (vía `<img data:>`, no innerHTML — más seguro), **Markdown**
   (`pulldown-cmark`), **JSON** (pretty), **Mermaid** (diagrama vivo con
   `mermaid.min.js` vendorizado, strict, degrada a código). Falta probar en GUI.
+- [x] **Render rico en la lista** (parcial, Markdown): preview mini-renderizado de MD
+  directamente en los ítems de la lista en vivo (usando truncate + render_markdown + inner_html
+  en .md-mini). SVG/Mermaid siguen pendientes para lista (solo en modal). Ver `app.rs`.
+- [ ] **Modal maximizar a pantalla completa**: diagramas/imágenes/SVG deben usar
+  el espacio disponible del modal (hoy CSS limita a `40–50vh` y no es
+  redimensionable). Ver `apps/desktop/ui/index.html` (`.mermaid-wrap`,
+  `.image-view`, `.svg-preview`).
 - [ ] Búsqueda / filtrado del historial.
 - [x] Soporte de imágenes: captura `get_image()`, PNG data-URL + thumbnail 18×18
   (`src-tauri/src/images.rs`), `<img>` en lista/modal y **icono por ítem en el
