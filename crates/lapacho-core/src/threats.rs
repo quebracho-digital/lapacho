@@ -246,14 +246,14 @@ impl Detector for SensitiveData {
             Sensitivity::Secret => vec![Threat::new(
                 ThreatKind::SensitiveData,
                 ThreatSeverity::Warning,
-                "El contenido parece un secreto (clave privada, tarjeta o contraseña). \
-                 Al exportarlo sale del cifrado de Lapacho.",
+                "The content appears to be a secret (private key, card, or password). \
+                 Exporting it leaves Lapacho's encryption.",
             )],
             Sensitivity::Credential => vec![Threat::new(
                 ThreatKind::SensitiveData,
                 ThreatSeverity::Info,
-                "El contenido parece una credencial (token o API key). \
-                 Al exportarlo sale del cifrado de Lapacho.",
+                "The content appears to be a credential (token or API key). \
+                 Exporting it leaves Lapacho's encryption.",
             )],
             _ => vec![],
         }
