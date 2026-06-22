@@ -7,7 +7,7 @@ intact, *rendered* sanitized, and on export threats are reported without
 altering it.
 
 ## Current Status (2026-06-22)
-History search implemented; English translation of docs + key source strings complete.
+History search implemented; English translation complete. Sensitivity: long hex strings (>=32) now Secret. Both Credential/Secret get short safe hints (`••••last4` from raw) for distinction (list/tray/modal); tray always derives preview from raw (even old DB items). Tray merges recent + persisted DB history. Wayland: event-driven `wl-paste --watch` (no constant poll). Poll 250ms + 80ms debounce. ~92%. 
 
 ### ✅ `lapacho-core` (lib, 45 unit + integration tests)
 
@@ -72,16 +72,18 @@ History search implemented; English translation of docs + key source strings com
 
 ### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
 - [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).
-- [ ] **Reactivity / live updates still not fully resolved** ("todavia no resolvimos la reactividad") — UI list and/or native tray sometimes miss new clipboard items or lag after copy/delete. Code uses `spawn_local` + `tray_recent` volatile buffer. Verify live in current running GUI.
-- [x] Distinguish sensitive/secret items: Credentials now render as `••••` + safe last chars hint (e.g. `••••3456`) so different tokens are identifiable in list/tray. Secrets stay fully redacted (`••••••••`). Updated in `mask_display` + tests. (done while GUI was live 2026-06-22)
+- [ ] **Reactivity + consistency + identity** (HIGH) — User live testing (own run):
+  - Identical secret duplicated at top of list + tray (Paranoia secrets not saved → live path only dedups by fresh UUID, never by raw_content).
+  - Tray only shows items from this launch (volatile recent wins); modal correctly shows full persisted history.
+  - Secret `••••last4` hint visible only briefly then "disappears".
+  - Tray update still >1s.
+  This session: hints from raw + tray merge + Wayland event watcher. Strong signal to rethink architecture (identity for non-persisted items, unified recent view, live vs persisted split). (2026-06-22)
+- [x] Distinguish sensitive/secret items: both Credential and Secret now render with short safe hint `••••last4` (from raw) so different tokens are identifiable (list, tray, modal). Tray always recomputes preview from raw_content even for old persisted items. Updated in `mask_display`, `UIClipboardItem::from`, `item_label` + tests. (2026-06-22)
 
 ### 🔐 Security
 
-- [x] Replace the regex SVG sanitizer with a real parser (`ammonia`) — done in
-  `security.rs`. The old regexes are gone; we now use ammonia's HTML parser with a
-  tight allow-list of SVG tags/attrs + restricted URL schemes. Test
-  `sanitize_svg_removes_xss_vectors` passes, and the B1–B4 malicious payloads from
-  `test-payloads/` can be re-tested live.
+- [x] Replace the regex SVG sanitizer with a real parser (`ammonia`) — done.
+- [x] Long hex classification as Secret + distinction hints (see above).
 - [ ] More detectors in `threats::REGISTRY` (SQL injection, advanced XSS) — the
   modular registry already supports this without touching `assess()`.
 - [ ] Real-machine verification of keyring + mlock (not testable headless).
