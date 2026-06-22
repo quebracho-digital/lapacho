@@ -10,7 +10,7 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 
 > **Status:** advanced development. The core (`lapacho-core`) is stable with 50+
 > tests. The desktop app (Tauri 2 + Leptos/WASM) has a complete backend, native
-> tray, global shortcut Ctrl+Shift+V, image support, rich rendering
+> tray, global shortcut Ctrl+Shift+Alt+L (Lapacho-exclusive), image support, rich rendering
 > (MD/SVG/Mermaid), and a raw-first security model. Verified headless + GUI smoke
 > tests.
 
@@ -79,7 +79,9 @@ cargo build --workspace
 
 # Run the desktop app
 cd apps/desktop/src-tauri
-cargo tauri dev
+# On this environment, trunk is sensitive to color env vars; use the prefix:
+env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always CARGO_TERM_COLOR=never \
+  cargo tauri dev
 ```
 
 ## Roadmap
@@ -90,8 +92,9 @@ cargo tauri dev
 - [x] At-rest encryption (AES-256-GCM) + key in OS keyring + memory hardening
 - [x] Modular threat scanner + per-item actions (copy/export/plugin)
 - [x] Leptos/WASM frontend + rich rendering (Markdown, safe SVG, JSON, Mermaid)
-- [x] Native system tray + global shortcut (Ctrl+Shift+V) + launch-to-tray
+- [x] Native system tray + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive) + launch-to-tray + dynamic tray indicator icon (shows last image thumbnail)
 - [x] Full image support (capture, tray thumbnails, metadata sanitization)
+- [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
 
 Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md) and [`HANDOFF.md`](HANDOFF.md).
 
