@@ -3,7 +3,7 @@
 Status and next steps to continue development (this agent, another, or Leo).
 Actionable complement to [`ROADMAP.md`](ROADMAP.md): what comes next, where, and how.
 
-Last update: 2026-06-21 (by Grok: tray fixes + live list + MD render).
+Last update: 2026-06-22 (by Grok: icon update to new artistic SVG design + doc sync).
 
 ---
 
@@ -19,13 +19,13 @@ it is distributed so Leo stops being the bottleneck.
   Turns Leo's work from "discover if it works" into "approve what was already
   seen working".
 - **Leo** runs **once** a scripted acceptance checklist (~15–20 min, no open
-  exploration): open app, copy text/image/SVG, see native tray, Ctrl+Shift+V,
+  exploration): open app, copy text/image/SVG, see native tray, Ctrl+Shift+Alt+L,
   Raw/View modal + Mermaid, and the **5 security C payloads**
   (§"Vendored dependencies" → Tests C). Sign off.
 
 **Phase 1 — Close features with Grok (self-verifying, `cargo test` is the judge):**
-- #6 History search/filtering (with tests).
-- Minor: `LICENSE-APACHE`, SVG sanitizer → `ammonia`, `trunk build --release`
+- #6 History search/filtering (with tests). ✅
+- Minor: `LICENSE-APACHE` ✅, SVG sanitizer → `ammonia`, `trunk build --release`
   (shrinks wasm), decide whether to version `gen/`.
 - Auto-paste (`enigo`): Grok implements; cross-platform smoke test (Claude Code/Leo).
 - **Mandatory delivery per task:** diff + green `cargo test` pasted. Without
@@ -63,7 +63,7 @@ Core + backend **complete and tested**; Leptos frontend **compiles**. Work branc
   0.21, tauri-cli 2.11) → **headless verified that it compiles**, but the GUI
   is not visible here; Leo tests that.
 - **Run the app** (on a machine with webkit2gtk): `cd apps/desktop/src-tauri &&
-  cargo tauri dev`.
+  cargo tauri dev`. (Use `env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always CARGO_TERM_COLOR=never cargo tauri dev` to avoid trunk --no-color parsing issues in this environment.)
 - RTK rewrites commands via hook (transparent). `CONTEXT.md` is **shared**
   (Claude Code + Grok); to avoid stepping on each other, each edits **only their
   part** with surgical replaces (Grok → quebrachos/SER5; here → lapacho).
@@ -85,7 +85,7 @@ The tray list is a **native indicator menu** (no webview) → fluid.
   `••••••••` from `display_content` + suffix `[credential]`/`[secret]`.
 - Click on item (id = uuid) → `copy_raw` (raw to clipboard; feeds `last_seen`).
 - Static entries: "Open Lapacho…" (shows/focuses window) and "Quit".
-- Global shortcut **Ctrl+Shift+V** (`tauri-plugin-global-shortcut`) toggles the
+- Global shortcut **Ctrl+Shift+Alt+L** (Lapacho-exclusive, `tauri-plugin-global-shortcut`) toggles the
   window. Registered and handled **only in Rust** → no capability required.
 - App **launches to tray**: window `visible: false` and close = hide
   (`on_window_event` CloseRequested → `hide()` + `prevent_close`). Open with the
@@ -102,7 +102,7 @@ Headless verified: `cargo check/clippy -p lapacho-desktop` clean,
 Persistence/Sensitive/Clear controls, per-item icons) and the **monitor captures
 live** (took the current clip, classified it as Markdown / sensitivity NONE).
 Window opened via `wmctrl -ia` (shortcut not tested). **Still to confirm (Leo):**
-(1) tray **icon visible** in the panel, (2) **Ctrl+Shift+V** opens/closes,
+(1) tray **icon visible** in the panel, (2) **Ctrl+Shift+Alt+L** opens/closes,
 (3) native tray menu is fluid, (4) Mermaid security tests C1–C5, (5) image/SVG/Mermaid
 rendering in the "maximize" modal.
 
@@ -157,6 +157,8 @@ pure (no image deps). New deps in src-tauri: `image` (feat `png`), `base64`,
   in the tray menu** (`IconMenuItem` + `tauri::image::Image::new_owned`).
 - **Paste back** (`copy_raw`): if `content_type == "image"`, decodes `raw_content`
   → `image::load_from_memory` → `arboard::set_image`.
+- **Dynamic tray indicator icon** (added 2026-06-22): the main panel/tray icon now updates to the thumbnail of the top history item (the last copied) when it is an image. Falls back to default Lapacho icon otherwise. Reuses the existing 18×18 thumbnail + `tray.set_icon` in the debounced rebuild path. Covered by the same `schedule_rebuild` calls.
+- **New artistic base icon** (2026-06-22): replaced previous design with custom SVG (hexágono + hoja lapacho como circuito + halo celeste argentino + nodos dorados). Source: `apps/desktop/src-tauri/icons/lapacho-source.svg`. All platform icons (PNG, icns, ico, Android, iOS) regenerated via `cargo tauri icon`. Note: on Cinnamon the panel may retain the old pixmap — kill the process and restart `cargo tauri dev` (or the panel) to see the update.
 - `sensitivity = None`, `detected_type = Text` (UI/tray branch on
   `content_type == "image"`). The frontend shows "Image" as the type label.
 - **Export**: for images returns the data-URL without running `assess` (it is not
@@ -238,7 +240,12 @@ contain anything); instead it applies **spotlighting** (Hines et al., Microsoft
   feature is built. Tests: 5 in `llm.rs` (including one that proves a forged
   closing marker does not match the real fence).
 
-### 6. History search / filtering.
+### 6. History search / filtering. — ✅ DONE (2026-06-22)
+- Core: `HistoryRepo::search` (impl on decrypted raw+display, case-insens; blank = load).
+- Test: `search_matches_raw_and_display_case_insensitive` (covers secret-by-raw).
+- Backend: `search_history` command registered.
+- Frontend: search input in controls; when non-empty uses `search_history` (raw match works for creds), live events re-apply search so new matching clips appear; persist change respects active search.
+- 53 core tests (incl. new). Wasm + host clean.
 
 ### Minor items
 
