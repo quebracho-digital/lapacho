@@ -123,6 +123,8 @@ pub fn App() -> impl IntoView {
     let (sel_plugin, set_sel_plugin) = signal(String::new());
     // Raw vs. rendered preview inside the maximize modal (reset on each open).
     let (view_raw, set_view_raw) = signal(false);
+    // Search query (client-side filter on display_content for live list).
+    let (search, set_search) = signal(String::new());
 
     // Initial load (runs once at mount).
     spawn_local(async move {
@@ -135,15 +137,27 @@ pub fn App() -> impl IntoView {
     // Live capture: prepend the emitted item (works for non-persisted live
     // items too). Update is queued via spawn_local so it runs inside the
     // task executor (avoids "outside Leptos runtime" reactivity issues).
+    // If a search is active we re-execute search so a matching new item
+    // (by raw content) appears in the filtered results.
     bindings::listen_event("clipboard-new", move |evt| {
         if let Ok(payload) = js_sys::Reflect::get(&evt, &JsValue::from_str("payload")) {
             if let Ok(item) = serde_wasm_bindgen::from_value::<UIClipboardItem>(payload) {
                 let set = set_items;
+                // Use get_untracked because this runs from a Tauri event callback (outside
+                // normal reactive tracking context).
+                let q = search.get_untracked();
                 spawn_local(async move {
-                    set.update(|v| {
-                        v.retain(|x| x.id != item.id);
-                        v.insert(0, item);
-                    });
+                    if q.trim().is_empty() {
+                        set.update(|v| {
+                            v.retain(|x| x.id != item.id);
+                            v.insert(0, item);
+                        });
+                    } else {
+                        // Re-apply server search to surface matches on raw content
+                        // and keep list authoritative for the current filter.
+                        let fresh = bindings::search_history(&q).await;
+                        set.set(fresh);
+                    }
                 });
             }
         }
@@ -152,9 +166,15 @@ pub fn App() -> impl IntoView {
     let on_persist = move |ev| {
         let level = event_target_value(&ev);
         set_persist.set(level.clone());
+        let q = search.get();
         spawn_local(async move {
             let _ = bindings::set_persist_level(&level).await;
-            set_items.set(bindings::get_history().await);
+            let res = if q.trim().is_empty() {
+                bindings::get_history().await
+            } else {
+                bindings::search_history(&q).await
+            };
+            set_items.set(res);
         });
     };
 
@@ -164,6 +184,19 @@ pub fn App() -> impl IntoView {
         set_ttl.set(secs);
         spawn_local(async move {
             let _ = bindings::set_sensitive_ttl(secs).await;
+        });
+    };
+
+    let on_search = move |ev| {
+        let val = event_target_value(&ev);
+        set_search.set(val.clone());
+        spawn_local(async move {
+            let res = if val.trim().is_empty() {
+                bindings::get_history().await
+            } else {
+                bindings::search_history(&val).await
+            };
+            set_items.set(res);
         });
     };
 
@@ -201,6 +234,15 @@ pub fn App() -> impl IntoView {
                     <option value="off">"No limit"</option>
                 </select>
             </label>
+            <label>
+                "Search: "
+                <input
+                    type="text"
+                    placeholder="filter history..."
+                    prop:value=move || search.get()
+                    on:input=on_search
+                />
+            </label>
             <span class="spacer"></span>
             <button on:click=on_clear>"Clear history"</button>
         </div>
@@ -221,12 +263,29 @@ pub fn App() -> impl IntoView {
                         // everything else plain text. This makes MD render visible in the live list
                         // (RustyBoard behavior) while keeping things fast.
                         let dc = it.display_content.clone();
+                        let img_label = if it.content_type == "image" {
+                            match it.size {
+                                Some(s) if s > 0 => format!("Image ({} bytes)", s),
+                                _ => "Image".to_string(),
+                            }
+                        } else {
+                            it.detected_type.label().to_string()
+                        };
                         let content_node = if it.content_type == "image" {
+                            // Use full display PNG for now (CSS .thumb downsizes it).
+                            // thumbnail (RGBA) is available in it.thumbnail for future small preview conversion.
                             view! { <img class="thumb" src=dc alt="image" /> }.into_any()
                         } else if it.detected_type == DetectedType::Markdown && !sens {
                             let preview_src = md_preview_src(&dc);
                             let html = render_markdown(&preview_src);
                             view! { <div class="md-mini" inner_html=html></div> }.into_any()
+                        } else if it.detected_type == DetectedType::Svg && !sens {
+                            // Render SVG as safe <img> thumbnail in the list too (like modal).
+                            let url = svg_data_url(&dc);
+                            view! { <img class="thumb" src=url alt="svg" /> }.into_any()
+                        } else if it.detected_type == DetectedType::Json && !sens {
+                            let pretty = pretty_json(&dc).unwrap_or_else(|| dc.clone());
+                            view! { <pre class="code-mini">{pretty}</pre> }.into_any()
                         } else {
                             view! { <span>{dc}</span> }.into_any()
                         };
@@ -237,7 +296,7 @@ pub fn App() -> impl IntoView {
                                     <div class="meta">
                                         <span class=tag_class>{it.sensitivity.label()}</span>
                                         " · "
-                                        {if it.content_type == "image" { "Image" } else { it.detected_type.label() }}
+                                        {img_label}
                                         " · " {time_ago(it.timestamp)}
                                     </div>
                                 </div>

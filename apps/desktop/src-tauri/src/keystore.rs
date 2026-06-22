@@ -71,7 +71,7 @@ fn provision_keyring(entry: &Entry, file_path: &Path) -> Result<SecretKey, Strin
     let b64 = key.to_base64();
     entry
         .set_password(&b64)
-        .map_err(|e| format!("no se pudo guardar la clave en el keyring: {e}"))?;
+        .map_err(|e| format!("failed to store key in keyring: {e}"))?;
 
     if migrating {
         // Only remove the plaintext file once we've confirmed the keyring holds
@@ -79,14 +79,14 @@ fn provision_keyring(entry: &Entry, file_path: &Path) -> Result<SecretKey, Strin
         let verified = matches!(entry.get_password().as_deref(), Ok(stored) if stored == b64.as_str());
         if verified {
             match std::fs::remove_file(file_path) {
-                Ok(()) => eprintln!("lapacho: clave migrada del archivo al keyring del SO"),
+                Ok(()) => eprintln!("lapacho: key migrated from file to OS keyring"),
                 Err(e) => eprintln!(
-                    "lapacho: clave migrada al keyring pero no pude borrar {file_path:?}: {e}"
+                    "lapacho: key migrated to keyring but could not remove {file_path:?}: {e}"
                 ),
             }
         } else {
             eprintln!(
-                "lapacho: clave guardada en keyring pero la verificación falló; conservo {file_path:?}"
+                "lapacho: key stored in keyring but verification failed; keeping {file_path:?}"
             );
         }
     }
@@ -98,7 +98,7 @@ fn read_key_file(path: &Path) -> Result<SecretKey, String> {
     let arr: [u8; crypto::KEY_LEN] = bytes
         .as_slice()
         .try_into()
-        .map_err(|_| "archivo de clave con tamaño inválido".to_string())?;
+        .map_err(|_| "invalid key file size".to_string())?;
     Ok(SecretKey::from_bytes(arr))
 }
 

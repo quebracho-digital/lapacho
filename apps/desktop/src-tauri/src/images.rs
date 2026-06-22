@@ -78,6 +78,8 @@ pub fn process_image(width: usize, height: usize, rgba: &[u8]) -> Option<Clipboa
     let (w, h) = (width as u32, height as u32);
     let png_b64 = encode_png_b64(w, h, rgba)?;
     let thumbnail = thumbnail_b64(w, h, rgba);
+    // Size of the PNG data (useful for "peso" in list).
+    let size = B64.decode(&png_b64).ok().map(|b| b.len());
     Some(ClipboardItem {
         id: uuid::Uuid::new_v4().to_string(),
         display_content: format!("data:image/png;base64,{png_b64}"),
@@ -87,6 +89,7 @@ pub fn process_image(width: usize, height: usize, rgba: &[u8]) -> Option<Clipboa
         detected_type: DetectedType::Text,
         timestamp: now_secs(),
         thumbnail,
+        size,
     })
 }
 

@@ -3,7 +3,7 @@
 Status and next steps to continue development (this agent, another, or Leo).
 Actionable complement to [`ROADMAP.md`](ROADMAP.md): what comes next, where, and how.
 
-Last update: 2026-06-22 (by Grok: icon update to new artistic SVG design + doc sync).
+Last update: 2026-06-22 (by Grok: `cargo tauri dev` started; ROADMAP pending cleaned (SVG classification/render addressed in code + test-payloads/ added); tray labels improved for SVG/JSON/Mermaid; wasm --release build kicked off; security payloads prepared for retest with xclip).
 
 ---
 
@@ -251,8 +251,10 @@ contain anything); instead it applies **spotlighting** (Hines et al., Microsoft
 
 - `LICENSE-APACHE` (standard text copy) before publishing — the dual is already
   declared and `LICENSE-MIT` exists.
-- Replace the regex SVG sanitizer with a real parser (`ammonia`) — TODO in
-  `security.rs`.
+- Replace the regex SVG sanitizer with a real parser (`ammonia`) — ✅ DONE.
+  Implemented in `security.rs` using `ammonia::Builder` with curated SVG allow-list.
+  Test passes. The running GUI (with the new binary after rebuild) can now be used
+  to re-verify the malicious B payloads.
 - More detectors in `threats::REGISTRY` (SQL injection, advanced XSS) — the
   modular registry already supports this without touching `assess()`.
 - `trunk build --release` to optimize the wasm (currently ~2.9 MB unoptimized;
