@@ -150,7 +150,8 @@ mod tests {
             size: None,
         };
         let ui: UIClipboardItem = item.clone().into();
-        assert_eq!(ui.display_content, "•••");
+        // For secrets the projection forces a safe hinted display from the raw.
+        assert!(ui.display_content.starts_with("••••"));
         assert_eq!(item.raw_content, "SECRET");
     }
 }

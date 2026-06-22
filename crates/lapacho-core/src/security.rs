@@ -165,6 +165,18 @@ pub fn classify_sensitivity(text: &str) -> Sensitivity {
         }
     }
 
+    // Long hex strings (common for keys, hashes, tokens) are high sensitivity.
+    // Pure hex of 32+ chars has max entropy ~4.0, so won't hit the >4.2 general rule.
+    // Treat as Secret (more paranoid than Credential) because these are typically
+    // cryptographic material, not "just an API token".
+    if !trimmed.contains(char::is_whitespace)
+        && trimmed.len() >= 32
+        && trimmed.chars().all(|c| c.is_ascii_hexdigit())
+        && shannon_entropy(trimmed) > 3.5
+    {
+        return Sensitivity::Secret;
+    }
+
     if api_key_re.is_match(trimmed) {
         return Sensitivity::Credential;
     }
@@ -256,6 +268,18 @@ mod tests {
         assert_eq!(
             classify_sensitivity("+54 9 11 1234-5678"),
             Sensitivity::Personal
+        );
+        // Long hex (common for keys/hashes) should be Secret even without upper/special
+        assert_eq!(
+            classify_sensitivity(
+                "4242b3f0d97f17ff12766df9812bad75ee0005761fb985011a8aa4ae130e15bc"
+            ),
+            Sensitivity::Secret
+        );
+        // 32-char hex too
+        assert_eq!(
+            classify_sensitivity("0123456789abcdef0123456789abcdef"),
+            Sensitivity::Secret
         );
     }
 

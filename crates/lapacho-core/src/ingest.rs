@@ -149,7 +149,10 @@ mod tests {
         let key = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...";
         let item = process_text(key);
         assert_eq!(item.sensitivity, Sensitivity::Secret);
-        assert_eq!(item.display_content, REDACTED);
+        // Secrets now get a short safe hint for distinguishability (consistent with
+        // credential distinction feature). Never the real value.
+        assert!(item.display_content.starts_with("••••"));
+        assert!(!item.display_content.contains("MIIEowIBAAKCAQEA"));
         assert_eq!(item.raw_content, key);
     }
 
@@ -183,10 +186,12 @@ mod tests {
     fn redaction_does_not_leak_length() {
         let short = process_text("ghp_123456789012345678901234567890123456");
         let longer = process_text("ghp_abcdefghijklmnopqrstuvwxyz0123456789AB");
-        // Secrets always use the fixed placeholder (no length info leaked).
+        // Both secrets and credentials now use short fixed-width "••••" + hint.
+        // The hint length is bounded so we don't leak the original length.
         let secret = process_text("-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...");
-        assert_eq!(secret.display_content, REDACTED);
-        // Credentials get a small suffix hint; we at least ensure the real value is never shown.
+        assert!(secret.display_content.starts_with("••••"));
+        assert_eq!(secret.display_content.len(), "••••".len() + 4); // hint is up to 4
+        // Real values never shown.
         assert!(!short.display_content.contains("123456789012345678901234567890123456"));
         assert!(!longer.display_content.contains("abcdefghijklmnopqrstuvwxyz0123456789AB"));
     }

@@ -23,7 +23,8 @@ use crate::AppState;
 /// Tray id, used to look the icon up when we rebuild its menu.
 pub const TRAY_ID: &str = "lapacho-tray";
 /// How many recent clips to surface as native menu entries.
-const TRAY_ITEMS: usize = 12;
+const TRAY_RECENT_CAP: usize = 25;
+const TRAY_MENU_ITEMS: usize = 20;
 /// Max characters per label before truncating (newlines collapsed to spaces).
 const LABEL_MAX: usize = 50;
 
@@ -113,17 +114,32 @@ fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {
     }
 }
 
-/// Returns the live tray items (tray_recent buffer first, else fallback to
-/// persisted history). This is the source for both the native menu and the
-/// dynamic tray indicator icon.
+/// Returns the live tray items.
+/// - Recent session copies (from tray_recent, which includes even non-persisted
+///   sensitive items) come first.
+/// - Then we supplement with older items from the persisted history (DB) so the
+///   tray feels more like the full history the modal shows, while still
+///   prioritizing what you just copied this session.
 fn get_tray_items(app: &AppHandle) -> Vec<ClipboardItem> {
     let state = app.state::<AppState>();
-    let recent = state.tray_recent.lock().unwrap();
-    if !recent.is_empty() {
-        recent.clone()
-    } else {
-        state.repo.load().unwrap_or_default()
+    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().clone();
+
+    // Load from DB and append items not already in recent (by id).
+    // This makes tray show persistent history + recent on top.
+    if let Ok(db_items) = state.repo.load() {
+        for db in db_items {
+            if result.iter().any(|r| r.id == db.id) {
+                continue;
+            }
+            result.push(db);
+            // Don't load the entire history into memory for the tray.
+            if result.len() >= 50 {
+                break;
+            }
+        }
     }
+
+    result
 }
 
 /// Returns an icon for the tray *indicator* (the panel icon) derived from the
@@ -153,7 +169,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         let empty = MenuItem::with_id(app, ID_EMPTY, "(no clips yet)", false, None::<&str>)?;
         builder = builder.item(&empty);
     } else {
-        for it in items.iter().take(TRAY_ITEMS) {
+        for it in items.iter().take(TRAY_MENU_ITEMS) {
             let label = item_label(it);
             // The id is the item's UUID; the menu-event handler routes it to copy.
             // Image items carry their 18×18 thumbnail as a native menu icon.
@@ -217,7 +233,7 @@ pub fn schedule_rebuild(app: &AppHandle) {
     }
     let app = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(150));
+        std::thread::sleep(Duration::from_millis(80));
         app.state::<AppState>()
             .tray_pending
             .store(false, Ordering::SeqCst);
