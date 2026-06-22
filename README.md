@@ -8,10 +8,10 @@ pegás de vuelta.
 Parte del ecosistema **Quebracho Digital**. Reemplaza a los prototipos
 `quebracho-client` y `RustyBoard`.
 
-> **Estado:** en desarrollo. El núcleo (`lapacho-core`) es estable y está
-> testeado; la app de escritorio tiene el backend completo (cifrado en reposo,
-> keyring, escáner de amenazas) y un frontend Leptos/WASM que compila. Falta la
-> bandeja del sistema + atajo global.
+> **Estado:** en desarrollo avanzado. Núcleo (`lapacho-core`) estable con 50+ tests.
+> App de escritorio (Tauri 2 + Leptos/WASM) tiene backend completo, bandeja nativa,
+> atajo global Ctrl+Shift+V, soporte de imágenes, render rico (MD/SVG/Mermaid) y
+> modelo de seguridad raw-first. Verificado headless + smoke GUI.
 
 ## Características
 
@@ -83,16 +83,16 @@ cargo tauri dev
 
 ## Roadmap
 
-- [x] `lapacho-core`: clasificación, saneo, storage, plugins, ingest (testeado)
-- [x] Backend de escritorio: monitor + comandos Tauri
+- [x] `lapacho-core`: clasificación, saneo, storage, plugins, ingest (50+ tests)
+- [x] Backend de escritorio: monitor + comandos Tauri + keyring + hardening
 - [x] Refresco reactivo de la UI ante captura en vivo
 - [x] Cifrado en reposo (AES-256-GCM) + clave en keyring + endurecimiento en memoria
 - [x] Escáner de amenazas modular + acciones por ítem (copiar/exportar/plugin)
-- [x] Frontend Leptos/WASM (reemplazo del placeholder)
-- [ ] Bandeja del sistema + atajo global + popup en el cursor
-- [ ] Soporte de imágenes en el portapapeles
+- [x] Frontend Leptos/WASM + render rico (Markdown, SVG seguro, JSON, Mermaid)
+- [x] Bandeja del sistema nativa + atajo global (Ctrl+Shift+V) + launch-to-tray
+- [x] Soporte completo de imágenes (captura, thumbnails en tray, saneo metadata)
 
-Detalle completo y pendientes: ver [`ROADMAP.md`](ROADMAP.md).
+Detalle completo y pendientes menores: ver [`ROADMAP.md`](ROADMAP.md) y [`HANDOFF.md`](HANDOFF.md).
 
 ## Licencia
 
