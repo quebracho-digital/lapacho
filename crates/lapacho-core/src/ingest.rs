@@ -14,7 +14,7 @@
 //! an unmasked credential or secret.
 
 use crate::detectors::classify_text;
-use crate::security::{classify_sensitivity, sanitize_svg, sanitize_text};
+use crate::security::{classify_sensitivity, classify_sensitivity_graphics, sanitize_svg, sanitize_text};
 use crate::types::{ClipboardItem, DetectedType, Sensitivity};
 
 /// Placeholder shown instead of a credential or secret. Fixed-width so it does
@@ -44,12 +44,18 @@ pub fn mask_display(sanitized: &str, sensitivity: Sensitivity) -> String {
 /// Processes a raw text clipboard payload into a complete [`ClipboardItem`].
 ///
 /// Generates a fresh UUID and a current timestamp. The returned item is ready
-/// to be handed to [`storage::save_item`](crate::storage::save_item); whether it
-/// is actually persisted depends on the configured
+/// to be handed to [`HistoryRepo::save`](crate::storage::HistoryRepo::save);
+/// whether it is actually persisted depends on the configured
 /// [`PersistLevel`](crate::types::PersistLevel).
 pub fn process_text(raw: &str) -> ClipboardItem {
     let detected_type = classify_text(raw);
-    let sensitivity = classify_sensitivity(raw);
+    // Vector diagrams carry numeric coordinates; skip email/phone heuristics.
+    let sensitivity = match detected_type {
+        DetectedType::Svg | DetectedType::Mermaid => {
+            classify_sensitivity_graphics(raw)
+        }
+        _ => classify_sensitivity(raw),
+    };
 
     // SVG is sanitized with the XSS-aware sanitizer; everything else just has
     // control characters stripped. If SVG sanitizing fails, fall back to text.
@@ -126,10 +132,19 @@ mod tests {
         let svg = r#"<svg><script>alert(1)</script><rect/></svg>"#;
         let item = process_text(svg);
         assert_eq!(item.detected_type, DetectedType::Svg);
+        assert_eq!(item.sensitivity, Sensitivity::None);
         // Non-sensitive SVG is visible, but the script vector is gone.
         assert!(!item.display_content.contains("<script"));
         // The raw is preserved verbatim (sanitizing happens for display only).
         assert!(item.raw_content.contains("<script"));
+    }
+
+    #[test]
+    fn leo_source_svg_is_not_personal() {
+        let svg = include_str!("../../../apps/desktop/src-tauri/icons/lapacho-source.svg");
+        let item = process_text(svg);
+        assert_eq!(item.detected_type, DetectedType::Svg);
+        assert_eq!(item.sensitivity, Sensitivity::None);
     }
 
     #[test]

@@ -1,3 +1,6 @@
 /dist/
 /target/
-/Cargo.lock
+# Frontend Leptos (crate standalone): artefactos de Trunk y su target propio.
+/apps/desktop/ui/dist/
+/apps/desktop/ui/target/
+# Cargo.lock se versiona: este workspace produce binarios (app de escritorio).

@@ -4,20 +4,25 @@
   "version": "0.1.0",
   "identifier": "digital.quebracho.lapacho",
   "build": {
-    "frontendDist": "../dist"
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": { "cwd": "../ui", "script": "trunk serve" },
+    "beforeBuildCommand": { "cwd": "../ui", "script": "trunk build" }
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
+        "label": "main",
         "title": "Lapacho",
         "width": 440,
         "height": 660,
-        "resizable": true
+        "resizable": true,
+        "visible": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; connect-src ipc: http://ipc.localhost https://ipc.localhost; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; frame-src blob:"
     }
   },
   "bundle": {

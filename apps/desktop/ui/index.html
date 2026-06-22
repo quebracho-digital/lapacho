@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lapacho</title>
+    <link data-trunk rel="rust" data-wasm-opt="z" />
+
+    <!-- Mermaid live-diagram rendering. Both files vendored (offline); loaded
+         as external scripts so there are no inline scripts and the CSP can
+         omit 'unsafe-inline' from script-src. securityLevel:strict makes
+         mermaid render inside a sandboxed iframe. -->
+    <link data-trunk rel="copy-file" href="vendor/mermaid.min.js" />
+    <link data-trunk rel="copy-file" href="vendor/mermaid-init.js" />
+    <script src="mermaid.min.js"></script>
+    <script src="mermaid-init.js"></script>
+
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 14px/1.4 system-ui, sans-serif;
+        background: #16130f;
+        color: #ece6dd;
+      }
+      header {
+        padding: 12px 16px;
+        background: #c2185b; /* lapacho flower */
+        color: #fff;
+        font-weight: 600;
+      }
+      header small { font-weight: 400; opacity: 0.85; }
+      #controls {
+        display: flex; flex-wrap: wrap;
+        gap: 8px; align-items: center;
+        padding: 8px 16px;
+        border-bottom: 1px solid #2a241c;
+      }
+      #controls select, #controls button {
+        background: #2a241c; color: #ece6dd;
+        border: 1px solid #3a3228; border-radius: 6px; padding: 4px 8px;
+      }
+      #controls button { cursor: pointer; }
+      #controls .spacer { flex: 1; }
+      ul { list-style: none; margin: 0; padding: 0; }
+      li.item {
+        padding: 8px 16px;
+        border-bottom: 1px solid #221d16;
+        display: flex; gap: 8px; align-items: flex-start;
+      }
+      li.item .body { flex: 1; min-width: 0; }
+      li.item .content {
+        white-space: pre-wrap; word-break: break-word;
+        max-height: 4.2em; overflow: hidden;
+      }
+      li.item .meta { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+      .tag {
+        font-size: 10px; padding: 1px 6px; border-radius: 999px;
+        text-transform: uppercase; letter-spacing: 0.04em;
+      }
+      .s-None { background: #2a3a2a; color: #9bd49b; }
+      .s-Personal { background: #3a3320; color: #d9c177; }
+      .s-Credential { background: #3a2a20; color: #e0a86a; }
+      .s-Secret { background: #3a2020; color: #e07a7a; }
+      .item.sens .content { font-family: monospace; letter-spacing: 0.1em; opacity: 0.8; }
+      .row-actions { display: flex; gap: 2px; }
+      .row-actions button {
+        background: none; border: none; color: #8a8076; cursor: pointer; font-size: 13px;
+        padding: 2px 4px;
+      }
+      .row-actions button:hover { color: #ece6dd; }
+      #empty { padding: 24px 16px; opacity: 0.5; text-align: center; }
+
+      /* ---- detail / export modal ---- */
+      .overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+        display: flex; align-items: center; justify-content: center; padding: 16px;
+      }
+      .modal {
+        background: #1e1a14; border: 1px solid #3a3228; border-radius: 10px;
+        width: 100%; max-width: 520px; max-height: 90vh; overflow: auto;
+        padding: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      }
+      .modal h2 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+      .modal .full {
+        white-space: pre-wrap; word-break: break-word;
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; max-height: 30vh; overflow: auto; font-family: monospace; font-size: 12px;
+      }
+      .modal .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+      .modal .actions button, .modal .actions select {
+        background: #2a241c; color: #ece6dd; border: 1px solid #3a3228;
+        border-radius: 6px; padding: 5px 10px; cursor: pointer;
+      }
+      .modal .actions .primary { background: #c2185b; border-color: #c2185b; color: #fff; }
+      .close { margin-left: auto; }
+
+      /* ---- threat findings ---- */
+      .threats { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+      .threat {
+        display: flex; gap: 8px; align-items: flex-start;
+        border-radius: 6px; padding: 6px 8px; font-size: 12px;
+      }
+      .threat .ico { font-size: 14px; line-height: 1.2; }
+      .sev-Info { background: #20303a; color: #8fc6e0; }
+      .sev-Warning { background: #3a3320; color: #e0cf8f; }
+      .sev-Danger { background: #3a2020; color: #e89090; }
+      .threats-ok { color: #9bd49b; font-size: 12px; margin-top: 8px; }
+      .hint { font-size: 11px; opacity: 0.6; margin-top: 4px; }
+
+      /* ---- images ---- */
+      li.item .content img.thumb {
+        max-height: 3.6em; max-width: 100%;
+        border-radius: 4px; border: 1px solid #2a241c; display: block;
+      }
+      .image-view {
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; display: flex; justify-content: center;
+      }
+      .image-view img { max-width: 100%; max-height: 50vh; }
+
+      /* ---- rich preview by detected_type (maximize modal) ---- */
+      .body-render { margin-bottom: 4px; }
+      .svg-preview {
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; display: flex; justify-content: center;
+      }
+      .svg-preview img { max-width: 100%; max-height: 40vh; }
+      .code-pretty {
+        white-space: pre; overflow: auto; tab-size: 2;
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; max-height: 40vh; font-family: monospace; font-size: 12px;
+        margin: 0;
+      }
+      .mermaid-wrap {
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px; max-height: 45vh; overflow: auto; display: flex; justify-content: center;
+      }
+      .mermaid { font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+      .mermaid svg { max-width: 100%; height: auto; }
+      .mermaid-error { color: #e89090; font-size: 12px; }
+      .markdown-body {
+        background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
+        padding: 8px 12px; max-height: 40vh; overflow: auto;
+        line-height: 1.45;
+      }
+      .markdown-body :first-child { margin-top: 0; }
+      .markdown-body :last-child { margin-bottom: 0; }
+      .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
+        font-weight: 600; margin: 0.6em 0 0.25em; line-height: 1.3;
+      }
+      .markdown-body h1 { font-size: 1.2em; }
+      .markdown-body h2 { font-size: 1.1em; }
+      .markdown-body h3 { font-size: 1.0em; }
+      .markdown-body p { margin: 0.35em 0; }
+      .markdown-body ul, .markdown-body ol {
+        margin: 0.3em 0 0.3em 1.1em; padding-left: 0.4em;
+      }
+      .markdown-body li { margin: 0.1em 0; }
+      .markdown-body blockquote {
+        border-left: 3px solid #4a443a; margin: 0.4em 0; padding-left: 8px; color: #a89e8f;
+      }
+      .markdown-body hr { border: none; border-top: 1px solid #3a3228; margin: 0.5em 0; }
+      .markdown-body pre {
+        background: #0f0d0a; border-radius: 4px; padding: 8px; overflow: auto;
+      }
+      .markdown-body code { font-family: monospace; font-size: 12px; }
+      .markdown-body a { color: #e0a86a; }
+      .markdown-body img { max-width: 100%; }
+      .markdown-body table { border-collapse: collapse; }
+      .markdown-body th, .markdown-body td { border: 1px solid #3a3228; padding: 2px 6px; }
+
+      /* Mini MD preview inside the compact list rows (clipped by max-height on li) */
+      .md-mini {
+        font-size: 12px;
+        line-height: 1.3;
+        max-height: 3.8em;
+        overflow: hidden;
+      }
+      .md-mini h1, .md-mini h2, .md-mini h3 { font-size: 1em; margin: 0.1em 0; font-weight: 600; }
+      .md-mini p { margin: 0.1em 0; }
+      .md-mini ul, .md-mini ol { margin: 0.1em 0 0.1em 1em; font-size: 12px; }
+      .md-mini code { font-size: 11px; }
+    </style>
+  </head>
+  <body></body>
+</html>
