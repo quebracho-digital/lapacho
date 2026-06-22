@@ -51,6 +51,12 @@ pub trait HistoryRepo: Send + Sync {
     fn save(&self, item: &ClipboardItem, level: PersistLevel) -> Result<(), String>;
     /// Returns the most recent history, newest first.
     fn load(&self) -> Result<Vec<ClipboardItem>, String>;
+
+    /// Searches history for items whose raw or display content contains the
+    /// query (case-insensitive). Empty/blank query behaves like `load()`.
+    /// Returns newest first among matches. Used for UI history search.
+    fn search(&self, query: &str) -> Result<Vec<ClipboardItem>, String>;
+
     /// Removes a single item by id.
     fn delete(&self, id: &str) -> Result<(), String>;
     /// Removes every item.
@@ -58,6 +64,13 @@ pub trait HistoryRepo: Send + Sync {
     /// Enforces `policy`: expires sensitive items past their TTL and caps the
     /// total number of items kept.
     fn cleanup(&self, policy: &RetentionPolicy) -> Result<(), String>;
+
+    /// Persist a user preference (e.g. persist_level, sensitive_ttl_secs).
+    /// Used so UI choices survive app restarts.
+    fn set_preference(&self, key: &str, value: &str) -> Result<(), String>;
+
+    /// Retrieve a previously saved preference.
+    fn get_preference(&self, key: &str) -> Result<Option<String>, String>;
 }
 
 /// SQLite-backed [`HistoryRepo`].
@@ -120,6 +133,19 @@ impl SqliteRepo {
             "ALTER TABLE history ADD COLUMN detected_type TEXT NOT NULL DEFAULT 'Text'",
             [],
         );
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN size INTEGER", []);
+
+        // Simple key-value settings for user preferences (persist_level, ttl, etc.)
+        // so they survive restarts.
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
         Ok(())
     }
 
@@ -187,8 +213,8 @@ impl HistoryRepo for SqliteRepo {
 
         conn.execute(
             "INSERT OR REPLACE INTO history
-             (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+             (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 item.id,
                 enc_raw,
@@ -198,6 +224,7 @@ impl HistoryRepo for SqliteRepo {
                 format!("{:?}", item.detected_type),
                 item.timestamp,
                 item.thumbnail,
+                item.size.map(|s| s as i64),
             ],
         )
         .map_err(|e| e.to_string())?;
@@ -215,12 +242,13 @@ impl HistoryRepo for SqliteRepo {
             detected_type: String,
             timestamp: u64,
             thumbnail: Option<String>,
+            size: Option<i64>,
         }
 
         let conn = self.conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail
+                "SELECT id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size
                  FROM history ORDER BY timestamp DESC LIMIT 100",
             )
             .map_err(|e| e.to_string())?;
@@ -236,6 +264,7 @@ impl HistoryRepo for SqliteRepo {
                     detected_type: row.get(5)?,
                     timestamp: row.get(6)?,
                     thumbnail: row.get(7)?,
+                    size: row.get(8)?,
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -277,9 +306,26 @@ impl HistoryRepo for SqliteRepo {
                 detected_type,
                 timestamp: r.timestamp,
                 thumbnail: r.thumbnail,
+                size: r.size.map(|s| s as usize),
             });
         }
         Ok(items)
+    }
+
+    fn search(&self, query: &str) -> Result<Vec<ClipboardItem>, String> {
+        let q = query.trim();
+        if q.is_empty() {
+            return self.load();
+        }
+        let lower = q.to_lowercase();
+        let all = self.load()?;
+        Ok(all
+            .into_iter()
+            .filter(|it| {
+                it.raw_content.to_lowercase().contains(&lower)
+                    || it.display_content.to_lowercase().contains(&lower)
+            })
+            .collect())
     }
 
     fn delete(&self, id: &str) -> Result<(), String> {
@@ -317,6 +363,30 @@ impl HistoryRepo for SqliteRepo {
             params![policy.max_items],
         );
         Ok(())
+    }
+
+    fn set_preference(&self, key: &str, value: &str) -> Result<(), String> {
+        let conn = self.conn()?;
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+            params![key, value],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn get_preference(&self, key: &str) -> Result<Option<String>, String> {
+        let conn = self.conn()?;
+        let mut stmt = conn
+            .prepare("SELECT value FROM settings WHERE key = ?1")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt.query(params![key]).map_err(|e| e.to_string())?;
+        if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let v: String = row.get(0).map_err(|e| e.to_string())?;
+            Ok(Some(v))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -358,6 +428,7 @@ mod tests {
             detected_type: DetectedType::Text,
             timestamp: ts,
             thumbnail: None,
+            size: None,
         }
     }
 
@@ -517,6 +588,48 @@ mod tests {
         repo.save(&dummy("z", Sensitivity::None, 1000), PersistLevel::All)
             .unwrap();
         assert_eq!(repo.load().unwrap().len(), 1);
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn search_matches_raw_and_display_case_insensitive() {
+        let (repo, db) = repo();
+
+        // Normal item searchable by visible display
+        let mut md = dummy("md1", Sensitivity::None, 1000);
+        md.display_content = "The secret code is LAPACHO-42 for project".into();
+        md.raw_content = md.display_content.clone();
+        md.detected_type = DetectedType::Markdown;
+        repo.save(&md, PersistLevel::All).unwrap();
+
+        // Credential: display masked, but searchable by raw content
+        let mut cred = dummy("cred1", Sensitivity::Credential, 1001);
+        cred.raw_content = "ghp_supersecretapikeyXYZ123".into();
+        cred.display_content = "•••••••• [credential]".into();
+        cred.sensitivity = Sensitivity::Credential;
+        repo.save(&cred, PersistLevel::All).unwrap();
+
+        // Blank query acts as load
+        assert_eq!(repo.search("").unwrap().len(), 2);
+        assert_eq!(repo.search("   ").unwrap().len(), 2);
+
+        // Match on display (visible text)
+        let res = repo.search("LAPACHO").unwrap();
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0].id, "md1");
+
+        // Case insensitive
+        let res2 = repo.search("lapacho-42").unwrap();
+        assert_eq!(res2.len(), 1);
+
+        // Match on raw even for credential (masked in display)
+        let res3 = repo.search("supersecretapikey").unwrap();
+        assert_eq!(res3.len(), 1);
+        assert_eq!(res3[0].id, "cred1");
+
+        // No match
+        assert!(repo.search("no-such-thing").unwrap().is_empty());
+
         let _ = std::fs::remove_file(&db);
     }
 }

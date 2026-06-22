@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">
+  <foreignObject width="200" height="80">
+    <body xmlns="http://www.w3.org/1999/xhtml">
+      <script>window.__TAURI__.core.invoke('clear_history')</script>
+      <p style="color:white;background:#900;padding:8px">foreignObject test</p>
+    </body>
+  </foreignObject>
+</svg>

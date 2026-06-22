@@ -1,101 +1,105 @@
 # Lapacho
 
-Gestor de portapapeles **seguro** para escritorio. Clasifica, sanea y enmascara
-lo que copiás antes de que llegue a la interfaz: las credenciales y los secretos
-nunca se muestran en claro, y el contenido original solo sale cuando vos lo
-pegás de vuelta.
+A **secure** desktop clipboard manager. It classifies, sanitizes, and masks
+content before it reaches the UI: credentials and secrets are never shown in
+plain text, and the original content is only released when you explicitly paste
+it back.
 
-Parte del ecosistema **Quebracho Digital**. Reemplaza a los prototipos
-`quebracho-client` y `RustyBoard`.
+Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
+`quebracho-client` and `RustyBoard`.
 
-> **Estado:** en desarrollo avanzado. Núcleo (`lapacho-core`) estable con 50+ tests.
-> App de escritorio (Tauri 2 + Leptos/WASM) tiene backend completo, bandeja nativa,
-> atajo global Ctrl+Shift+V, soporte de imágenes, render rico (MD/SVG/Mermaid) y
-> modelo de seguridad raw-first. Verificado headless + smoke GUI.
+> **Status:** advanced development. The core (`lapacho-core`) is stable with 50+
+> tests. The desktop app (Tauri 2 + Leptos/WASM) has a complete backend, native
+> tray, global shortcut Ctrl+Shift+Alt+L (Lapacho-exclusive), image support, rich rendering
+> (MD/SVG/Mermaid), and a raw-first security model. Verified headless + GUI smoke
+> tests.
 
-## Características
+## Features
 
-- **Captura automática** del portapapeles mediante un monitor en segundo plano.
-- **Clasificación de tipo:** texto, URL, JSON, SVG, Mermaid, Markdown.
-- **Clasificación de sensibilidad:** `None` / `Personal` / `Credential` /
-  `Secret`, usando regex + entropía de Shannon (claves privadas, tokens de API,
-  tarjetas, emails, etc.).
-- **Enmascarado:** credenciales y secretos se muestran redactados (`••••••••`),
-  nunca en claro. El `raw_content` jamás se envía a la capa de UI.
-- **Políticas de persistencia:**
-  - `Paranoia` (default): solo guarda contenido no sensible.
-  - `Balanceado`: guarda todo salvo secretos, con TTL para credenciales.
-  - `Todo`: guarda todo.
-- **Saneado de SVG:** elimina vectores XSS (scripts, handlers `on*`,
+- **Automatic capture** of the clipboard via a background monitor.
+- **Type classification:** text, URL, JSON, SVG, Mermaid, Markdown, image.
+- **Sensitivity classification:** `None` / `Personal` / `Credential` / `Secret`,
+  using regex + Shannon entropy (private keys, API tokens, credit cards, emails,
+  etc.).
+- **Masking:** credentials and secrets are shown redacted (`••••••••`), never in
+  the clear. The `raw_content` is never sent to the UI layer.
+- **Persistence policies:**
+  - `Paranoia` (default): only stores non-sensitive content.
+  - `Balanced`: stores everything except secrets, with TTL for credentials.
+  - `All`: stores everything.
+- **SVG sanitization:** removes XSS vectors (scripts, `on*` handlers,
   `javascript:`).
-- **Plugins de transformación:** comandos externos que reciben el contenido por
-  `stdin` (sin inyección de comandos), con timeout, y cuya salida se sanea antes
-  de mostrarse.
-- **Historial en SQLite** (modo WAL) con límite de tamaño y limpieza por TTL.
+- **Transformation plugins:** external commands that receive content via
+  `stdin` (no command injection), with timeout, and whose output is sanitized
+  before display.
+- **SQLite history** (WAL mode) with size limit and TTL-based cleanup.
 
-## Arquitectura
+## Architecture
 
-Workspace Cargo (Rust, edición 2024):
+Cargo workspace (Rust 2024 edition):
 
 ```
 lapacho/
-├─ crates/lapacho-core/    # Lógica pura, sin UI (lib)
-│  ├─ types        # ClipboardItem, UIClipboardItem (proyección segura), enums
-│  ├─ detectors    # clasificación del tipo de contenido
-│  ├─ security     # saneo + clasificación de sensibilidad
-│  ├─ storage      # SQLite: historial, niveles de persistencia, TTL
-│  ├─ plugins      # ejecución de plugins externos
-│  └─ ingest       # pipeline que compone todo + enmascarado
+├─ crates/lapacho-core/    # Pure logic, no UI (lib)
+│  ├─ types        # ClipboardItem, UIClipboardItem (safe projection), enums
+│  ├─ detectors    # content type classification
+│  ├─ security     # sanitization + sensitivity classification
+│  ├─ storage      # SQLite: history, persistence levels, TTL
+│  ├─ plugins      # external plugin execution
+│  └─ ingest       # pipeline that composes everything + masking
 └─ apps/desktop/
-   ├─ src-tauri/   # backend Tauri 2 (monitor de portapapeles + comandos)
-   ├─ ui/          # frontend Leptos/WASM (crate standalone, build con Trunk)
-   └─ legacy-ui/   # UI vanilla original, conservada como referencia
+   ├─ src-tauri/   # Tauri 2 backend (clipboard monitor + commands)
+   ├─ ui/          # Leptos/WASM frontend (standalone crate, built with Trunk)
+   └─ legacy-ui/   # Original vanilla UI, kept as reference
 ```
 
-`lapacho-core` no depende de Tauri ni de ningún framework de UI: es reutilizable
-desde cualquier frontend.
+`lapacho-core` does not depend on Tauri or any UI framework: it is reusable
+from any frontend.
 
-## Modelo de seguridad
+## Security Model
 
-- El `raw_content` (contenido original) vive **solo en el backend**; la UI recibe
-  un `UIClipboardItem` que nunca lo incluye.
-- Credenciales y secretos se enmascaran con un placeholder de ancho fijo, que no
-  filtra la longitud del original.
-- Los plugins reciben su input por `stdin` (no por argumentos → sin inyección) y
-  corren con timeout; su salida se sanea antes de llegar a la UI.
+- The `raw_content` (original content) lives **only in the backend**; the UI
+  receives a `UIClipboardItem` that never includes it.
+- Credentials and secrets are masked with a fixed-width placeholder that does
+  not leak the original length.
+- Plugins receive their input via `stdin` (not arguments → no injection) and run
+  with a timeout; their output is sanitized before reaching the UI.
 
-## Desarrollo
+## Development
 
-Requisitos: Rust ≥ 1.85. Para la app de escritorio, el toolchain de Tauri 2
-(en Linux: `gtk3`, `webkit2gtk-4.1`, `libsoup-3.0`).
+Requirements: Rust ≥ 1.85. For the desktop app, the Tauri 2 toolchain
+(on Linux: `gtk3`, `webkit2gtk-4.1`, `libsoup-3.0`).
 
 ```bash
-# Tests del núcleo
+# Core tests
 cargo test -p lapacho-core
 
-# Compilar todo el workspace
+# Build the entire workspace
 cargo build --workspace
 
-# Levantar la app de escritorio
+# Run the desktop app
 cd apps/desktop/src-tauri
-cargo tauri dev
+# On this environment, trunk is sensitive to color env vars; use the prefix:
+env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always CARGO_TERM_COLOR=never \
+  cargo tauri dev
 ```
 
 ## Roadmap
 
-- [x] `lapacho-core`: clasificación, saneo, storage, plugins, ingest (50+ tests)
-- [x] Backend de escritorio: monitor + comandos Tauri + keyring + hardening
-- [x] Refresco reactivo de la UI ante captura en vivo
-- [x] Cifrado en reposo (AES-256-GCM) + clave en keyring + endurecimiento en memoria
-- [x] Escáner de amenazas modular + acciones por ítem (copiar/exportar/plugin)
-- [x] Frontend Leptos/WASM + render rico (Markdown, SVG seguro, JSON, Mermaid)
-- [x] Bandeja del sistema nativa + atajo global (Ctrl+Shift+V) + launch-to-tray
-- [x] Soporte completo de imágenes (captura, thumbnails en tray, saneo metadata)
+- [x] `lapacho-core`: classification, sanitization, storage, plugins, ingest (50+ tests)
+- [x] Desktop backend: monitor + Tauri commands + keyring + hardening
+- [x] Reactive UI refresh on live capture
+- [x] At-rest encryption (AES-256-GCM) + key in OS keyring + memory hardening
+- [x] Modular threat scanner + per-item actions (copy/export/plugin)
+- [x] Leptos/WASM frontend + rich rendering (Markdown, safe SVG, JSON, Mermaid)
+- [x] Native system tray + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive) + launch-to-tray + dynamic tray indicator icon (shows last image thumbnail)
+- [x] Full image support (capture, tray thumbnails, metadata sanitization)
+- [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
 
-Detalle completo y pendientes menores: ver [`ROADMAP.md`](ROADMAP.md) y [`HANDOFF.md`](HANDOFF.md).
+Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md) and [`HANDOFF.md`](HANDOFF.md).
 
-## Licencia
+## License
 
-El núcleo (`lapacho-core`) y la app se publican bajo **MIT OR Apache-2.0**.
-Los plugins e integraciones propietarias de Quebracho Digital son cerrados.
-Ver [`LICENSING.md`](LICENSING.md).
+The core (`lapacho-core`) and the app are released under **MIT OR Apache-2.0**.
+Quebracho Digital's proprietary plugins and integrations are closed source.
+See [`LICENSING.md`](LICENSING.md).

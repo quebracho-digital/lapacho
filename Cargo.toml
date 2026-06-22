@@ -30,6 +30,7 @@ getrandom = "0.2"
 base64 = "0.22"
 zeroize = "1"
 region = "3"
+ammonia = "4.0"
 
 [profile.release]
 opt-level = "z"

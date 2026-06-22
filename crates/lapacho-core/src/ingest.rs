@@ -17,8 +17,7 @@ use crate::detectors::classify_text;
 use crate::security::{classify_sensitivity, classify_sensitivity_graphics, sanitize_svg, sanitize_text};
 use crate::types::{ClipboardItem, DetectedType, Sensitivity};
 
-/// Placeholder shown instead of a credential or secret. Fixed-width so it does
-/// not leak the length of the original content.
+/// Placeholder shown instead of a credential or secret.
 const REDACTED: &str = "••••••••";
 
 fn now_secs() -> u64 {
@@ -28,16 +27,40 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+/// Extracts a very small, safe suffix (last few visible chars) from a credential
+/// so the user can tell different credentials apart in the list/tray without
+/// revealing the actual value or its full length.
+pub fn safe_credential_hint(s: &str) -> String {
+    // Take the last up to 4 non-control chars from the end.
+    // This gives just enough to distinguish tokens (e.g. ...abc1 vs ...xyz9)
+    // while never exposing the bulk of the secret.
+    s.chars()
+        .rev()
+        .filter(|c| !c.is_control())
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect()
+}
+
 /// Builds the user-facing display string for already-sanitized content.
 ///
-/// `None` and `Personal` content is shown as-is (still sanitized); `Credential`
-/// and `Secret` content is fully redacted — the paranoid default. The UI can
-/// still distinguish items by their `detected_type`, `sensitivity` and
-/// timestamp without ever seeing the protected value.
+/// `None` and `Personal` content is shown as-is.
+/// `Credential` and `Secret` get a short safe hint suffix (last few chars)
+/// so different creds/secrets are distinguishable in list and tray.
+/// We never show the real value or its full length.
 pub fn mask_display(sanitized: &str, sensitivity: Sensitivity) -> String {
     match sensitivity {
         Sensitivity::None | Sensitivity::Personal => sanitized.to_string(),
-        Sensitivity::Credential | Sensitivity::Secret => REDACTED.to_string(),
+        Sensitivity::Credential | Sensitivity::Secret => {
+            let hint = safe_credential_hint(sanitized);
+            if hint.is_empty() {
+                REDACTED.to_string()
+            } else {
+                format!("••••{}", hint)
+            }
+        }
     }
 }
 
@@ -75,6 +98,7 @@ pub fn process_text(raw: &str) -> ClipboardItem {
         detected_type,
         timestamp: now_secs(),
         thumbnail: None,
+        size: None,
     }
 }
 
@@ -112,7 +136,9 @@ mod tests {
         let token = "ghp_123456789012345678901234567890123456";
         let item = process_text(token);
         assert_eq!(item.sensitivity, Sensitivity::Credential);
-        assert_eq!(item.display_content, REDACTED);
+        // Credentials now get a small safe suffix hint so different creds are
+        // distinguishable (e.g. ••••3456), while never leaking the real value.
+        assert!(item.display_content.starts_with("••••"));
         assert!(!item.display_content.contains(token));
         // raw_content must survive intact so it can be pasted back.
         assert_eq!(item.raw_content, token);
@@ -123,7 +149,10 @@ mod tests {
         let key = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...";
         let item = process_text(key);
         assert_eq!(item.sensitivity, Sensitivity::Secret);
-        assert_eq!(item.display_content, REDACTED);
+        // Secrets now get a short safe hint for distinguishability (consistent with
+        // credential distinction feature). Never the real value.
+        assert!(item.display_content.starts_with("••••"));
+        assert!(!item.display_content.contains("MIIEowIBAAKCAQEA"));
         assert_eq!(item.raw_content, key);
     }
 
@@ -157,7 +186,13 @@ mod tests {
     fn redaction_does_not_leak_length() {
         let short = process_text("ghp_123456789012345678901234567890123456");
         let longer = process_text("ghp_abcdefghijklmnopqrstuvwxyz0123456789AB");
-        // Both credentials render to the same fixed-width placeholder.
-        assert_eq!(short.display_content, longer.display_content);
+        // Both secrets and credentials now use short fixed-width "••••" + hint.
+        // The hint length is bounded so we don't leak the original length.
+        let secret = process_text("-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...");
+        assert!(secret.display_content.starts_with("••••"));
+        assert_eq!(secret.display_content.len(), "••••".len() + 4); // hint is up to 4
+        // Real values never shown.
+        assert!(!short.display_content.contains("123456789012345678901234567890123456"));
+        assert!(!longer.display_content.contains("abcdefghijklmnopqrstuvwxyz0123456789AB"));
     }
 }

@@ -13,7 +13,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use base64::Engine as _;
-use lapacho_core::types::Sensitivity;
+use lapacho_core::types::{ClipboardItem, DetectedType, Sensitivity};
 use tauri::menu::{IconMenuItem, Menu, MenuBuilder, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
@@ -23,7 +23,8 @@ use crate::AppState;
 /// Tray id, used to look the icon up when we rebuild its menu.
 pub const TRAY_ID: &str = "lapacho-tray";
 /// How many recent clips to surface as native menu entries.
-const TRAY_ITEMS: usize = 12;
+const TRAY_RECENT_CAP: usize = 25;
+const TRAY_MENU_ITEMS: usize = 20;
 /// Max characters per label before truncating (newlines collapsed to spaces).
 const LABEL_MAX: usize = 50;
 
@@ -33,29 +34,73 @@ const ID_OPEN: &str = "lapacho:open";
 const ID_QUIT: &str = "lapacho:quit";
 const ID_EMPTY: &str = "lapacho:empty";
 
-/// Builds the one-line label for a clip. `display` is already sanitized and —
-/// for credentials/secrets — redacted to `••••••••` by the ingest pipeline, so
-/// we never reveal a secret here; we only collapse newlines, truncate, and add
-/// a hint about why an entry is masked.
-fn item_label(display: &str, sensitivity: Sensitivity, content_type: &str) -> String {
+/// Builds the one-line label for a clip.
+/// For Credential/Secret we always derive a short distinguishable preview from the raw
+/// (last non-control chars) so different sensitive items are identifiable in the
+/// native tray menu, regardless of what display_content was stored at the time
+/// (old history items had full redaction).
+/// Non-sensitive use the (truncated) display.
+fn item_label(item: &ClipboardItem) -> String {
+    let sensitivity = item.sensitivity;
+    let content_type = &item.content_type;
+    let detected = &item.detected_type;
+
     if content_type == "image" {
-        return "[imagen]".to_string();
+        return "[image]".to_string();
     }
-    let one_line = display.replace(['\n', '\r'], " ");
-    let trimmed = one_line.trim();
-    let base = if trimmed.is_empty() {
-        "[vacío]".to_string()
-    } else if trimmed.chars().count() > LABEL_MAX {
-        let head: String = trimmed.chars().take(LABEL_MAX - 1).collect();
-        format!("{head}…")
-    } else {
-        trimmed.to_string()
+
+    if sensitivity == Sensitivity::Credential || sensitivity == Sensitivity::Secret {
+        let preview = safe_preview(&item.raw_content);
+        let suffix = if sensitivity == Sensitivity::Secret { " [secret]" } else { " [credential]" };
+        return format!("••••{}{}", preview, suffix);
+    }
+
+    let display = &item.display_content;
+
+    // Structured / diagram types: short label (avoid raw <svg> or long fenced source in tray)
+    let base = match detected {
+        DetectedType::Svg => "[SVG]".to_string(),
+        DetectedType::Mermaid => "[Mermaid]".to_string(),
+        DetectedType::Json => "[JSON]".to_string(),
+        DetectedType::Markdown => {
+            // For MD keep a short readable prefix (RustyBoard-like preview in tray)
+            let one_line = display.replace(['\n', '\r'], " ");
+            let trimmed = one_line.trim();
+            if trimmed.is_empty() {
+                "[Markdown]".to_string()
+            } else if trimmed.chars().count() > LABEL_MAX {
+                let head: String = trimmed.chars().take(LABEL_MAX - 1).collect();
+                format!("{head}…")
+            } else {
+                trimmed.to_string()
+            }
+        }
+        _ => {
+            let one_line = display.replace(['\n', '\r'], " ");
+            let trimmed = one_line.trim();
+            if trimmed.is_empty() {
+                "[empty]".to_string()
+            } else if trimmed.chars().count() > LABEL_MAX {
+                let head: String = trimmed.chars().take(LABEL_MAX - 1).collect();
+                format!("{head}…")
+            } else {
+                trimmed.to_string()
+            }
+        }
     };
-    match sensitivity {
-        Sensitivity::Secret => format!("{base} [secreto]"),
-        Sensitivity::Credential => format!("{base} [credencial]"),
-        _ => base,
-    }
+    base
+}
+
+/// Short safe preview from raw (up to 4 last non-control chars) for tray labels.
+fn safe_preview(raw: &str) -> String {
+    raw.chars()
+        .rev()
+        .filter(|c| !c.is_control())
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect()
 }
 
 /// Decodes an 18×18 RGBA thumbnail (base64, as produced by `images.rs`) into a
@@ -69,27 +114,63 @@ fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {
     }
 }
 
-/// Builds the full tray menu: the newest clips, a separator, then the static
-/// "Abrir Lapacho…" / "Salir" entries.
-fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
-    let items = {
-        let state = app.state::<AppState>();
-        let recent = state.tray_recent.lock().unwrap();
-        if !recent.is_empty() {
-            recent.clone()
-        } else {
-            // On startup (before any capture) fall back to persisted history.
-            state.repo.load().unwrap_or_default()
+/// Returns the live tray items.
+/// - Recent session copies (from tray_recent, which includes even non-persisted
+///   sensitive items) come first.
+/// - Then we supplement with older items from the persisted history (DB) so the
+///   tray feels more like the full history the modal shows, while still
+///   prioritizing what you just copied this session.
+fn get_tray_items(app: &AppHandle) -> Vec<ClipboardItem> {
+    let state = app.state::<AppState>();
+    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().clone();
+
+    // Load from DB and append items not already in recent (by id).
+    // This makes tray show persistent history + recent on top.
+    if let Ok(db_items) = state.repo.load() {
+        for db in db_items {
+            if result.iter().any(|r| r.id == db.id) {
+                continue;
+            }
+            result.push(db);
+            // Don't load the entire history into memory for the tray.
+            if result.len() >= 50 {
+                break;
+            }
         }
-    };
+    }
+
+    result
+}
+
+/// Returns an icon for the tray *indicator* (the panel icon) derived from the
+/// top history item. Only images currently carry a thumbnail; everything else
+/// (text, SVG, MD, …) falls back to the default Lapacho icon.
+fn tray_icon_for_top(app: &AppHandle) -> Option<tauri::image::Image<'static>> {
+    let items = get_tray_items(app);
+    if let Some(top) = items.first() {
+        if top.content_type == "image" {
+            if let Some(thumb) = &top.thumbnail {
+                if let Some(icon) = tray_icon_from_thumb(thumb) {
+                    return Some(icon);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Builds the full tray menu: the newest clips, a separator, then the static
+/// "Open Lapacho…" / "Quit" entries.
+fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+    let items = get_tray_items(app);
 
     let mut builder = MenuBuilder::new(app);
     if items.is_empty() {
-        let empty = MenuItem::with_id(app, ID_EMPTY, "(sin clips todavía)", false, None::<&str>)?;
+        let empty = MenuItem::with_id(app, ID_EMPTY, "(no clips yet)", false, None::<&str>)?;
         builder = builder.item(&empty);
     } else {
-        for it in items.iter().take(TRAY_ITEMS) {
-            let label = item_label(&it.display_content, it.sensitivity, &it.content_type);
+        for it in items.iter().take(TRAY_MENU_ITEMS) {
+            let label = item_label(it);
             // The id is the item's UUID; the menu-event handler routes it to copy.
             // Image items carry their 18×18 thumbnail as a native menu icon.
             if it.content_type == "image" {
@@ -106,23 +187,34 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     }
 
     let separator = PredefinedMenuItem::separator(app)?;
-    let open = MenuItem::with_id(app, ID_OPEN, "Abrir Lapacho…", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, ID_QUIT, "Salir", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, ID_OPEN, "Open Lapacho…", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, ID_QUIT, "Quit", true, None::<&str>)?;
     builder.item(&separator).item(&open).item(&quit).build()
 }
 
 /// Rebuilds and installs the tray menu. Menu construction touches the platform
 /// toolkit, so it must run on the main thread; `run_on_main_thread` is callable
 /// from any thread (the monitor, the debounce thread, command handlers).
+///
+/// We also update the main tray *indicator icon* here (to the thumbnail of the
+/// top item when it is an image). This gives visual feedback: the panel icon
+/// reflects "what I copied last".
 fn rebuild(app: &AppHandle) {
     let handle = app.clone();
-    let res = app.run_on_main_thread(move || match build_menu(&handle) {
-        Ok(menu) => {
-            if let Some(tray) = handle.tray_by_id(TRAY_ID) {
-                let _ = tray.set_menu(Some(menu));
+    let res = app.run_on_main_thread(move || {
+        match build_menu(&handle) {
+            Ok(menu) => {
+                if let Some(tray) = handle.tray_by_id(TRAY_ID) {
+                    let _ = tray.set_menu(Some(menu));
+                }
             }
+            Err(e) => eprintln!("lapacho: tray rebuild failed: {e}"),
         }
-        Err(e) => eprintln!("lapacho: tray rebuild failed: {e}"),
+        // Update the tray icon itself (debounced together with the menu).
+        if let Some(tray) = handle.tray_by_id(TRAY_ID) {
+            let icon = tray_icon_for_top(&handle).or_else(|| handle.default_window_icon().cloned());
+            let _ = tray.set_icon(icon);
+        }
     });
     if let Err(e) = res {
         eprintln!("lapacho: could not schedule tray rebuild: {e}");
@@ -141,7 +233,7 @@ pub fn schedule_rebuild(app: &AppHandle) {
     }
     let app = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(150));
+        std::thread::sleep(Duration::from_millis(80));
         app.state::<AppState>()
             .tray_pending
             .store(false, Ordering::SeqCst);
@@ -194,14 +286,16 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
     let menu = build_menu(app)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("Lapacho — portapapeles")
+        .tooltip("Lapacho — secure clipboard")
         .menu(&menu)
         .on_menu_event(on_menu_event);
-    // Without an icon the indicator is invisible on Linux; fall back gracefully
-    // (and warn) rather than panicking if none was embedded.
-    match app.default_window_icon() {
-        Some(icon) => builder = builder.icon(icon.clone()),
-        None => eprintln!("lapacho: no default window icon; tray may be invisible"),
+    // Set the initial indicator icon to either the top history item's thumbnail
+    // (if the most recent copy was an image) or the embedded Lapacho default.
+    let initial_icon = tray_icon_for_top(app).or_else(|| app.default_window_icon().cloned());
+    if let Some(icon) = initial_icon {
+        builder = builder.icon(icon);
+    } else {
+        eprintln!("lapacho: no default window icon; tray may be invisible");
     }
     builder.build(app)?;
     Ok(())
