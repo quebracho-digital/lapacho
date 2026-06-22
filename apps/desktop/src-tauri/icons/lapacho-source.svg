@@ -1,0 +1,20 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fondo circular celeste muy sutil -->
+  <circle cx="256" cy="256" r="250" fill="#74ACDF" opacity="0.15"/>
+  <circle cx="256" cy="256" r="240" fill="#1B4332"/>
+
+  <!-- Flechas-hoja de sincronización -->
+  <g stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Flecha superior-izquierda a inferior-derecha (verde) -->
+    <path d="M160 180 Q256 100 352 180" stroke="#52B788"/>
+    <path d="M352 180 L332 140 L372 160" stroke="#52B788" fill="#52B788"/>
+
+    <!-- Flecha inferior-derecha a superior-izquierda (dorado) -->
+    <path d="M352 332 Q256 412 160 332" stroke="#D4A373"/>
+    <path d="M160 332 L140 312 L180 312" stroke="#D4A373" fill="#D4A373"/>
+  </g>
+
+  <!-- Nodo central -->
+  <circle cx="256" cy="256" r="36" fill="#52B788" stroke="#1B4332" stroke-width="8"/>
+  <circle cx="256" cy="256" r="16" fill="#D4A373"/>
+</svg>
