@@ -39,12 +39,12 @@ const ID_EMPTY: &str = "lapacho:empty";
 /// a hint about why an entry is masked.
 fn item_label(display: &str, sensitivity: Sensitivity, content_type: &str) -> String {
     if content_type == "image" {
-        return "[imagen]".to_string();
+        return "[image]".to_string();
     }
     let one_line = display.replace(['\n', '\r'], " ");
     let trimmed = one_line.trim();
     let base = if trimmed.is_empty() {
-        "[vacío]".to_string()
+        "[empty]".to_string()
     } else if trimmed.chars().count() > LABEL_MAX {
         let head: String = trimmed.chars().take(LABEL_MAX - 1).collect();
         format!("{head}…")
@@ -52,8 +52,8 @@ fn item_label(display: &str, sensitivity: Sensitivity, content_type: &str) -> St
         trimmed.to_string()
     };
     match sensitivity {
-        Sensitivity::Secret => format!("{base} [secreto]"),
-        Sensitivity::Credential => format!("{base} [credencial]"),
+        Sensitivity::Secret => format!("{base} [secret]"),
+        Sensitivity::Credential => format!("{base} [credential]"),
         _ => base,
     }
 }
@@ -70,7 +70,7 @@ fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {
 }
 
 /// Builds the full tray menu: the newest clips, a separator, then the static
-/// "Abrir Lapacho…" / "Salir" entries.
+/// "Open Lapacho…" / "Quit" entries.
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let items = {
         let state = app.state::<AppState>();
@@ -85,7 +85,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 
     let mut builder = MenuBuilder::new(app);
     if items.is_empty() {
-        let empty = MenuItem::with_id(app, ID_EMPTY, "(sin clips todavía)", false, None::<&str>)?;
+        let empty = MenuItem::with_id(app, ID_EMPTY, "(no clips yet)", false, None::<&str>)?;
         builder = builder.item(&empty);
     } else {
         for it in items.iter().take(TRAY_ITEMS) {
@@ -106,8 +106,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     }
 
     let separator = PredefinedMenuItem::separator(app)?;
-    let open = MenuItem::with_id(app, ID_OPEN, "Abrir Lapacho…", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, ID_QUIT, "Salir", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, ID_OPEN, "Open Lapacho…", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, ID_QUIT, "Quit", true, None::<&str>)?;
     builder.item(&separator).item(&open).item(&quit).build()
 }
 

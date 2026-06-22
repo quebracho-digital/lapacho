@@ -94,8 +94,8 @@ cargo tauri dev
 
 Detalle completo y pendientes menores: ver [`ROADMAP.md`](ROADMAP.md) y [`HANDOFF.md`](HANDOFF.md).
 
-## Licencia
+## License
 
-El núcleo (`lapacho-core`) y la app se publican bajo **MIT OR Apache-2.0**.
-Los plugins e integraciones propietarias de Quebracho Digital son cerrados.
-Ver [`LICENSING.md`](LICENSING.md).
+The core (`lapacho-core`) and the app are released under **MIT OR Apache-2.0**.
+Quebracho Digital's proprietary plugins and integrations are closed source.
+See [`LICENSING.md`](LICENSING.md).

@@ -1,26 +1,25 @@
-# Licenciamiento
+# Licensing
 
-## Núcleo y app de escritorio
+## Core and desktop app
 
-`lapacho-core` y la app de escritorio (`apps/desktop`) se publican con **licencia
-dual MIT OR Apache-2.0**, a elección de quien los use. Es el esquema estándar del
-ecosistema Rust.
+`lapacho-core` and the desktop app (`apps/desktop`) are released under the
+**dual MIT OR Apache-2.0** license, at the user's choice. This is the standard
+scheme in the Rust ecosystem.
 
-- MIT: ver [`LICENSE-MIT`](LICENSE-MIT).
-- Apache-2.0: texto estándar en <https://www.apache.org/licenses/LICENSE-2.0>
-  (*pendiente*: agregar la copia como `LICENSE-APACHE`).
+- MIT: see [`LICENSE-MIT`](LICENSE-MIT).
+- Apache-2.0: see [`LICENSE-APACHE`](LICENSE-APACHE).
 
-## Plugins e integraciones de Quebracho Digital
+## Quebracho Digital plugins and integrations
 
-El **mecanismo** de plugins del core es libre. Las **implementaciones**
-concretas de plugins de transformación e integraciones propietarias
-desarrolladas por Quebracho Digital **no** son software libre: son cerradas y
-constituyen el valor agregado para clientes.
+The **plugin mechanism** in the core is free/libre. Concrete **plugin
+implementations** and proprietary integrations developed by Quebracho Digital
+**are not** free software: they are closed and represent the added value for
+customers.
 
-## Aportes
+## Contributions
 
-Salvo declaración en contrario, los aportes a las partes libres se entienden
-licenciados bajo el mismo esquema dual MIT/Apache-2.0.
+Unless otherwise stated, contributions to the libre parts are understood to be
+licensed under the same dual MIT/Apache-2.0 scheme.
 
 ---
 Copyright © 2026 Leonardo Fishman · Quebracho Digital.

@@ -13,16 +13,16 @@ use wasm_bindgen_futures::spawn_local;
 use crate::bindings;
 use crate::types::{DetectedType, ExportResult, PluginDef, UIClipboardItem};
 
-/// Relative time label, e.g. "hace 3m".
+/// Relative time label, e.g. "3m ago".
 fn time_ago(ts: u64) -> String {
     let now = (js_sys::Date::now() / 1000.0) as i64;
     let s = (now - ts as i64).max(0);
     if s < 60 {
-        format!("hace {s}s")
+        format!("{s}s ago")
     } else if s < 3600 {
-        format!("hace {}m", s / 60)
+        format!("{}m ago", s / 60)
     } else {
-        format!("hace {}h", s / 3600)
+        format!("{}h ago", s / 3600)
     }
 }
 
@@ -181,28 +181,28 @@ pub fn App() -> impl IntoView {
     };
 
     view! {
-        <header>"Lapacho " <small>"· portapapeles seguro"</small></header>
+        <header>"Lapacho " <small>"· secure clipboard"</small></header>
 
         <div id="controls">
             <label>
-                "Persistencia: "
+                "Persistence: "
                 <select prop:value=move || persist.get() on:change=on_persist>
                     <option value="none">"Paranoia"</option>
-                    <option value="sensitive">"Balanceado"</option>
-                    <option value="all">"Todo"</option>
+                    <option value="sensitive">"Balanced"</option>
+                    <option value="all">"All"</option>
                 </select>
             </label>
             <label>
-                "Sensibles: "
+                "Sensitive TTL: "
                 <select prop:value=ttl_value on:change=on_ttl>
                     <option value="1800">"30 min"</option>
                     <option value="7200">"2 h"</option>
                     <option value="28800">"8 h"</option>
-                    <option value="off">"Sin límite"</option>
+                    <option value="off">"No limit"</option>
                 </select>
             </label>
             <span class="spacer"></span>
-            <button on:click=on_clear>"Limpiar historial"</button>
+            <button on:click=on_clear>"Clear history"</button>
         </div>
 
         <ul>
@@ -222,7 +222,7 @@ pub fn App() -> impl IntoView {
                         // (RustyBoard behavior) while keeping things fast.
                         let dc = it.display_content.clone();
                         let content_node = if it.content_type == "image" {
-                            view! { <img class="thumb" src=dc alt="imagen" /> }.into_any()
+                            view! { <img class="thumb" src=dc alt="image" /> }.into_any()
                         } else if it.detected_type == DetectedType::Markdown && !sens {
                             let preview_src = md_preview_src(&dc);
                             let html = render_markdown(&preview_src);
@@ -237,13 +237,13 @@ pub fn App() -> impl IntoView {
                                     <div class="meta">
                                         <span class=tag_class>{it.sensitivity.label()}</span>
                                         " · "
-                                        {if it.content_type == "image" { "Imagen" } else { it.detected_type.label() }}
+                                        {if it.content_type == "image" { "Image" } else { it.detected_type.label() }}
                                         " · " {time_ago(it.timestamp)}
                                     </div>
                                 </div>
                                 <div class="row-actions">
                                     <button
-                                        title="Copiar"
+                                        title="Copy"
                                         on:click=move |_| {
                                             let id = id_copy.clone();
                                             spawn_local(async move {
@@ -252,7 +252,7 @@ pub fn App() -> impl IntoView {
                                         }
                                     >"⧉"</button>
                                     <button
-                                        title="Maximizar"
+                                        title="Maximize"
                                         on:click=move |_| {
                                             set_export.set(None);
                                             set_view_raw.set(false);
@@ -260,7 +260,7 @@ pub fn App() -> impl IntoView {
                                         }
                                     >"⤢"</button>
                                     <button
-                                        title="Borrar"
+                                        title="Delete"
                                         on:click=move |_| {
                                             let id = id_del.clone();
                                             spawn_local(async move {
@@ -278,7 +278,7 @@ pub fn App() -> impl IntoView {
         </ul>
 
         <div id="empty" style:display=move || if items.get().is_empty() { "block" } else { "none" }>
-            "Copiá algo para verlo aparecer aquí…"
+            "Copy something to see it appear here…"
         </div>
 
         // ---- detail / export modal ----
@@ -311,7 +311,7 @@ pub fn App() -> impl IntoView {
                             <div class="modal" on:click=move |ev| ev.stop_propagation()>
                                 <h2>
                                     <span class=tag_class>{item.sensitivity.label()}</span>
-                                    {if is_image { "Imagen" } else { item.detected_type.label() }}
+                                    {if is_image { "Image" } else { item.detected_type.label() }}
                                     <button class="close" on:click=move |_| set_detail.set(None)>
                                         "✕"
                                     </button>
@@ -381,7 +381,7 @@ pub fn App() -> impl IntoView {
                                         if is_rich {
                                             view! {
                                                 <button on:click=move |_| set_view_raw.update(|r| *r = !*r)>
-                                                    {move || if view_raw.get() { "👁 Vista" } else { "📝 Raw" }}
+                                                    {move || if view_raw.get() { "👁 View" } else { "📝 Raw" }}
                                                 </button>
                                             }
                                             .into_any()
@@ -397,7 +397,7 @@ pub fn App() -> impl IntoView {
                                                 let _ = bindings::copy_item(&id).await;
                                             });
                                         }
-                                    >"Copiar"</button>
+                                    >"Copy"</button>
                                     <button on:click=move |_| {
                                         let id = id_export.clone();
                                         spawn_local(async move {
@@ -405,7 +405,7 @@ pub fn App() -> impl IntoView {
                                                 set_export.set(Some(res));
                                             }
                                         });
-                                    }>"Exportar"</button>
+                                    }>"Export"</button>
                                     <select on:change=move |ev| set_sel_plugin.set(event_target_value(&ev))>
                                         <option value="">"— plugin —"</option>
                                         {move || {
@@ -430,7 +430,7 @@ pub fn App() -> impl IntoView {
                                                 });
                                             }
                                         });
-                                    }>"Ejecutar"</button>
+                                    }>"Run"</button>
                                 </div>
 
                                 {move || {
@@ -440,7 +440,7 @@ pub fn App() -> impl IntoView {
                                             let threats = res.threats.clone();
                                             let findings = if threats.is_empty() {
                                                 view! {
-                                                    <div class="threats-ok">"✓ Sin amenazas detectadas."</div>
+                                                    <div class="threats-ok">"✓ No threats detected."</div>
                                                 }
                                                     .into_any()
                                             } else {
@@ -464,7 +464,7 @@ pub fn App() -> impl IntoView {
                                             view! {
                                                 <div>
                                                     {findings}
-                                                    <div class="hint">"Contenido a exportar (raw):"</div>
+                                                    <div class="hint">"Content to export (raw):"</div>
                                                     <div class="full">{res.content.clone()}</div>
                                                 </div>
                                             }
