@@ -8,9 +8,9 @@ pub fn classify_text(text: &str) -> DetectedType {
         return DetectedType::Text;
     }
 
-    // SVG
-    if (trimmed.starts_with("<svg") && trimmed.ends_with("</svg>"))
-        || (trimmed.starts_with("<?xml") && trimmed.contains("<svg") && trimmed.ends_with("</svg>"))
+    // SVG — tolerate trailing whitespace after `</svg>` (common when copying from editors).
+    if (trimmed.starts_with("<svg") || (trimmed.starts_with("<?xml") && trimmed.contains("<svg")))
+        && trimmed.contains("</svg>")
     {
         return DetectedType::Svg;
     }

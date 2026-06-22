@@ -1,0 +1,9 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 1420
+# Tauri controls the lifecycle; don't auto-open a browser.
+open = false

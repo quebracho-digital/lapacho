@@ -4,6 +4,10 @@ members = [
     "crates/lapacho-core",
     "apps/desktop/src-tauri",
 ]
+# The Leptos/WASM frontend is a standalone crate built by Trunk for the
+# wasm32 target. Excluded so `cargo build --workspace` (host) stays focused on
+# the core + backend and never tries to link the wasm-bindgen frontend.
+exclude = ["apps/desktop/ui"]
 
 [workspace.package]
 version = "0.1.0"
@@ -21,6 +25,11 @@ serde_json = "1"
 regex = "1.10"
 uuid = { version = "1.11", features = ["v4"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
+aes-gcm = { version = "0.10", features = ["zeroize"] }
+getrandom = "0.2"
+base64 = "0.22"
+zeroize = "1"
+region = "3"
 
 [profile.release]
 opt-level = "z"
