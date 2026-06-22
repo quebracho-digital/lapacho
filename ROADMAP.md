@@ -1,94 +1,103 @@
 # Lapacho — Roadmap
 
-Lapacho: gestor de portapapeles seguro (Tauri 2 + Rust). Core libre; clasifica,
-sanea y enmascara el contenido antes de que llegue a la UI. **El `raw_content` es
-la fuente de verdad y no se pierde nunca:** se copia y se manda a los plugins
-intacto, se *renderiza* saneado, y al exportar se avisa de amenazas sin alterarlo.
+Lapacho: secure clipboard manager (Tauri 2 + Rust). Libre core; classifies,
+sanitizes and masks content before it reaches the UI. **The `raw_content` is
+the source of truth and is never lost:** it is copied and sent to plugins
+intact, *rendered* sanitized, and on export threats are reported without
+altering it.
 
-## Estado actual (2026-06-19)
+## Current Status (2026-06-22)
+History search implemented; English translation complete. Sensitivity: long hex strings (>=32) now Secret. Both Credential/Secret get short safe hints (`••••last4` from raw) for distinction (list/tray/modal); tray always derives preview from raw (even old DB items). Tray merges recent + persisted DB history. Wayland: event-driven `wl-paste --watch` (no constant poll). Poll 250ms + 80ms debounce. ~92%. 
 
-### ✅ `lapacho-core` (lib, 45 tests entre unit + integración)
+### ✅ `lapacho-core` (lib, 45 unit + integration tests)
 
-- `types` — `ClipboardItem` (raw) / `UIClipboardItem` (proyección segura) + enums.
-- `detectors` — clasificación de tipo (texto/url/json/svg/mermaid/markdown).
-- `security` — saneo (texto + SVG) y clasificación de sensibilidad (regex + entropía).
-- `ingest` — pipeline que compone todo + enmascarado para display.
-- `storage` — **abstracción `HistoryRepo`** (trait) sobre SQLite (WAL); niveles de
-  persistencia, **TTL de sensibles configurable** (`RetentionPolicy`), cap de tamaño
-  y **dedup por contenido** (recopiar mueve al tope, no duplica — sin hash en claro).
-- `crypto` — **AES-256-GCM en reposo**; `SecretKey` (zeroize) + `Cipher` residente
-  (boxed, zeroize, mlock opcional vía feature `mlock`).
-- `threats` — **escáner modular** (trait `Detector` + `REGISTRY`): active-content,
+- `types` — `ClipboardItem` (raw) / `UIClipboardItem` (safe projection) + enums.
+- `detectors` — type classification (text/url/json/svg/mermaid/markdown).
+- `security` — sanitization (text + SVG) and sensitivity classification (regex + entropy).
+- `ingest` — pipeline that composes everything + display masking.
+- `storage` — **abstraction `HistoryRepo`** (trait) over SQLite (WAL); persistence
+  levels, **configurable sensitive TTL** (`RetentionPolicy`), size cap and
+  **content-based dedup** (recopying moves to top, no duplicate — no cleartext hash).
+- `crypto` — **AES-256-GCM at rest**; `SecretKey` (zeroize) + resident `Cipher`
+  (boxed, zeroize, optional mlock via `mlock` feature).
+- `threats` — **modular scanner** (trait `Detector` + `REGISTRY`): active-content,
   embedded-frame, trojan-source-bidi, zero-width, control-chars, sensitive-data,
-  prompt-injection. Agregar un filtro = una struct + una línea.
-- `plugins` — ejecución de comandos externos por stdin, con timeout.
+  prompt-injection. Adding a filter = one struct + one line.
+- `plugins` — execution of external commands via stdin, with timeout.
 
-### ✅ Backend de escritorio (`apps/desktop/src-tauri`)
+### ✅ Desktop backend (`apps/desktop/src-tauri`)
 
-- Monitor de portapapeles (`arboard`, 500 ms) → `process_text` → `HistoryRepo`.
-- Clave de cifrado en **keyring del SO** (Secret Service / Keychain / Credential
-  Manager) con fallback a archivo `0600` y migración automática.
-- Endurecimiento en memoria: `mlock` de la clave + sin core dumps (Linux `prctl`).
-- Comandos: `get_history`, `delete_item`, `clear_history`, `get/set_persist_level`,
-  `get/set_sensitive_ttl`, `copy_item` (raw), `export_item` (raw + amenazas),
-  `list_plugins`, `run_plugin` (opera sobre raw; la salida se guarda como ítem nuevo).
-- Evento en vivo `clipboard-new` (refresco reactivo — el bug viejo del `://` está
-  resuelto).
+- Clipboard monitor (`arboard`, 500 ms) → `process_text` → `HistoryRepo`.
+- Encryption key in **OS keyring** (Secret Service / Keychain / Credential
+  Manager) with `0600` file fallback and automatic migration.
+- Memory hardening: key `mlock` + no core dumps (Linux `prctl`).
+- Commands: `get_history`, `delete_item`, `clear_history`, `get/set_persist_level`,
+  `get/set_sensitive_ttl`, `copy_item` (raw), `export_item` (raw + threats),
+  `list_plugins`, `run_plugin` (operates on raw; output is stored as new item).
+- Live event `clipboard-new` (reactive refresh — old `://` bug is resolved).
 
-### ✅ Frontend (`apps/desktop/ui` — Leptos 0.7 / WASM, build verificado con Trunk)
+### ✅ Frontend (`apps/desktop/ui` — Leptos 0.7 / WASM, verified build with Trunk)
 
-- Crate **standalone** (excluido del workspace; Trunk lo compila a wasm32). No
-  depende de `lapacho-core`: **tipos espejo** de la proyección segura.
-- Bindings tipados sobre `window.__TAURI__` (`invoke` / `listen`).
-- Lista en vivo, copiar/borrar/limpiar, selector de persistencia y de TTL.
-- Acciones por ítem: **maximizar** (vista completa), **exportar** (muestra el raw
-  + las amenazas detectadas antes de grabar), **enviar a plugin**.
-- La UI vanilla original se conserva como referencia en `apps/desktop/legacy-ui/`.
+- **Standalone** crate (excluded from workspace; Trunk compiles it to wasm32). Does
+  not depend on `lapacho-core`: **mirror types** of the safe projection.
+- Typed bindings over `window.__TAURI__` (`invoke` / `listen`).
+- Live list, copy/delete/clear, persistence and TTL selector.
+- Per-item actions: **maximize** (full view), **export** (shows raw + detected
+  threats before writing), **send to plugin**.
+- The original vanilla UI is preserved as reference in `apps/desktop/legacy-ui/`.
 
-## Pendientes
+## Pending
 
 ### 🎨 Frontend / UX
 
-- [x] **Bandeja del sistema (menú nativo) + atajo global (Ctrl+Shift+V), lanzando
-  solo a tray** (`src-tauri/src/tray.rs`). El listado es un menú nativo del
-  indicador (fluido, no webview), reconstruido debounced en cada cambio. *Falta
-  probar en GUI real.* Diferido: auto-paste (`enigo`), icono por ítem (con
-  imágenes), y el popup-en-el-cursor (el menú nativo ya da la fluidez).
-- [x] Render por `detected_type` en el modal de maximizar (toggle Raw/Vista):
-  **SVG** (vía `<img data:>`, no innerHTML — más seguro), **Markdown**
-  (`pulldown-cmark`), **JSON** (pretty), **Mermaid** (diagrama vivo con
-  `mermaid.min.js` vendorizado, strict, degrada a código). Falta probar en GUI.
-- [x] **Render rico en la lista** (parcial, Markdown): preview mini-renderizado de MD
-  directamente en los ítems de la lista en vivo (usando truncate + render_markdown + inner_html
-  en .md-mini). SVG/Mermaid siguen pendientes para lista (solo en modal). Ver `app.rs`.
-- [ ] **Modal maximizar a pantalla completa**: diagramas/imágenes/SVG deben usar
-  el espacio disponible del modal (hoy CSS limita a `40–50vh` y no es
-  redimensionable). Ver `apps/desktop/ui/index.html` (`.mermaid-wrap`,
-  `.image-view`, `.svg-preview`).
-- [ ] Búsqueda / filtrado del historial.
-- [x] Soporte de imágenes: captura `get_image()`, PNG data-URL + thumbnail 18×18
-  (`src-tauri/src/images.rs`), `<img>` en lista/modal y **icono por ítem en el
-  tray**, pegar de vuelta con `set_image`. Falta probar en GUI.
-- [ ] Optimizar el wasm para release (`trunk build --release`; hoy ~2.9 MB sin
-  optimizar tras sumar markdown/json/base64). Aparte: `mermaid.min.js` ~3.2 MB es
-  un asset JS separado (no entra al wasm).
+- [x] **System tray (native menu) + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive), launching
+  only to tray** (`src-tauri/src/tray.rs`). The list is a native indicator menu
+  (fluid, no webview), rebuilt debounced on every change. The tray *indicator icon*
+  now dynamically shows the thumbnail of the most recent (top) item when it is an
+  image (falls back to default). Base app icon is a custom artistic design (Argentine
+  blue halo + dark green hexagon + lapacho leaf/circuit + golden nodes) generated from
+  `icons/lapacho-source.svg`. *Needs real GUI testing.* Deferred: auto-paste (`enigo`),
+  cursor popup, and per-item icons for non-images. (dynamic + new artistic icon 2026-06-22)
+- [x] Per-`detected_type` rendering in the maximize modal (Raw/View toggle):
+  **SVG** (via `<img data:>`, not innerHTML — safer), **Markdown**
+  (`pulldown-cmark`), **JSON** (pretty), **Mermaid** (live diagram with vendored
+  `mermaid.min.js`, strict mode, degrades to source). Needs GUI testing.
+- [x] **Rich rendering in the list** (improved): MD mini, now also SVG as <img> thumb (safe data url), JSON small pretty. Images use display PNG thumb + "Image (N bytes)" label with peso. Thumbnail + size fields now flow to UI. Mermaid source visible (full render heavy for list). See app.rs. (2026-06-22)
+- [x] **Maximize modal uses more space**: widened modal (max 820px), raised preview limits to ~65-70vh for diagrams/images/SVG/MD/code (was 40-50vh). Full resizable/maximized would need additional UI (e.g. drag or dedicated window). See index.html. (2026-06-22)
+- [x] History search / filtering: server-side (raw+display, case-insensitive) via `HistoryRepo::search` + tauri cmd + Leptos input. Secrets match on raw even when display is masked. Client list stays live. (2026-06-22)
+- [x] Image support: capture `get_image()`, PNG data-URL + 18×18 thumbnail
+  (`src-tauri/src/images.rs`), `<img>` in list/modal and **per-item icon in the
+  tray**, paste back with `set_image`. Needs GUI testing.
+- [x] Optimize wasm for release (`trunk build --release`): **~406 KB** (from ~2.9 MB dev unoptimized). JS glue ~37 KB. `mermaid.min.js` ~3.2 MB remains separate vendored asset. Release artifacts in `apps/desktop/ui/dist/`. Use for final `cargo tauri build`. (done 2026-06-22)
 
-### 🔐 Seguridad
+### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
+- [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).
+- [ ] **Reactivity + consistency + identity** (HIGH) — User live testing (own run):
+  - Identical secret duplicated at top of list + tray (Paranoia secrets not saved → live path only dedups by fresh UUID, never by raw_content).
+  - Tray only shows items from this launch (volatile recent wins); modal correctly shows full persisted history.
+  - Secret `••••last4` hint visible only briefly then "disappears".
+  - Tray update still >1s.
+  This session: hints from raw + tray merge + Wayland event watcher. Strong signal to rethink architecture (identity for non-persisted items, unified recent view, live vs persisted split). (2026-06-22)
+- [x] Distinguish sensitive/secret items: both Credential and Secret now render with short safe hint `••••last4` (from raw) so different tokens are identifiable (list, tray, modal). Tray always recomputes preview from raw_content even for old persisted items. Updated in `mask_display`, `UIClipboardItem::from`, `item_label` + tests. (2026-06-22)
 
-- [ ] Reemplazar el saneador SVG por regex por un parser real (ammonia) — TODO en
-  `security.rs`.
-- [ ] Más detectores en `threats::REGISTRY` (SQL injection, XSS avanzado) — el
-  registro modular ya lo soporta sin tocar `assess()`.
-- [ ] Verificación en máquina real de keyring + mlock (no testeable headless).
+### 🔐 Security
 
-### 📦 Proyecto
+- [x] Replace the regex SVG sanitizer with a real parser (`ammonia`) — done.
+- [x] Long hex classification as Secret + distinction hints (see above).
+- [ ] More detectors in `threats::REGISTRY` (SQL injection, advanced XSS) — the
+  modular registry already supports this without touching `assess()`.
+- [ ] Real-machine verification of keyring + mlock (not testable headless).
 
-- [ ] `LICENSE-APACHE` (copia del texto estándar) antes de publicar — el dual
-  `MIT OR Apache-2.0` ya está declarado y `LICENSE-MIT` existe.
-- [ ] Decidir si versionar `apps/desktop/src-tauri/gen/` (capabilities generadas).
+### 📦 Project
 
-## No usamos
+- [ ] `LICENSE-APACHE` (standard text copy) before publishing — the dual
+  `MIT OR Apache-2.0` is already declared and `LICENSE-MIT` exists.
+- [ ] Decide whether to version `apps/desktop/src-tauri/gen/` (generated capabilities).
 
-- **Nada de Diodon** ni de otros gestores GTK/Vala: arquitectura propia (Rust +
-  Tauri 2, core sin UI). Lo único conceptualmente comparable es "lista de recientes
-  en la bandeja", que se implementará con la API de tray de Tauri.
+**Recent decision:** Global shortcut changed from Ctrl+Shift+V (too common in terminals, editors, browsers) to **Ctrl+Shift+Alt+L** (Lapacho-exclusive). Updated in code, README, HANDOFF, ROADMAP and CONTEXT.
+
+## We do not use
+
+- **Nothing from Diodon** or other GTK/Vala managers: our own architecture (Rust +
+  Tauri 2, UI-free core). The only conceptually comparable thing is "recent list
+  in the tray", which is implemented using Tauri's tray API.
