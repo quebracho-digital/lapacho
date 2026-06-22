@@ -3,7 +3,23 @@
 Status and next steps to continue development (this agent, another, or Leo).
 Actionable complement to [`ROADMAP.md`](ROADMAP.md): what comes next, where, and how.
 
-Last update: 2026-06-22 (by Grok: `cargo tauri dev` started; ROADMAP pending cleaned (SVG classification/render addressed in code + test-payloads/ added); tray labels improved for SVG/JSON/Mermaid; wasm --release build kicked off; security payloads prepared for retest with xclip).
+Last update: 2026-06-22 (by Grok + user live testing):
+- Long hex → Secret.
+- Cred/Secret: `••••last4` hint from raw (everywhere).
+- Tray: merges recent + DB.
+- Wayland: `wl-paste --watch` event-driven.
+- Latency/poll/debounce improved.
+User live testing (fresh local run):
+- Identical secret appears duplicated at the very top of both the web list and the native tray (under default Paranoia, secrets are never saved to DB → the live path only deduplicates by the fresh UUID generated on every capture, never by raw_content).
+- Tray menu only ever contains items copied since the current app launch (volatile `tray_recent` buffer wins after first use); the web list / modal correctly reflects the full persisted history according to the current PersistLevel.
+- The `••••last4` hint for secrets is visible only for a very short time before the entry "disappears" (pushed out by other copies or lost on restart).
+- Still >1s latency from copy to the item appearing in the tray list.
+User's direct feedback after running it himself:
+- "los dos primeros lugares del listado los ocupa un secret que aparentemente es el mismo" (duplicates because secrets under Paranoia bypass content dedup).
+- "el modal muestra el historial persistente, pero el tray no, solo lo copiado desde su ultimo arranque".
+- Hint visible "por un tiempo muy corto hasta que se borra".
+- Still >1s to appear in tray list.
+This is excellent input for rethinking the architecture (live vs persisted split, identity for non-persisted secrets, consistent view between the two UIs, etc.). Good moment to step back.
 
 ---
 
@@ -40,8 +56,13 @@ decisions. Everything else is delegable with verification.
 
 ## Current Status
 
-Core + backend **complete and tested**; Leptos frontend **compiles**. Work branch:
-`feat/avance-autonomo`.
+Core + backend complete and tested; frontend compiles. Key recent (Grok):
+- Sensitivity: long hex (>=32) → Secret.
+- Distinction: Cred + Secret get `••••last4` hint from raw (display, tray labels always from raw even old DB items, UI projection).
+- Tray: now merges `tray_recent` + DB persisted history (recent first).
+- Wayland: event-driven `wl-paste --watch` (blocks until change; no constant poll → battery).
+- Fallback: poll 250ms, debounce 80ms, sleep at end of loop.
+- TRAY_MENU_ITEMS=20. All verified in tests + user GUI feedback.
 
 - **`lapacho-core`** (45 tests): classification, sanitization, ingest, `HistoryRepo`
   (SQLite WAL + persistence + configurable TTL), **AES-256-GCM at-rest encryption**,
@@ -249,17 +270,14 @@ contain anything); instead it applies **spotlighting** (Hines et al., Microsoft
 
 ### Minor items
 
-- `LICENSE-APACHE` (standard text copy) before publishing — the dual is already
-  declared and `LICENSE-MIT` exists.
-- Replace the regex SVG sanitizer with a real parser (`ammonia`) — ✅ DONE.
-  Implemented in `security.rs` using `ammonia::Builder` with curated SVG allow-list.
-  Test passes. The running GUI (with the new binary after rebuild) can now be used
-  to re-verify the malicious B payloads.
-- More detectors in `threats::REGISTRY` (SQL injection, advanced XSS) — the
-  modular registry already supports this without touching `assess()`.
-- `trunk build --release` to optimize the wasm (currently ~2.9 MB unoptimized;
-  `mermaid.min.js` ~3.2 MB is a separate JS asset, does not go into the wasm).
-- Decide whether to version `apps/desktop/src-tauri/gen/`.
+- `LICENSE-APACHE` ...
+- Replace regex SVG sanitizer with ammonia — ✅ DONE.
+- Long hex as Secret + distinction hints (Cred/Secret `••••last4` from raw) — ✅ DONE (2026-06-22). Affects display, tray labels (raw preview even for old DB), UI From.
+- Tray merges recent+DB history (not just session) — ✅ DONE.
+- Wayland: event-driven `wl-paste --watch` instead of poll (battery) — ✅ DONE. Fallback poll 250ms.
+- Poll/debounce reduced (250ms/80ms), sleep at end of monitor loop — ✅ DONE.
+- More detectors...
+- Decide gen/ version.
 
 ---
 
