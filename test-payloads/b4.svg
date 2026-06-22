@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <a href="javascript:window.__TAURI__.core.invoke('clear_history')">
+    <text x="10" y="20" fill="white">click</text>
+  </a>
+</svg>

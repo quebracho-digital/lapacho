@@ -36,7 +36,7 @@ pub fn render_mermaid(element_id: &str, code: &str) {
 fn js_err(v: JsValue) -> String {
     serde_wasm_bindgen::from_value::<String>(v.clone())
         .or_else(|_| v.as_string().ok_or(()))
-        .unwrap_or_else(|_| "error desconocido".to_string())
+        .unwrap_or_else(|_| "unknown error".to_string())
 }
 
 fn args(value: &impl Serialize) -> JsValue {
@@ -69,6 +69,17 @@ struct RunPluginArgs<'a> {
 
 pub async fn get_history() -> Vec<UIClipboardItem> {
     match invoke("get_history", JsValue::NULL).await {
+        Ok(v) => serde_wasm_bindgen::from_value(v).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub async fn search_history(query: &str) -> Vec<UIClipboardItem> {
+    #[derive(Serialize)]
+    struct Q {
+        query: String,
+    }
+    match invoke("search_history", args(&Q { query: query.to_string() })).await {
         Ok(v) => serde_wasm_bindgen::from_value(v).unwrap_or_default(),
         Err(_) => Vec::new(),
     }

@@ -96,6 +96,14 @@ fn get_history(state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, Strin
     Ok(items.into_iter().map(UIClipboardItem::from).collect())
 }
 
+/// Search the history (raw + display content, case-insensitive).
+/// Used by the UI search box. Returns UI-safe projection.
+#[tauri::command]
+fn search_history(query: String, state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, String> {
+    let items = state.repo.search(&query)?;
+    Ok(items.into_iter().map(UIClipboardItem::from).collect())
+}
+
 #[tauri::command]
 fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.repo.delete(&id)?;
@@ -123,6 +131,8 @@ fn get_persist_level(state: State<'_, AppState>) -> String {
 fn set_persist_level(level: String, state: State<'_, AppState>) -> Result<(), String> {
     let lvl = persist_level_from_str(&level);
     *state.persist_level.lock().unwrap() = lvl;
+    // Persist the choice so it survives restart.
+    let _ = state.repo.set_preference("persist_level", &persist_level_to_str(lvl));
     let policy = *state.retention.lock().unwrap();
     state.repo.cleanup(&policy)
 }
@@ -144,6 +154,9 @@ fn set_sensitive_ttl(secs: Option<u64>, state: State<'_, AppState>) -> Result<()
         guard.sensitive_ttl_secs = secs;
         *guard
     };
+    // Persist the choice so it survives restart.
+    let val = secs.map_or_else(|| "off".to_string(), |s| s.to_string());
+    let _ = state.repo.set_preference("sensitive_ttl_secs", &val);
     state.repo.cleanup(&policy)
 }
 
@@ -201,7 +214,7 @@ struct ExportResult {
     threats: Vec<Threat>,
 }
 
-/// Prepares an item to be saved/exported (the "grabar" action). Returns the raw
+/// Prepares an item to be saved/exported (the "export" action). Returns the raw
 /// content unchanged together with a threat assessment, so the UI can warn the
 /// user (XSS, hidden unicode, secrets, …) before the value leaves Lapacho's
 /// protections. The user always decides whether to proceed.
@@ -231,7 +244,7 @@ fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginDefinition>, Str
 /// Runs a plugin over a stored item's **raw** content and saves the plugin's
 /// output as a new history item.
 ///
-/// The plugin receives the original content intact (the "doble vía": plugins
+/// The plugin receives the original content intact (the "two-way" contract: plugins
 /// operate on raw, never on the masked projection). Its output is routed back
 /// through the same ingest pipeline as the clipboard monitor, so the response
 /// is stored raw and gets a freshly classified, sanitized display — masked if
@@ -246,7 +259,7 @@ fn run_plugin(
 ) -> Result<UIClipboardItem, String> {
     let source = load_item(&item_id, &state)?;
     if source.content_type == "image" {
-        return Err("Los plugins operan sobre texto, no sobre imágenes.".to_string());
+        return Err("Plugins operate on text, not images.".to_string());
     }
     let resp = plugins::execute_plugin(&state.plugins_dir, &plugin_id, &source.raw_content)?;
     if !resp.success {
@@ -442,6 +455,19 @@ fn main() {
 
             let persist_level = Arc::new(Mutex::new(PersistLevel::None));
             let retention = Arc::new(Mutex::new(RetentionPolicy::default()));
+
+            // Load persisted user preferences (if any) so history rules survive restarts.
+            if let Some(saved) = repo.get_preference("persist_level").ok().flatten() {
+                *persist_level.lock().unwrap() = persist_level_from_str(&saved);
+            }
+            if let Some(saved) = repo.get_preference("sensitive_ttl_secs").ok().flatten() {
+                let mut r = retention.lock().unwrap();
+                if saved == "off" || saved == "none" {
+                    r.sensitive_ttl_secs = None;
+                } else if let Ok(secs) = saved.parse::<u64>() {
+                    r.sensitive_ttl_secs = Some(secs);
+                }
+            }
             let last_seen = Arc::new(Mutex::new(None));
             let tray_recent = Arc::new(Mutex::new(Vec::new()));
 
@@ -463,9 +489,14 @@ fn main() {
             // Native tray with the fluid recent-clips menu.
             tray::init(app.handle())?;
 
-            // Global shortcut (Ctrl+Shift+V) toggles the main window. Registered
+            // Global shortcut (Ctrl+Shift+Alt+L) toggles the main window. Registered
             // and handled entirely in Rust, so no webview capability is needed.
-            let toggle = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyV);
+            // Lapacho-exclusive (L for Lapacho) to avoid conflicts with common
+            // clipboard/terminal shortcuts.
+            let toggle = Shortcut::new(
+                Some(Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::ALT),
+                Code::KeyL,
+            );
             let toggle_for_handler = toggle;
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
@@ -478,7 +509,7 @@ fn main() {
                     .build(),
             )?;
             if let Err(e) = app.global_shortcut().register(toggle) {
-                eprintln!("lapacho: could not register Ctrl+Shift+V: {e}");
+                eprintln!("lapacho: could not register Ctrl+Shift+Alt+L: {e}");
             }
 
             Ok(())
@@ -493,6 +524,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_history,
+            search_history,
             delete_item,
             clear_history,
             get_persist_level,

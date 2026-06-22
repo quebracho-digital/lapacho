@@ -62,6 +62,10 @@ pub struct UIClipboardItem {
     pub sensitivity: Sensitivity,
     pub detected_type: DetectedType,
     pub timestamp: u64,
+    /// For images: payload size in bytes ("peso").
+    pub size: Option<usize>,
+    /// Small thumbnail (for richer list display).
+    pub thumbnail: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]

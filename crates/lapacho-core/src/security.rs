@@ -1,6 +1,7 @@
 use crate::types::Sensitivity;
+use ammonia::Builder;
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 /// Sanitizes plain text by removing null bytes and control chars (preserving \n, \r, \t).
@@ -10,50 +11,90 @@ pub fn sanitize_text(text: &str) -> String {
         .collect()
 }
 
-/// Sanitizes SVG by removing scripts, inline handlers, and javascript: URLs.
-/// NOTE: regex-based sanitizer is bypassable — TODO replace with a real parser (ammonia).
+/// Sanitizes SVG using a real HTML parser (`ammonia`) instead of regex.
+/// This is much more robust against XSS vectors (scripts, event handlers,
+/// javascript: urls, foreignObject, etc.).
+///
+/// Only a safe subset of SVG tags and attributes is allowed. Unknown or
+/// dangerous content is stripped. The function still requires the content
+/// to look like an SVG (starts with or contains `<svg`).
 pub fn sanitize_svg(svg_content: &str) -> Result<String, String> {
     let trimmed = svg_content.trim();
     if !trimmed.starts_with("<svg") && !trimmed.contains("<svg") {
         return Err("Not a valid SVG format".to_string());
     }
 
-    static SCRIPT_RE: OnceLock<Regex> = OnceLock::new();
-    static FOREIGN_OBJECT_RE: OnceLock<Regex> = OnceLock::new();
-    static IFRAME_RE: OnceLock<Regex> = OnceLock::new();
-    static OBJECT_RE: OnceLock<Regex> = OnceLock::new();
-    static EMBED_RE: OnceLock<Regex> = OnceLock::new();
-    static FORM_RE: OnceLock<Regex> = OnceLock::new();
-    static EVENT_HANDLER_RE: OnceLock<Regex> = OnceLock::new();
-    static JAVASCRIPT_URL_RE: OnceLock<Regex> = OnceLock::new();
+    // Safe, commonly used SVG tags for diagrams and simple graphics.
+    // We deliberately omit <script>, <foreignObject>, <iframe>, <object>,
+    // <embed>, <form>, and similar risky elements.
+    let svg_tags: HashSet<&str> = [
+        "svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
+        "text", "tspan", "defs", "clipPath", "mask", "linearGradient", "radialGradient",
+        "stop", "title", "desc", "use", "symbol", "marker", "pattern", "a",
+    ]
+    .iter()
+    .copied()
+    .collect();
 
-    let mut s = svg_content.to_string();
-    s = SCRIPT_RE
-        .get_or_init(|| Regex::new(r"(?i)<script\b[^>]*>([\s\S]*?)</script>|<script\b[^>]*/>").unwrap())
-        .replace_all(&s, "").into_owned();
-    s = FOREIGN_OBJECT_RE
-        .get_or_init(|| Regex::new(r"(?i)<foreignObject\b[^>]*>([\s\S]*?)</foreignObject>|<foreignObject\b[^>]*/>").unwrap())
-        .replace_all(&s, "").into_owned();
-    s = IFRAME_RE
-        .get_or_init(|| Regex::new(r"(?i)<iframe\b[^>]*>([\s\S]*?)</iframe>|<iframe\b[^>]*/>").unwrap())
-        .replace_all(&s, "").into_owned();
-    s = OBJECT_RE
-        .get_or_init(|| Regex::new(r"(?i)<object\b[^>]*>([\s\S]*?)</object>|<object\b[^>]*/>").unwrap())
-        .replace_all(&s, "").into_owned();
-    s = EMBED_RE
-        .get_or_init(|| Regex::new(r"(?i)<embed\b[^>]*>([\s\S]*?)</embed>|<embed\b[^>]*/>").unwrap())
-        .replace_all(&s, "").into_owned();
-    s = FORM_RE
-        .get_or_init(|| Regex::new(r"(?i)<form\b[^>]*>([\s\S]*?)</form>|<form\b[^>]*/>").unwrap())
-        .replace_all(&s, "").into_owned();
-    s = EVENT_HANDLER_RE
-        .get_or_init(|| Regex::new(r#"(?i)\bon[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)"#).unwrap())
-        .replace_all(&s, "").into_owned();
-    s = JAVASCRIPT_URL_RE
-        .get_or_init(|| Regex::new(r#"(?i)\b(href|xlink:href)\s*=\s*(?:"\s*javascript:[^"]*"|'\s*javascript:[^']*')"#).unwrap())
-        .replace_all(&s, r##"href="#""##).into_owned();
+    // Safe attributes that are useful for rendering without allowing code execution.
+    let svg_attrs: HashSet<&str> = [
+        "id",
+        "class",
+        "style",
+        "transform",
+        "viewBox",
+        "width",
+        "height",
+        "x",
+        "y",
+        "cx",
+        "cy",
+        "r",
+        "rx",
+        "ry",
+        "d",
+        "fill",
+        "stroke",
+        "stroke-width",
+        "opacity",
+        "font-size",
+        "font-family",
+        "text-anchor",
+        "xlink:href",
+        "href",
+        "xmlns",
+        "xmlns:xlink",
+        "version",
+        "preserveAspectRatio",
+    ]
+    .iter()
+    .copied()
+    .collect();
 
-    Ok(s)
+    // Build a per-tag attribute map (all tags get the same safe attr set).
+    let tag_attr_map: HashMap<&str, HashSet<&str>> = svg_tags
+        .iter()
+        .map(|&tag| (tag, svg_attrs.clone()))
+        .collect();
+
+    let cleaned = Builder::default()
+        .tags(svg_tags)
+        .tag_attributes(tag_attr_map)
+        .generic_attributes(svg_attrs.clone())
+        // Only allow safe URL schemes. "javascript:" and "vbscript:" are rejected by ammonia.
+        .url_schemes(
+            ["http", "https", "data", ""]
+                .iter()
+                .copied()
+                .map(Into::into)
+                .collect(),
+        )
+        // Do not inject rel="noopener noreferrer" on <a> tags (we control the content).
+        .link_rel(None)
+        .clean(svg_content)
+        .to_string();
+
+    Ok(cleaned)
 }
 
 fn shannon_entropy(text: &str) -> f64 {
