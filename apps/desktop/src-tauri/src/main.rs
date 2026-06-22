@@ -180,7 +180,7 @@ pub(crate) fn copy_raw(id: &str, state: &AppState) -> Result<(), String> {
     let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
     if item.content_type == "image" {
         let data = images::image_data_from_b64(&item.raw_content)
-            .ok_or_else(|| "imagen inválida en el historial".to_string())?;
+            .ok_or_else(|| "invalid image in history".to_string())?;
         clipboard.set_image(data).map_err(|e| e.to_string())
     } else {
         clipboard.set_text(item.raw_content).map_err(|e| e.to_string())

@@ -70,7 +70,7 @@ pub enum ThreatKind {
 pub struct Threat {
     pub kind: ThreatKind,
     pub severity: ThreatSeverity,
-    /// Human-readable explanation, in Spanish (the user's language).
+    /// Human-readable explanation.
     pub message: String,
 }
 
