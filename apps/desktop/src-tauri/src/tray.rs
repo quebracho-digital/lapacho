@@ -194,7 +194,7 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
     let menu = build_menu(app)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("Lapacho — portapapeles")
+        .tooltip("Lapacho — secure clipboard")
         .menu(&menu)
         .on_menu_event(on_menu_event);
     // Without an icon the indicator is invisible on Linux; fall back gracefully
