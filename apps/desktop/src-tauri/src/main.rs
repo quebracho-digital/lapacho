@@ -30,7 +30,10 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 /// How often the monitor polls the system clipboard.
-const POLL_INTERVAL: Duration = Duration::from_millis(500);
+/// Fallback polling interval when event-driven watching is not available
+/// (or on non-Linux platforms). On Linux Wayland we prefer wl-paste --watch
+/// which is truly event-driven and has zero CPU cost when idle.
+const POLL_INTERVAL: Duration = Duration::from_millis(250);
 /// Event emitted to the frontend when a new clipboard item is captured.
 /// Kept to a plain `a-z-` name to avoid any event-name validation surprises.
 const EVENT_NEW_ITEM: &str = "clipboard-new";
@@ -279,7 +282,7 @@ fn run_plugin(
         let mut rec = state.tray_recent.lock().unwrap();
         rec.retain(|x| x.id != item.id);
         rec.insert(0, item.clone());
-        rec.truncate(12);
+        rec.truncate(25);
     }
 
     let ui = UIClipboardItem::from(item);
@@ -350,7 +353,7 @@ fn run_monitor(
             let mut rec = tray_recent.lock().unwrap();
             rec.retain(|x| x.id != item.id);
             rec.insert(0, item.clone());
-            rec.truncate(12);
+            rec.truncate(25);
         }
         tray::schedule_rebuild(&app);
     };
@@ -359,60 +362,158 @@ fn run_monitor(
     // to PNG on every poll.
     let mut last_img_rgba: Option<u64> = None;
 
-    loop {
-        std::thread::sleep(POLL_INTERVAL);
+    // On Linux Wayland we can (and should) avoid polling entirely for battery life.
+    // wl-paste --watch is event-driven: the compositor wakes us only on actual changes.
+    #[cfg(target_os = "linux")]
+    if is_wayland() {
+        if let Err(e) = run_wayland_watcher(
+            &mut clipboard,
+            &persist_and_emit,
+            &mut last_img_rgba,
+            &last_seen,
+        ) {
+            eprintln!("lapacho: wl-paste watcher failed ({}), falling back to polling", e);
+        } else {
+            return;
+        }
+    }
 
-        // 1. Plain text (includes SVG copied as XML from editors).
-        if let Ok(text) = clipboard.get_text() {
-            if !text.is_empty() {
-                last_img_rgba = None; // a text copy supersedes the image gate
-                let hash = hash_str(&text);
-                {
-                    let mut last = last_seen.lock().unwrap();
-                    if *last == Some(hash) {
-                        continue;
-                    }
-                    *last = Some(hash);
-                }
-                persist_and_emit(process_text(&text));
+    // Fallback polling loop (used on X11, non-Linux, or if wl-paste is missing).
+    // On Wayland this is the battery-draining path we try to avoid.
+    loop {
+        check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// Returns true if we are running under a Wayland session.
+#[cfg(target_os = "linux")]
+fn is_wayland() -> bool {
+    std::env::var("WAYLAND_DISPLAY").is_ok()
+        || std::env::var("XDG_SESSION_TYPE")
+            .map(|v| v == "wayland")
+            .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn is_wayland() -> bool {
+    false
+}
+
+/// Event-driven clipboard watcher for Wayland using `wl-paste --watch`.
+/// This is the battery-friendly path: we only wake when the compositor tells us
+/// the clipboard changed. No periodic polling.
+#[cfg(target_os = "linux")]
+fn run_wayland_watcher(
+    clipboard: &mut arboard::Clipboard,
+    persist_and_emit: &dyn Fn(ClipboardItem),
+    last_img_rgba: &mut Option<u64>,
+    last_seen: &Arc<Mutex<Option<u64>>>,
+) -> Result<(), String> {
+    use std::io::{BufRead, BufReader};
+    use std::process::{Command, Stdio};
+
+    // We use "echo CLIP_CHANGED" because it is simple and reliable.
+    // Every time the clipboard changes, wl-paste will run the command.
+    // Our thread blocks on read_line until that happens.
+    let mut child = Command::new("wl-paste")
+        .args(["--watch", "echo", "CLIP_CHANGED"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("failed to spawn wl-paste: {}. Is wl-clipboard installed?", e))?;
+
+    let stdout = child.stdout.take().ok_or("wl-paste has no stdout")?;
+    let mut reader = BufReader::new(stdout);
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        match reader.read_line(&mut line) {
+            Ok(0) => {
+                // EOF, watcher died. Restart it.
+                eprintln!("lapacho: wl-paste watcher exited, restarting...");
+                std::thread::sleep(Duration::from_millis(500));
+                // Recreate child (simple restart)
+                child = Command::new("wl-paste")
+                    .args(["--watch", "echo", "CLIP_CHANGED"])
+                    .stdout(Stdio::piped())
+                    .spawn()
+                    .map_err(|e| format!("failed to respawn wl-paste: {}", e))?;
                 continue;
             }
+            Ok(_) => {
+                if line.trim() == "CLIP_CHANGED" {
+                    // Real change notification. Now inspect current clipboard
+                    // using arboard (same logic as the poll path).
+                    check_clipboard_once(clipboard, persist_and_emit, last_img_rgba, last_seen);
+                }
+            }
+            Err(e) => {
+                eprintln!("lapacho: error reading from wl-paste: {}", e);
+                return Err(e.to_string());
+            }
         }
+    }
+}
 
-        // 2. HTML clipboard (browsers/vector apps often expose SVG only here).
-        if let Some(svg) = try_clipboard_svg(&mut clipboard) {
-            last_img_rgba = None;
-            let hash = hash_str(&svg);
+/// One-shot inspection of the current clipboard state.
+/// Extracted so it can be used from both the polling path and the Wayland watcher.
+fn check_clipboard_once(
+    clipboard: &mut arboard::Clipboard,
+    persist_and_emit: &dyn Fn(ClipboardItem),
+    last_img_rgba: &mut Option<u64>,
+    last_seen: &Arc<Mutex<Option<u64>>>,
+) {
+    // 1. Plain text
+    if let Ok(text) = clipboard.get_text() {
+        if !text.is_empty() {
+            *last_img_rgba = None;
+            let hash = hash_str(&text);
             {
                 let mut last = last_seen.lock().unwrap();
                 if *last == Some(hash) {
-                    continue;
+                    return;
                 }
                 *last = Some(hash);
             }
-            persist_and_emit(process_text(&svg));
-            continue;
+            persist_and_emit(process_text(&text));
+            return;
         }
+    }
 
-        // 3. Raster image.
-        if let Ok(img) = clipboard.get_image() {
-            let rgba_hash = hash_bytes(&img.bytes);
-            if last_img_rgba == Some(rgba_hash) {
-                continue; // unchanged image — skip the expensive encode
+    // 2. HTML (for SVG etc.)
+    if let Ok(html) = clipboard.get().html() {
+        if let Some(svg) = svg_from_html(&html) {
+            if !svg.trim().is_empty() {
+                *last_img_rgba = None;
+                let hash = hash_str(&svg);
+                {
+                    let mut last = last_seen.lock().unwrap();
+                    if *last == Some(hash) {
+                        return;
+                    }
+                    *last = Some(hash);
+                }
+                persist_and_emit(process_text(&svg));
+                return;
             }
-            last_img_rgba = Some(rgba_hash);
+        }
+    }
 
-            let item = match images::process_image(img.width, img.height, &img.bytes) {
-                Some(it) => it,
-                None => continue,
-            };
-            // Gate on the PNG base64 (deterministic) so copying an image back to
-            // the clipboard isn't re-captured as a brand-new item.
+    // 3. Image
+    if let Ok(img) = clipboard.get_image() {
+        let rgba_hash = hash_bytes(&img.bytes);
+        if *last_img_rgba == Some(rgba_hash) {
+            return;
+        }
+        *last_img_rgba = Some(rgba_hash);
+
+        if let Some(item) = images::process_image(img.width, img.height, &img.bytes) {
             let png_hash = hash_str(&item.raw_content);
             {
                 let mut last = last_seen.lock().unwrap();
                 if *last == Some(png_hash) {
-                    continue;
+                    return;
                 }
                 *last = Some(png_hash);
             }
