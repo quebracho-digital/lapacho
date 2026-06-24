@@ -272,7 +272,8 @@ fn run_plugin(
     // Store the output raw; the pipeline derives the sanitized display. Saving
     // respects the active persist level (a no-op if the level forbids it), just
     // like the monitor — the item is still shown live either way.
-    let item = process_text(&resp.result_raw_content);
+    let mut item = process_text(&resp.result_raw_content);
+    item.id = state.repo.content_id(&item.raw_content);
     let level = *state.persist_level.lock().unwrap();
     if let Err(e) = state.repo.save(&item, level) {
         eprintln!("lapacho: failed to save plugin output: {e}");
@@ -338,6 +339,8 @@ fn run_monitor(
     // A failed emit is not swallowed: that's exactly the bug that makes the UI
     // look like it isn't updating in real time.
     let persist_and_emit = |item: ClipboardItem| {
+        let mut item = item;
+        item.id = repo.content_id(&item.raw_content);
         let level = *persist_level.lock().unwrap();
         if let Err(e) = repo.save(&item, level) {
             eprintln!("lapacho: failed to save clipboard item: {e}");
