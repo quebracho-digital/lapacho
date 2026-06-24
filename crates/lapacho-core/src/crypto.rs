@@ -210,6 +210,18 @@ pub fn key_from_base64(s: &str) -> Result<[u8; KEY_LEN], String> {
         .map_err(|_| "clave con tamaño inválido".to_string())
 }
 
+/// Subclave de 32 bytes para identificar contenido, separada de la de cifrado
+/// (dominio distinto). Misma clave maestra → misma subclave.
+pub fn derive_content_key(master: &[u8; KEY_LEN]) -> [u8; 32] {
+    blake3::derive_key("lapacho content-id v1", master)
+}
+
+/// Id estable por contenido (MAC con clave). Mismo `raw` y misma subclave → mismo
+/// id (hex). Sin la subclave no se puede confirmar un valor adivinado.
+pub fn content_id(content_key: &[u8; 32], raw: &str) -> String {
+    blake3::keyed_hash(content_key, raw.as_bytes()).to_hex().to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -312,5 +324,44 @@ mod tests {
         let key = SecretKey::generate().unwrap();
         let restored = SecretKey::from_base64(&key.to_base64()).unwrap();
         assert_eq!(restored.expose(), key.expose());
+    }
+
+    #[test]
+    fn content_id_same_raw_same_key_gives_same_id() {
+        let master = test_key();
+        let ck = derive_content_key(&master);
+        let id1 = content_id(&ck, "hello");
+        let id2 = content_id(&ck, "hello");
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn content_id_different_raw_different_id() {
+        let master = test_key();
+        let ck = derive_content_key(&master);
+        let id1 = content_id(&ck, "hello");
+        let id2 = content_id(&ck, "world");
+        assert_ne!(id1, id2);
+    }
+
+    #[test]
+    fn content_id_different_subkey_different_id() {
+        let master1 = test_key();
+        let mut master2 = test_key();
+        master2[0] ^= 0x01;
+        let ck1 = derive_content_key(&master1);
+        let ck2 = derive_content_key(&master2);
+        let id1 = content_id(&ck1, "hello");
+        let id2 = content_id(&ck2, "hello");
+        assert_ne!(id1, id2);
+    }
+
+    #[test]
+    fn content_id_is_64_hex_chars() {
+        let master = test_key();
+        let ck = derive_content_key(&master);
+        let id = content_id(&ck, "test");
+        assert_eq!(id.len(), 64);
+        assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
     }
 }
