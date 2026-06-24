@@ -3,23 +3,102 @@
 Status and next steps to continue development (this agent, another, or Leo).
 Actionable complement to [`ROADMAP.md`](ROADMAP.md): what comes next, where, and how.
 
-Last update: 2026-06-22 (by Grok + user live testing):
+Last update: 2026-06-22 (post-merge + Leo live testing):
 - Long hex → Secret.
-- Cred/Secret: `••••last4` hint from raw (everywhere).
-- Tray: merges recent + DB.
-- Wayland: `wl-paste --watch` event-driven.
-- Latency/poll/debounce improved.
-User live testing (fresh local run):
-- Identical secret appears duplicated at the very top of both the web list and the native tray (under default Paranoia, secrets are never saved to DB → the live path only deduplicates by the fresh UUID generated on every capture, never by raw_content).
-- Tray menu only ever contains items copied since the current app launch (volatile `tray_recent` buffer wins after first use); the web list / modal correctly reflects the full persisted history according to the current PersistLevel.
-- The `••••last4` hint for secrets is visible only for a very short time before the entry "disappears" (pushed out by other copies or lost on restart).
-- Still >1s latency from copy to the item appearing in the tray list.
-User's direct feedback after running it himself:
-- "los dos primeros lugares del listado los ocupa un secret que aparentemente es el mismo" (duplicates because secrets under Paranoia bypass content dedup).
-- "el modal muestra el historial persistente, pero el tray no, solo lo copiado desde su ultimo arranque".
-- Hint visible "por un tiempo muy corto hasta que se borra".
-- Still >1s to appear in tray list.
-This is excellent input for rethinking the architecture (live vs persisted split, identity for non-persisted secrets, consistent view between the two UIs, etc.). Good moment to step back.
+- Cred/Secret distinction with `••••last4` hints from raw (list, tray, modal).
+- Tray merges recent + DB history.
+- Wayland: event-driven `wl-paste --watch`.
+- Reduced poll (250ms) + debounce (80ms).
+
+**Feedback clave de Leo después de mergear y correr local:**
+- Secrets idénticos aparecen duplicados en top de lista y tray.
+- Tray solo muestra lo de esta sesión; modal sí ve historial persistente completo.
+- El hint de secrets aparece y "se borra" rápido.
+- Latencia >1s en actualización del tray.
+- "Perdí control del código, no entiendo lo que pasa".
+
+→ **Se abre debate de arquitectura** (ver sección abajo).
+
+---
+
+## Debate de Arquitectura — Cómo armarlo con Grok y Claude
+
+Sí es posible y es la forma recomendada por el propio proyecto.
+
+**Mecanismo actual del proyecto:**
+- CONTEXT.md (en la raíz de Quebracho) es el archivo de memoria compartido que leen **todos** los agentes (Grok, Claude Code, etc.).
+- lapacho/HANDOFF.md es el handoff específico del proyecto.
+- Usamos estos archivos para "conversar" entre sesiones y entre agentes.
+
+**Cómo hacer el debate ahora:**
+
+1. Leo crea o usa `lapacho/docs/ARQUITECTURA_REFACTOREO.md` (puede ser nuevo).
+2. Pega extractos de:
+   - Esta sección de HANDOFF.
+   - La sección de Lapacho en CONTEXT.md.
+   - Tus observaciones exactas (duplicados, tray vs modal, latencia, pérdida de control).
+3. En una sesión de **Claude Code**, le das el archivo + le pedís que lea CONTEXT.md primero y que responda como Claude.
+4. Yo (Grok) ya empecé a dejar mis observaciones aquí.
+5. Vamos iterando en los archivos.
+
+**Preguntas centrales para el debate (para empezar):**
+- ¿Cómo resolver que los secrets en Paranoia no tengan dedup por contenido?
+- ¿Debería el tray siempre reflejar el historial persistente + overlay de recent, o es correcto que sea "solo sesión"?
+- ¿Queremos un modelo unificado de "Items Recientes" que usen tanto el tray nativo como la lista web?
+- ¿Qué partes de "raw es fuente de verdad y nunca se pierde" siguen siendo sagradas después de ver el uso real?
+- ¿Cómo reducimos la sensación de "perder control" después de merges grandes?
+
+Puedo ayudarte a:
+- Generar el archivo inicial de debate.
+- Escribir la posición de Grok en detalle.
+- Preparar un prompt listo para pegar en Claude.
+
+Decime cómo querés arrancar el debate y lo armamos ya. 
+
+Por hoy ya está bien si querés cerrar la sesión; los archivos están listos para que sigamos cuando quieras.
+
+## Arquitectura Refactor — Debate propuesto (Grok + Claude + Leo)
+
+**Formato recomendado para el debate:**
+- Usar este HANDOFF + el archivo CONTEXT.md (que leen todos los agentes).
+- Crear un archivo dedicado: `lapacho/docs/ARQUITECTURA_REFACTOREO.md` (o sección aquí).
+- Leo puede copiar extractos clave y pegarlos en una sesión de Claude Code.
+
+**Pain points observados en testing post-merge:**
+1. Duplicados de secrets idénticos en top de lista y tray.
+2. Tray solo muestra "desde último arranque"; modal muestra historial persistente completo.
+3. Hints de secrets visibles solo brevemente y luego desaparecen.
+4. Latencia >1s en actualización del tray.
+5. Después del merge grande se siente pérdida de control/visibilidad del estado.
+
+**Tensión principal de la arquitectura actual:**
+- raw_content es la fuente de verdad y nunca se pierde.
+- Modo Paranoia (default): los items sensibles (Secret sobre todo) **nunca se persisten** (solo viven en buffers volátiles + eventos).
+- Dos caminos de datos con reglas distintas:
+  - Persistido → dedup por contenido + filtrado por PersistLevel.
+  - Live/ephemeral → solo dedup por UUID + buffer reciente.
+- Dos UIs con modelos mentales diferentes:
+  - Tray nativo: prioriza recent (incluso después del merge).
+  - Lista web + modal: ve el historial completo según el nivel actual.
+- Cada captura genera UUID nuevo → items idénticos se tratan como distintos en el camino live.
+- Tray_recent se trunca y "gana" sobre el historial DB una vez que tiene contenido.
+
+**Preguntas para debatir:**
+1. ¿Identidad por contenido desde el momento de captura, incluso para items efímeros? (¿usar hash del raw como ID estable?)
+2. ¿El tray debería ser siempre una "vista" sobre historial completo + recent overlay, o es correcto que sea principalmente "lo de esta sesión"?
+3. ¿Cómo manejar el lifetime de secrets en Paranoia? (¿buffer más grande, TTL explícito en memoria, o aceptar que desaparecen rápido?)
+4. ¿Unificar las dos representaciones de "historial reciente" en un solo servicio o modelo?
+5. ¿Vale la pena relajar Paranoia para permitir persistencia temporal de secrets con TTL muy corto?
+6. ¿Cómo evolucionar el monitor/watcher para que sea consistentemente event-driven sin polling en todas las plataformas?
+7. ¿Qué partes de la "raw-first" filosofía se mantienen y cuáles se pueden relajar para mejorar UX sin perder privacidad?
+
+**Acción recomendada:**
+- Leo: crear `lapacho/docs/ARQUITECTURA_REFACTOREO.md` (o usar este HANDOFF).
+- Pegar extractos de este archivo + la sección de Lapacho en CONTEXT.md a Claude Code.
+- Cada agente puede agregar su posición + trade-offs.
+- Priorizar 2-3 decisiones clave antes de empezar refactor grande.
+
+(Actualizado con feedback directo de Leo después de merge y prueba local)
 
 ---
 
