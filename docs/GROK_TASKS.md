@@ -97,7 +97,10 @@ fn content_id(&self, raw: &str) -> String { crypto::content_id(&self.content_key
 
 ---
 
-## [ ] T2b — Zeroizar la subclave de contenido (hallazgo de auditoría T2)
+## [x] T2b — Zeroizar la subclave de contenido (hallazgo de auditoría T2)
+
+> ✅ Auditada por Claude 2026-06-24: `content_key` ahora es `Zeroizing<[u8;32]>`,
+> en scope, 58 tests verdes. mlock pendiente para Claude (junto a T8).
 
 **Objetivo:** `content_key` es secreto: con la DB (que guarda los `id` = hash de
 contenido en claro) permite un ataque de diccionario. El master ya está

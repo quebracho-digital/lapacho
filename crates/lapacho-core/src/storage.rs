@@ -87,7 +87,7 @@ pub trait HistoryRepo: Send + Sync {
 pub struct SqliteRepo {
     db_path: PathBuf,
     cipher: crypto::Cipher,
-    content_key: [u8; 32],
+    content_key: zeroize::Zeroizing<[u8; 32]>,
 }
 
 impl SqliteRepo {
@@ -95,7 +95,7 @@ impl SqliteRepo {
     /// `db_path`, encrypting content with `key`. The key is consumed to build a
     /// resident [`Cipher`] and then dropped (zeroized).
     pub fn new(db_path: impl Into<PathBuf>, key: crypto::SecretKey) -> Result<Self, String> {
-        let content_key = crypto::derive_content_key(key.expose());
+        let content_key = zeroize::Zeroizing::new(crypto::derive_content_key(key.expose()));
         let repo = Self { db_path: db_path.into(), cipher: crypto::Cipher::new(&key), content_key };
         repo.init()?;
         Ok(repo)
@@ -393,7 +393,7 @@ impl HistoryRepo for SqliteRepo {
     }
 
     fn content_id(&self, raw: &str) -> String {
-        crypto::content_id(&self.content_key, raw)
+        crypto::content_id(&*self.content_key, raw)
     }
 }
 
