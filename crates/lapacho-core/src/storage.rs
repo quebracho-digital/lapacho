@@ -71,6 +71,10 @@ pub trait HistoryRepo: Send + Sync {
 
     /// Retrieve a previously saved preference.
     fn get_preference(&self, key: &str) -> Result<Option<String>, String>;
+
+    /// Id estable derivado del contenido (ver crypto::content_id). Mismo contenido
+    /// → mismo id, para deduplicar en disco y en los buffers vivos.
+    fn content_id(&self, raw: &str) -> String;
 }
 
 /// SQLite-backed [`HistoryRepo`].
@@ -83,6 +87,7 @@ pub trait HistoryRepo: Send + Sync {
 pub struct SqliteRepo {
     db_path: PathBuf,
     cipher: crypto::Cipher,
+    content_key: [u8; 32],
 }
 
 impl SqliteRepo {
@@ -90,10 +95,8 @@ impl SqliteRepo {
     /// `db_path`, encrypting content with `key`. The key is consumed to build a
     /// resident [`Cipher`] and then dropped (zeroized).
     pub fn new(db_path: impl Into<PathBuf>, key: crypto::SecretKey) -> Result<Self, String> {
-        let repo = Self {
-            db_path: db_path.into(),
-            cipher: crypto::Cipher::new(&key),
-        };
+        let content_key = crypto::derive_content_key(key.expose());
+        let repo = Self { db_path: db_path.into(), cipher: crypto::Cipher::new(&key), content_key };
         repo.init()?;
         Ok(repo)
     }
@@ -388,6 +391,10 @@ impl HistoryRepo for SqliteRepo {
             Ok(None)
         }
     }
+
+    fn content_id(&self, raw: &str) -> String {
+        crypto::content_id(&self.content_key, raw)
+    }
 }
 
 /// Convenience for callers (and tests) that just need a path + key to bring up a
@@ -630,6 +637,17 @@ mod tests {
         // No match
         assert!(repo.search("no-such-thing").unwrap().is_empty());
 
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn content_id_stable_between_calls_and_via_trait_object() {
+        let (repo, db) = repo();
+        let id1 = repo.content_id("x");
+        let id2 = repo.content_id("x");
+        assert_eq!(id1, id2);
+        let repo: Box<dyn HistoryRepo> = Box::new(repo);
+        assert_eq!(repo.content_id("x"), id1);
         let _ = std::fs::remove_file(&db);
     }
 }
