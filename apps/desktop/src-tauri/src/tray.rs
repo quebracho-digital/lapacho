@@ -13,6 +13,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use base64::Engine as _;
+use lapacho_core::ingest::sensitive_display;
 use lapacho_core::types::{ClipboardItem, DetectedType, Sensitivity};
 use tauri::menu::{IconMenuItem, Menu, MenuBuilder, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -50,9 +51,9 @@ fn item_label(item: &ClipboardItem) -> String {
     }
 
     if sensitivity == Sensitivity::Credential || sensitivity == Sensitivity::Secret {
-        let preview = safe_preview(&item.raw_content);
+        let display = sensitive_display(&item.raw_content, sensitivity);
         let suffix = if sensitivity == Sensitivity::Secret { " [secret]" } else { " [credential]" };
-        return format!("••••{}{}", preview, suffix);
+        return format!("{}{}", display, suffix);
     }
 
     let display = &item.display_content;
