@@ -60,7 +60,10 @@ pub fn content_id(content_key: &[u8; 32], raw: &str) -> String {
 
 ---
 
-## [ ] T2 — Exponer `content_id` en el repositorio
+## [x] T2 — Exponer `content_id` en el repositorio
+
+> ✅ Auditada por Claude 2026-06-24: en scope (solo storage.rs), correcto, test
+> verde. **Hallazgo:** `content_key` quedó sin zeroize → ver T2b.
 
 **Objetivo:** que el resto de la app pida el id de contenido sin conocer la clave.
 
@@ -91,7 +94,32 @@ fn content_id(&self, raw: &str) -> String { crypto::content_id(&self.content_key
 `Box<dyn HistoryRepo>`.
 
 **Aceptación:** `cargo test --workspace` verde.
-*(Nota para Claude al auditar: evaluar zeroize de `content_key` en Drop.)*
+
+---
+
+## [ ] T2b — Zeroizar la subclave de contenido (hallazgo de auditoría T2)
+
+**Objetivo:** `content_key` es secreto: con la DB (que guarda los `id` = hash de
+contenido en claro) permite un ataque de diccionario. El master ya está
+mlock+zeroize; la subclave debe al menos zeroizarse al dropear.
+
+**Archivos:** `crates/lapacho-core/src/storage.rs`.
+
+**Hacer:**
+1. Cambiar el campo de `SqliteRepo`:
+   `content_key: zeroize::Zeroizing<[u8; 32]>`
+   (`zeroize` ya es dependencia; `Zeroizing` borra al dropear y derefa a `[u8;32]`).
+2. En `SqliteRepo::new`:
+   `content_key: zeroize::Zeroizing::new(crypto::derive_content_key(key.expose()))`
+3. En `content_id`, pasar `&*self.content_key` (deref a `&[u8; 32]`).
+
+**NO tocar:** nada más.
+
+**Tests:** el test `content_id_stable_between_calls_and_via_trait_object` sigue
+verde (no agregar nada).
+
+**Aceptación:** `cargo test --workspace` verde.
+*(mlock del `content_key` lo evalúa Claude junto con T8.)*
 
 ---
 
