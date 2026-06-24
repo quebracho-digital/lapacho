@@ -126,7 +126,11 @@ verde (no agregar nada).
 
 ---
 
-## [ ] T3 — Asignar el id por contenido en cada captura
+## [x] T3 — Asignar el id por contenido en cada captura
+
+> ✅ Auditada por Claude 2026-06-24: los 2 call sites correctos, solo main.rs,
+> tests verdes + binario compila. Fix real del duplicado de secrets (tray_recent
+> ya deduplica por contenido). Smoke GUI pendiente (lo corre Claude).
 
 **Objetivo:** que todo item capturado tenga `id = content_id(raw)` antes de
 guardarse/emitirse. Esto mata los duplicados de secrets (mismo contenido → mismo
