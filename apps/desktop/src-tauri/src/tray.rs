@@ -92,18 +92,6 @@ fn item_label(item: &ClipboardItem) -> String {
     base
 }
 
-/// Short safe preview from raw (up to 4 last non-control chars) for tray labels.
-fn safe_preview(raw: &str) -> String {
-    raw.chars()
-        .rev()
-        .filter(|c| !c.is_control())
-        .take(4)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect()
-}
-
 /// Decodes an 18×18 RGBA thumbnail (base64, as produced by `images.rs`) into a
 /// native menu icon. `None` if it doesn't decode to exactly 18×18×4 bytes.
 fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {

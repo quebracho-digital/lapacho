@@ -17,9 +17,6 @@ use crate::detectors::classify_text;
 use crate::security::{classify_sensitivity, classify_sensitivity_graphics, sanitize_svg, sanitize_text};
 use crate::types::{ClipboardItem, DetectedType, Sensitivity};
 
-/// Placeholder shown instead of a credential or secret.
-const REDACTED: &str = "••••••••";
-
 fn now_secs() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
