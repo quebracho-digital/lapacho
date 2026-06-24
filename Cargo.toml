@@ -31,6 +31,7 @@ base64 = "0.22"
 zeroize = "1"
 region = "3"
 ammonia = "4.0"
+blake3 = "1"
 
 [profile.release]
 opt-level = "z"

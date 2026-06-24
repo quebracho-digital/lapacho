@@ -17,7 +17,10 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` auditada y aprobada por Claud
 
 ---
 
-## [ ] T1 — Helper de identidad por contenido (blake3 keyed)
+## [x] T1 — Helper de identidad por contenido (blake3 keyed)
+
+> ✅ Auditada por Claude 2026-06-24: en scope, código correcto (dominio separado,
+> no es hash en claro), 4 tests verdes, `cargo test --workspace` ok. blake3 1.8.5.
 
 **Objetivo:** una función que dé un id estable por contenido, con clave (no un
 hash en claro). Pura, sin integrar todavía.
