@@ -163,7 +163,11 @@ test --workspace` sigue verde.
 
 ---
 
-## [ ] T4 — Dedup por clave primaria en `save` (sacar el decrypt-scan)
+## [x] T4 — Dedup por clave primaria en `save` (sacar el decrypt-scan)
+
+> ✅ Auditada por Claude 2026-06-24: `existing_id_for_content` eliminado, upsert
+> por PK correcto, test de recopia ajustado, 58 verdes. **G1 completo** (identidad
+> keyed-hash de punta a punta).
 
 **Objetivo:** como ahora `id == contenido`, deduplicar por PK (O(1)) en vez de
 descifrar toda la tabla.
