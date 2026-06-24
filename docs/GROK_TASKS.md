@@ -256,7 +256,10 @@ medio.
 
 ---
 
-## [ ] T5b — Borrar código muerto que dejó T5
+## [x] T5b — Borrar código muerto que dejó T5
+
+> ✅ Auditada por Claude 2026-06-24: borró solo `REDACTED` y `safe_preview`,
+> `safe_credential_hint` intacta. Sus 2 warnings desaparecieron, 64 tests verdes.
 
 **Objetivo:** T5 dejó sin uso `REDACTED` (ingest.rs) y `safe_preview` (tray.rs) →
 2 warnings. Borrarlos.
