@@ -15,6 +15,8 @@ tauri-build = { version = "2", features = [] }
 # Lets the image-sanitization tests build a PNG that *carries* a tEXt metadata
 # chunk, to prove our re-encode strips it. Same major as `image`'s `png` dep.
 png = "0.17"
+# For the X11/XFixes clipboard event spike (background monitoring without focus).
+clipboard-master = "4"
 
 [dependencies]
 # `tray-icon`: native system-tray indicator + menu (the fluid recent-clips list).

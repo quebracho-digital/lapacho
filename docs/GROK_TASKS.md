@@ -278,7 +278,12 @@ medio.
 
 ---
 
-## [ ] T6 — Spike: captura XFIXES en background (verificar crate)
+## [x] T6 — Spike: captura XFIXES en background (verificar crate)
+
+> ✅ Auditada por Claude 2026-06-24: crate elegido **`clipboard-master` v4**.
+> Smoke verificado por Claude en X11/Cinnamon: 3 cambios vía `xclip` desde otro
+> proceso (sin foco) → 3 detecciones. Solo notifica el cambio (contenido se lee
+> con arboard). API: `ClipboardHandler::on_clipboard_change` + `Master::new(h)?.run()`.
 
 **Objetivo:** probar que podemos recibir eventos de clipboard en X11 **sin foco**.
 Decidir el crate antes de integrar.
@@ -296,15 +301,68 @@ spike imprime el cambio al instante. Reportar a Claude qué crate quedó y su AP
 
 ---
 
-## [ ] T7 — Integrar XFIXES en el monitor (reemplazar el poll)
+## [ ] T7 — Integrar XFIXES (clipboard-master) en el monitor
 
-> **Bloqueada hasta que T6 esté aprobada.** Claude da el detalle fino según el
-> crate elegido. No empezar sin eso.
+**Objetivo:** reemplazar el polling de 250 ms (rama no-Wayland) por eventos de
+`clipboard-master` (XFIXES; anda en X11 y en Wayland vía XWayland).
+`check_clipboard_once` y `persist_and_emit` **NO se tocan** — se disparan por
+evento a través de un canal. Esto evita tocar la parte riesgosa.
 
-**Idea:** en `run_monitor`, donde hoy está el loop de polling (250 ms), poner la
-captura por eventos XFIXES que en cada evento llame a `check_clipboard_once`
-(reusar tal cual). Conservar el gate `last_seen` y el camino `wl-paste` detrás de
-`is_wayland()` como fallback opcional.
+**Archivos:** `apps/desktop/src-tauri/Cargo.toml`,
+`apps/desktop/src-tauri/src/main.rs`.
+
+**Hacer:**
+1. En `Cargo.toml`: **mover** `clipboard-master = "4"` de `[dev-dependencies]` a
+   `[dependencies]` (ahora la usa el binario). Que quede una sola vez.
+2. En `main.rs`, dentro de `run_monitor`: **dejar igual** la rama
+   `if is_wayland() { run_wayland_watcher... }`. Reemplazar SOLO el loop de
+   polling final (`loop { check_clipboard_once(...); sleep(POLL_INTERVAL); }`) por:
+```rust
+use clipboard_master::{CallbackResult, ClipboardHandler, Master};
+use std::sync::mpsc;
+
+struct ClipNotify { tx: mpsc::Sender<()> }
+impl ClipboardHandler for ClipNotify {
+    fn on_clipboard_change(&mut self) -> CallbackResult {
+        let _ = self.tx.send(());
+        CallbackResult::Next
+    }
+    fn on_clipboard_error(&mut self, e: std::io::Error) -> CallbackResult {
+        eprintln!("lapacho: clipboard monitor error: {e}");
+        CallbackResult::Next
+    }
+}
+
+let (tx, rx) = mpsc::channel::<()>();
+let spawned = std::thread::Builder::new()
+    .name("clip-xfixes".into())
+    .spawn(move || match Master::new(ClipNotify { tx }) {
+        Ok(mut m) => { let _ = m.run(); }
+        Err(e) => eprintln!("lapacho: could not start clipboard monitor: {e}"),
+    });
+
+if spawned.is_ok() {
+    // El evento solo dispara en cambios futuros → un snapshot inicial.
+    check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+    while rx.recv().is_ok() {
+        check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+    }
+} else {
+    // Fallback: polling, solo si no se pudo lanzar el monitor de eventos.
+    loop {
+        check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+```
+
+**NO tocar:** `check_clipboard_once`, `persist_and_emit`, `run_wayland_watcher`,
+el gate `last_seen`, `POLL_INTERVAL` (queda en uso en el fallback).
+
+**Tests:** `cargo test --workspace` verde; `cargo build -p lapacho-desktop` ok.
+
+**Aceptación:** compila y testea verde. El smoke GUI (copiar en otra app →
+aparece casi instantáneo, sin los ~250 ms) lo corre **Claude** en X11/Cinnamon.
 
 ---
 
