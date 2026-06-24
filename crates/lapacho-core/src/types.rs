@@ -71,15 +71,10 @@ pub struct UIClipboardItem {
 impl From<ClipboardItem> for UIClipboardItem {
     fn from(item: ClipboardItem) -> Self {
         // For sensitive items, always compute a fresh short preview from the raw
-        // so the UI list and modal show distinguishable values (e.g. ••••1234)
+        // so the UI list and modal show distinguishable values (e.g. ••••1234 or ghp…1234)
         // even for old history items that were stored with full redaction.
         let display_content = if matches!(item.sensitivity, Sensitivity::Credential | Sensitivity::Secret) {
-            let hint = crate::ingest::safe_credential_hint(&item.raw_content);
-            if hint.is_empty() {
-                "••••••••".to_string()
-            } else {
-                format!("••••{}", hint)
-            }
+            crate::ingest::sensitive_display(&item.raw_content, item.sensitivity)
         } else {
             item.display_content
         };

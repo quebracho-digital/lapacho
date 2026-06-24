@@ -208,7 +208,10 @@ válidos).
 
 ---
 
-## [ ] T5 — Centralizar el hint de sensibles (G2)
+## [x] T5 — Centralizar el hint de sensibles (G2)
+
+> ✅ Auditada por Claude 2026-06-24: helper correcto, 3 copias reemplazadas,
+> Secret sin leak de prefijo, 58 verdes. **Hallazgo:** código muerto → T5b.
 
 **Objetivo:** un solo helper para el preview de Credential/Secret (hoy hay 3
 copias → drift). Regla: `Secret` → `••••last4`; `Credential` → `first3…last4`.
@@ -250,6 +253,25 @@ contiene los primeros chars del secreto (solo `••••last4`); ninguno cont
 medio.
 
 **Aceptación:** `cargo test --workspace` verde.
+
+---
+
+## [ ] T5b — Borrar código muerto que dejó T5
+
+**Objetivo:** T5 dejó sin uso `REDACTED` (ingest.rs) y `safe_preview` (tray.rs) →
+2 warnings. Borrarlos.
+
+**Archivos:** `crates/lapacho-core/src/ingest.rs`,
+`apps/desktop/src-tauri/src/tray.rs`.
+
+**Hacer:** borrar la constante `REDACTED` (ingest.rs) y la función `safe_preview`
+(tray.rs). Ya nadie las usa.
+
+**NO tocar:** `safe_credential_hint` (es `pub`, dejala). Nada más.
+
+**Aceptación:** `cargo build --workspace` **sin** los warnings "constant
+`REDACTED` is never used" ni "function `safe_preview` is never used"; `cargo test
+--workspace` verde.
 
 ---
 

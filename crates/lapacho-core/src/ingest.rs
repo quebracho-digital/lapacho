@@ -44,6 +44,21 @@ pub fn safe_credential_hint(s: &str) -> String {
         .collect()
 }
 
+/// Preview seguro para sensibles. Secret: solo ••••last4. Credential: first3…last4
+/// (el prefijo del credential ayuda a distinguirlo; nunca se expone para Secret).
+pub fn sensitive_display(raw: &str, sensitivity: Sensitivity) -> String {
+    let last4: String = raw.chars().rev().filter(|c| !c.is_control())
+        .take(4).collect::<Vec<_>>().into_iter().rev().collect();
+    match sensitivity {
+        Sensitivity::Credential => {
+            let first3: String = raw.chars().filter(|c| !c.is_control()).take(3).collect();
+            if first3.is_empty() && last4.is_empty() { "••••••••".into() }
+            else { format!("{first3}…{last4}") }
+        }
+        _ => if last4.is_empty() { "••••••••".into() } else { format!("••••{last4}") },
+    }
+}
+
 /// Builds the user-facing display string for already-sanitized content.
 ///
 /// `None` and `Personal` content is shown as-is.
@@ -54,12 +69,7 @@ pub fn mask_display(sanitized: &str, sensitivity: Sensitivity) -> String {
     match sensitivity {
         Sensitivity::None | Sensitivity::Personal => sanitized.to_string(),
         Sensitivity::Credential | Sensitivity::Secret => {
-            let hint = safe_credential_hint(sanitized);
-            if hint.is_empty() {
-                REDACTED.to_string()
-            } else {
-                format!("••••{}", hint)
-            }
+            sensitive_display(sanitized, sensitivity)
         }
     }
 }
@@ -136,9 +146,10 @@ mod tests {
         let token = "ghp_123456789012345678901234567890123456";
         let item = process_text(token);
         assert_eq!(item.sensitivity, Sensitivity::Credential);
-        // Credentials now get a small safe suffix hint so different creds are
-        // distinguishable (e.g. ••••3456), while never leaking the real value.
-        assert!(item.display_content.starts_with("••••"));
+        // Credential: first3…last4 (e.g. ghp…3456); Secret: ••••last4. Never full value.
+        assert!(item.display_content.contains("ghp"));
+        assert!(item.display_content.contains("3456"));
+        assert!(item.display_content.contains("…"));
         assert!(!item.display_content.contains(token));
         // raw_content must survive intact so it can be pasted back.
         assert_eq!(item.raw_content, token);
