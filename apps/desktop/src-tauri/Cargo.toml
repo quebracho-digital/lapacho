@@ -15,8 +15,6 @@ tauri-build = { version = "2", features = [] }
 # Lets the image-sanitization tests build a PNG that *carries* a tEXt metadata
 # chunk, to prove our re-encode strips it. Same major as `image`'s `png` dep.
 png = "0.17"
-# For the X11/XFixes clipboard event spike (background monitoring without focus).
-clipboard-master = "4"
 
 [dependencies]
 # `tray-icon`: native system-tray indicator + menu (the fluid recent-clips list).
@@ -25,6 +23,7 @@ tauri = { version = "2", features = ["tray-icon"] }
 # Driven from Rust only, so it needs no webview capability entry.
 tauri-plugin-global-shortcut = "2"
 arboard = "3"
+clipboard-master = "4"
 # Image clipboard support: PNG encode/decode + tray thumbnail resize.
 image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = { workspace = true }
