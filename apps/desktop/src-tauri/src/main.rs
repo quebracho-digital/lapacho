@@ -381,11 +381,41 @@ fn run_monitor(
         }
     }
 
-    // Fallback polling loop (used on X11, non-Linux, or if wl-paste is missing).
-    // On Wayland this is the battery-draining path we try to avoid.
-    loop {
+    use clipboard_master::{CallbackResult, ClipboardHandler, Master};
+    use std::sync::mpsc;
+
+    struct ClipNotify { tx: mpsc::Sender<()> }
+    impl ClipboardHandler for ClipNotify {
+        fn on_clipboard_change(&mut self) -> CallbackResult {
+            let _ = self.tx.send(());
+            CallbackResult::Next
+        }
+        fn on_clipboard_error(&mut self, e: std::io::Error) -> CallbackResult {
+            eprintln!("lapacho: clipboard monitor error: {e}");
+            CallbackResult::Next
+        }
+    }
+
+    let (tx, rx) = mpsc::channel::<()>();
+    let spawned = std::thread::Builder::new()
+        .name("clip-xfixes".into())
+        .spawn(move || match Master::new(ClipNotify { tx }) {
+            Ok(mut m) => { let _ = m.run(); }
+            Err(e) => eprintln!("lapacho: could not start clipboard monitor: {e}"),
+        });
+
+    if spawned.is_ok() {
+        // El evento solo dispara en cambios futuros → un snapshot inicial.
         check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
-        std::thread::sleep(POLL_INTERVAL);
+        while rx.recv().is_ok() {
+            check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+        }
+    } else {
+        // Fallback: polling, solo si no se pudo lanzar el monitor de eventos.
+        loop {
+            check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+            std::thread::sleep(POLL_INTERVAL);
+        }
     }
 }
 
