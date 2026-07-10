@@ -1,10 +1,9 @@
 [build]
 target = "index.html"
 dist = "dist"
-# Relative asset URLs so the Tauri custom protocol (release) can load the
-# WASM/JS. Absolute `/lapacho-ui-….js` paths break in the webview and leave a
-# black empty window (body CSS only, Leptos never mounts).
-public_url = "./"
+# Absolute root paths work with Tauri's asset host (`…/lapacho-ui-….js`).
+# Relative `./` broke loading for us on WebKitGTK once; keep `/`.
+public_url = "/"
 
 [serve]
 addresses = ["127.0.0.1"]
