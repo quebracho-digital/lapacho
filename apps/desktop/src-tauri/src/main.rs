@@ -26,8 +26,54 @@ use std::time::Duration;
 use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
 use lapacho_core::types::{ClipboardItem, PersistLevel, UIClipboardItem};
 use lapacho_core::{PluginDefinition, Threat, assess, plugins, process_text};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State}; // Emitter used by emit_new_item / request_history_refresh
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use zeroize::Zeroize;
+
+/// Max items kept in the volatile session buffer (`tray_recent`).
+const TRAY_RECENT_MAX: usize = 25;
+
+/// Scrub `raw_content` before an item is dropped from the ephemeral buffer.
+fn zeroize_discarded(item: &mut ClipboardItem) {
+    item.raw_content.zeroize();
+}
+
+/// Remove matching id from `tray_recent`, zeroizing the discarded item(s).
+fn tray_recent_evict(rec: &mut Vec<ClipboardItem>, id: &str) {
+    rec.retain_mut(|x| {
+        if x.id == id {
+            zeroize_discarded(x);
+            false
+        } else {
+            true
+        }
+    });
+}
+
+/// Drop excess items past `max`, zeroizing each discarded payload.
+fn tray_recent_truncate(rec: &mut Vec<ClipboardItem>, max: usize) {
+    if rec.len() <= max {
+        return;
+    }
+    for mut item in rec.drain(max..) {
+        zeroize_discarded(&mut item);
+    }
+}
+
+/// Clear the whole buffer, zeroizing every raw payload first.
+fn tray_recent_clear(rec: &mut Vec<ClipboardItem>) {
+    for item in rec.iter_mut() {
+        zeroize_discarded(item);
+    }
+    rec.clear();
+}
+
+/// Insert at front (dedup by id), then cap length — zeroizing all discards.
+fn tray_recent_push_front(rec: &mut Vec<ClipboardItem>, item: ClipboardItem) {
+    tray_recent_evict(rec, &item.id);
+    rec.insert(0, item);
+    tray_recent_truncate(rec, TRAY_RECENT_MAX);
+}
 
 /// How often the monitor polls the system clipboard.
 /// Fallback polling interval when event-driven watching is not available
@@ -37,6 +83,8 @@ const POLL_INTERVAL: Duration = Duration::from_millis(250);
 /// Event emitted to the frontend when a new clipboard item is captured.
 /// Kept to a plain `a-z-` name to avoid any event-name validation surprises.
 const EVENT_NEW_ITEM: &str = "clipboard-new";
+/// Ask the UI to re-fetch history (window shown / live event fallback).
+const EVENT_HISTORY_REFRESH: &str = "history-refresh";
 
 /// Backend state shared between Tauri commands and the monitor thread.
 pub(crate) struct AppState {
@@ -92,25 +140,76 @@ fn persist_level_to_str(level: PersistLevel) -> &'static str {
 // Commands
 // ---------------------------------------------------------------------------
 
-/// Returns the persisted history as UI-safe items (never includes `raw_content`).
+/// Session recent + persisted history (recent first), as UI-safe items.
+/// Matches the tray model so the list shows live captures even when the
+/// webview missed a `clipboard-new` event (hidden window, race on listen).
+fn merge_recent_and_db(state: &AppState) -> Result<Vec<ClipboardItem>, String> {
+    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().clone();
+    for db in state.repo.load()? {
+        if result.iter().any(|r| r.id == db.id) {
+            continue;
+        }
+        result.push(db);
+        if result.len() >= 100 {
+            break;
+        }
+    }
+    Ok(result)
+}
+
+/// Returns the live list: session buffer first, then DB (never includes `raw_content`).
 #[tauri::command]
 fn get_history(state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, String> {
-    let items = state.repo.load()?;
+    let items = merge_recent_and_db(&state)?;
     Ok(items.into_iter().map(UIClipboardItem::from).collect())
 }
 
-/// Search the history (raw + display content, case-insensitive).
-/// Used by the UI search box. Returns UI-safe projection.
+/// Search session recent + persisted history (raw + display, case-insensitive).
 #[tauri::command]
 fn search_history(query: String, state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, String> {
-    let items = state.repo.search(&query)?;
-    Ok(items.into_iter().map(UIClipboardItem::from).collect())
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return get_history(state);
+    }
+    let items = merge_recent_and_db(&state)?;
+    Ok(items
+        .into_iter()
+        .filter(|it| {
+            it.raw_content.to_lowercase().contains(&q)
+                || it.display_content.to_lowercase().contains(&q)
+        })
+        .map(UIClipboardItem::from)
+        .collect())
+}
+
+/// Emit a new item to the main webview (preferred) and as a global fallback.
+fn emit_new_item(app: &AppHandle, ui: UIClipboardItem) {
+    if let Some(w) = app.get_webview_window("main") {
+        if let Err(e) = w.emit(EVENT_NEW_ITEM, ui.clone()) {
+            eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM} to main: {e}");
+        }
+    }
+    if let Err(e) = app.emit(EVENT_NEW_ITEM, ui) {
+        eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM}: {e}");
+    }
+}
+
+/// Tell the UI to re-pull history (e.g. when the window is shown again).
+pub(crate) fn request_history_refresh(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        if let Err(e) = w.emit(EVENT_HISTORY_REFRESH, ()) {
+            eprintln!("lapacho: failed to emit {EVENT_HISTORY_REFRESH} to main: {e}");
+        }
+    }
+    if let Err(e) = app.emit(EVENT_HISTORY_REFRESH, ()) {
+        eprintln!("lapacho: failed to emit {EVENT_HISTORY_REFRESH}: {e}");
+    }
 }
 
 #[tauri::command]
 fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.repo.delete(&id)?;
-    state.tray_recent.lock().unwrap().retain(|x| x.id != id);
+    tray_recent_evict(&mut state.tray_recent.lock().unwrap(), &id);
     tray::schedule_rebuild(&app);
     Ok(())
 }
@@ -118,7 +217,7 @@ fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result
 #[tauri::command]
 fn clear_history(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.repo.clear()?;
-    state.tray_recent.lock().unwrap().clear();
+    tray_recent_clear(&mut state.tray_recent.lock().unwrap());
     tray::schedule_rebuild(&app);
     Ok(())
 }
@@ -272,7 +371,8 @@ fn run_plugin(
     // Store the output raw; the pipeline derives the sanitized display. Saving
     // respects the active persist level (a no-op if the level forbids it), just
     // like the monitor — the item is still shown live either way.
-    let item = process_text(&resp.result_raw_content);
+    let mut item = process_text(&resp.result_raw_content);
+    item.id = state.repo.content_id(&item.raw_content);
     let level = *state.persist_level.lock().unwrap();
     if let Err(e) = state.repo.save(&item, level) {
         eprintln!("lapacho: failed to save plugin output: {e}");
@@ -280,15 +380,11 @@ fn run_plugin(
     // Track in tray_recent so it appears even under restrictive persist.
     {
         let mut rec = state.tray_recent.lock().unwrap();
-        rec.retain(|x| x.id != item.id);
-        rec.insert(0, item.clone());
-        rec.truncate(25);
+        tray_recent_push_front(&mut rec, item.clone());
     }
 
     let ui = UIClipboardItem::from(item);
-    if let Err(e) = app.emit(EVENT_NEW_ITEM, ui.clone()) {
-        eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM} for plugin output: {e}");
-    }
+    emit_new_item(&app, ui.clone());
     tray::schedule_rebuild(&app);
     Ok(ui)
 }
@@ -338,24 +434,27 @@ fn run_monitor(
     // A failed emit is not swallowed: that's exactly the bug that makes the UI
     // look like it isn't updating in real time.
     let persist_and_emit = |item: ClipboardItem| {
+        let t0 = std::time::Instant::now();
+        let mut item = item;
+        item.id = repo.content_id(&item.raw_content);
         let level = *persist_level.lock().unwrap();
         if let Err(e) = repo.save(&item, level) {
             eprintln!("lapacho: failed to save clipboard item: {e}");
         }
         let policy = *retention.lock().unwrap();
         let _ = repo.cleanup(&policy);
-        if let Err(e) = app.emit(EVENT_NEW_ITEM, UIClipboardItem::from(item.clone())) {
-            eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM}: {e}");
-        }
-        // Always record in volatile recent so tray shows *new* copied items
+        // Always record in volatile recent so tray/list show *new* copied items
         // this session even when persist level skips writing to DB.
         {
             let mut rec = tray_recent.lock().unwrap();
-            rec.retain(|x| x.id != item.id);
-            rec.insert(0, item.clone());
-            rec.truncate(25);
+            tray_recent_push_front(&mut rec, item.clone());
         }
+        emit_new_item(&app, UIClipboardItem::from(item));
         tray::schedule_rebuild(&app);
+        eprintln!(
+            "lapacho: latency [persist_and_emit exit] {:?}",
+            t0.elapsed()
+        );
     };
 
     // Cheap change-gate so an image sitting on the clipboard isn't re-encoded
@@ -378,11 +477,41 @@ fn run_monitor(
         }
     }
 
-    // Fallback polling loop (used on X11, non-Linux, or if wl-paste is missing).
-    // On Wayland this is the battery-draining path we try to avoid.
-    loop {
+    use clipboard_master::{CallbackResult, ClipboardHandler, Master};
+    use std::sync::mpsc;
+
+    struct ClipNotify { tx: mpsc::Sender<()> }
+    impl ClipboardHandler for ClipNotify {
+        fn on_clipboard_change(&mut self) -> CallbackResult {
+            let _ = self.tx.send(());
+            CallbackResult::Next
+        }
+        fn on_clipboard_error(&mut self, e: std::io::Error) -> CallbackResult {
+            eprintln!("lapacho: clipboard monitor error: {e}");
+            CallbackResult::Next
+        }
+    }
+
+    let (tx, rx) = mpsc::channel::<()>();
+    let spawned = std::thread::Builder::new()
+        .name("clip-xfixes".into())
+        .spawn(move || match Master::new(ClipNotify { tx }) {
+            Ok(mut m) => { let _ = m.run(); }
+            Err(e) => eprintln!("lapacho: could not start clipboard monitor: {e}"),
+        });
+
+    if spawned.is_ok() {
+        // El evento solo dispara en cambios futuros → un snapshot inicial.
         check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
-        std::thread::sleep(POLL_INTERVAL);
+        while rx.recv().is_ok() {
+            check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+        }
+    } else {
+        // Fallback: polling, solo si no se pudo lanzar el monitor de eventos.
+        loop {
+            check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+            std::thread::sleep(POLL_INTERVAL);
+        }
     }
 }
 
@@ -476,6 +605,7 @@ fn check_clipboard_once(
                 }
                 *last = Some(hash);
             }
+            eprintln!("lapacho: latency [detect] text");
             persist_and_emit(process_text(&text));
             return;
         }
@@ -494,6 +624,7 @@ fn check_clipboard_once(
                     }
                     *last = Some(hash);
                 }
+                eprintln!("lapacho: latency [detect] svg/html");
                 persist_and_emit(process_text(&svg));
                 return;
             }
@@ -517,6 +648,7 @@ fn check_clipboard_once(
                 }
                 *last = Some(png_hash);
             }
+            eprintln!("lapacho: latency [detect] image");
             persist_and_emit(item);
         }
     }

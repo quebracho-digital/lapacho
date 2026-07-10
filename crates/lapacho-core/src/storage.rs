@@ -71,6 +71,10 @@ pub trait HistoryRepo: Send + Sync {
 
     /// Retrieve a previously saved preference.
     fn get_preference(&self, key: &str) -> Result<Option<String>, String>;
+
+    /// Id estable derivado del contenido (ver crypto::content_id). Mismo contenido
+    /// → mismo id, para deduplicar en disco y en los buffers vivos.
+    fn content_id(&self, raw: &str) -> String;
 }
 
 /// SQLite-backed [`HistoryRepo`].
@@ -83,6 +87,7 @@ pub trait HistoryRepo: Send + Sync {
 pub struct SqliteRepo {
     db_path: PathBuf,
     cipher: crypto::Cipher,
+    content_key: zeroize::Zeroizing<[u8; 32]>,
 }
 
 impl SqliteRepo {
@@ -90,10 +95,8 @@ impl SqliteRepo {
     /// `db_path`, encrypting content with `key`. The key is consumed to build a
     /// resident [`Cipher`] and then dropped (zeroized).
     pub fn new(db_path: impl Into<PathBuf>, key: crypto::SecretKey) -> Result<Self, String> {
-        let repo = Self {
-            db_path: db_path.into(),
-            cipher: crypto::Cipher::new(&key),
-        };
+        let content_key = zeroize::Zeroizing::new(crypto::derive_content_key(key.expose()));
+        let repo = Self { db_path: db_path.into(), cipher: crypto::Cipher::new(&key), content_key };
         repo.init()?;
         Ok(repo)
     }
@@ -148,38 +151,6 @@ impl SqliteRepo {
 
         Ok(())
     }
-
-    /// Returns the id of an already-stored item whose content equals `raw`
-    /// (newest first), or `None`. This is how `save` de-dupes by content.
-    ///
-    /// We compare **decrypted** plaintext rather than storing a content hash on
-    /// purpose: a hash in the clear would let anyone with the database confirm a
-    /// guessed value (dictionary attack), weakening encryption at rest. The
-    /// history is small (capped by [`RetentionPolicy::max_items`]), so scanning
-    /// and decrypting it on save is cheap.
-    fn existing_id_for_content(
-        &self,
-        conn: &Connection,
-        raw: &str,
-    ) -> Result<Option<String>, String> {
-        let mut stmt = conn
-            .prepare("SELECT id, raw_content FROM history ORDER BY timestamp DESC")
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })
-            .map_err(|e| e.to_string())?;
-        for (id, enc_raw) in rows.flatten() {
-            // Skip rows that don't decrypt (wrong key / legacy), like `load`.
-            if let Ok(plain) = self.cipher.decrypt(&enc_raw) {
-                if plain == raw {
-                    return Ok(Some(id));
-                }
-            }
-        }
-        Ok(None)
-    }
 }
 
 impl HistoryRepo for SqliteRepo {
@@ -195,39 +166,18 @@ impl HistoryRepo for SqliteRepo {
 
         let conn = self.conn()?;
 
-        // Content dedup: if this exact content is already stored, move it to the
-        // top (refresh its timestamp) instead of inserting a duplicate, keeping
-        // the original id. Re-copying an old clip resurfaces it.
-        if let Some(existing_id) = self.existing_id_for_content(&conn, &item.raw_content)? {
-            conn.execute(
-                "UPDATE history SET timestamp = ?1 WHERE id = ?2",
-                params![item.timestamp, existing_id],
-            )
-            .map_err(|e| e.to_string())?;
-            return Ok(());
-        }
-
-        // Encryption at rest: the clipboard content never hits the disk in clear.
         let enc_raw = self.cipher.encrypt(&item.raw_content)?;
         let enc_display = self.cipher.encrypt(&item.display_content)?;
 
         conn.execute(
-            "INSERT OR REPLACE INTO history
-             (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![
-                item.id,
-                enc_raw,
-                enc_display,
-                item.content_type,
-                format!("{:?}", item.sensitivity),
-                format!("{:?}", item.detected_type),
-                item.timestamp,
-                item.thumbnail,
-                item.size.map(|s| s as i64),
-            ],
-        )
-        .map_err(|e| e.to_string())?;
+            "INSERT INTO history
+               (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)
+             ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp",
+            params![ item.id, enc_raw, enc_display, item.content_type,
+                format!("{:?}", item.sensitivity), format!("{:?}", item.detected_type),
+                item.timestamp, item.thumbnail, item.size.map(|s| s as i64) ],
+        ).map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -388,6 +338,10 @@ impl HistoryRepo for SqliteRepo {
             Ok(None)
         }
     }
+
+    fn content_id(&self, raw: &str) -> String {
+        crypto::content_id(&*self.content_key, raw)
+    }
 }
 
 /// Convenience for callers (and tests) that just need a path + key to bring up a
@@ -529,10 +483,8 @@ mod tests {
             .unwrap();
         assert_eq!(repo.load().unwrap().len(), 2);
 
-        // Re-copying "a"'s content arrives as a brand-new item: fresh uuid,
-        // later timestamp, identical raw content.
-        let mut again = dummy("a-again", Sensitivity::None, 2000);
-        again.raw_content = "raw-a".into();
+        // Mismo contenido ⇒ mismo id ("a"); timestamp nuevo.
+        let again = dummy("a", Sensitivity::None, 2000);
         repo.save(&again, PersistLevel::All).unwrap();
 
         let h = repo.load().unwrap();
@@ -630,6 +582,17 @@ mod tests {
         // No match
         assert!(repo.search("no-such-thing").unwrap().is_empty());
 
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn content_id_stable_between_calls_and_via_trait_object() {
+        let (repo, db) = repo();
+        let id1 = repo.content_id("x");
+        let id2 = repo.content_id("x");
+        assert_eq!(id1, id2);
+        let repo: Box<dyn HistoryRepo> = Box::new(repo);
+        assert_eq!(repo.content_id("x"), id1);
         let _ = std::fs::remove_file(&db);
     }
 }

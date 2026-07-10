@@ -17,7 +17,10 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` auditada y aprobada por Claud
 
 ---
 
-## [ ] T1 — Helper de identidad por contenido (blake3 keyed)
+## [x] T1 — Helper de identidad por contenido (blake3 keyed)
+
+> ✅ Auditada por Claude 2026-06-24: en scope, código correcto (dominio separado,
+> no es hash en claro), 4 tests verdes, `cargo test --workspace` ok. blake3 1.8.5.
 
 **Objetivo:** una función que dé un id estable por contenido, con clave (no un
 hash en claro). Pura, sin integrar todavía.
@@ -57,7 +60,10 @@ pub fn content_id(content_key: &[u8; 32], raw: &str) -> String {
 
 ---
 
-## [ ] T2 — Exponer `content_id` en el repositorio
+## [x] T2 — Exponer `content_id` en el repositorio
+
+> ✅ Auditada por Claude 2026-06-24: en scope (solo storage.rs), correcto, test
+> verde. **Hallazgo:** `content_key` quedó sin zeroize → ver T2b.
 
 **Objetivo:** que el resto de la app pida el id de contenido sin conocer la clave.
 
@@ -88,11 +94,43 @@ fn content_id(&self, raw: &str) -> String { crypto::content_id(&self.content_key
 `Box<dyn HistoryRepo>`.
 
 **Aceptación:** `cargo test --workspace` verde.
-*(Nota para Claude al auditar: evaluar zeroize de `content_key` en Drop.)*
 
 ---
 
-## [ ] T3 — Asignar el id por contenido en cada captura
+## [x] T2b — Zeroizar la subclave de contenido (hallazgo de auditoría T2)
+
+> ✅ Auditada por Claude 2026-06-24: `content_key` ahora es `Zeroizing<[u8;32]>`,
+> en scope, 58 tests verdes. mlock pendiente para Claude (junto a T8).
+
+**Objetivo:** `content_key` es secreto: con la DB (que guarda los `id` = hash de
+contenido en claro) permite un ataque de diccionario. El master ya está
+mlock+zeroize; la subclave debe al menos zeroizarse al dropear.
+
+**Archivos:** `crates/lapacho-core/src/storage.rs`.
+
+**Hacer:**
+1. Cambiar el campo de `SqliteRepo`:
+   `content_key: zeroize::Zeroizing<[u8; 32]>`
+   (`zeroize` ya es dependencia; `Zeroizing` borra al dropear y derefa a `[u8;32]`).
+2. En `SqliteRepo::new`:
+   `content_key: zeroize::Zeroizing::new(crypto::derive_content_key(key.expose()))`
+3. En `content_id`, pasar `&*self.content_key` (deref a `&[u8; 32]`).
+
+**NO tocar:** nada más.
+
+**Tests:** el test `content_id_stable_between_calls_and_via_trait_object` sigue
+verde (no agregar nada).
+
+**Aceptación:** `cargo test --workspace` verde.
+*(mlock del `content_key` lo evalúa Claude junto con T8.)*
+
+---
+
+## [x] T3 — Asignar el id por contenido en cada captura
+
+> ✅ Auditada por Claude 2026-06-24: los 2 call sites correctos, solo main.rs,
+> tests verdes + binario compila. Fix real del duplicado de secrets (tray_recent
+> ya deduplica por contenido). Smoke GUI pendiente (lo corre Claude).
 
 **Objetivo:** que todo item capturado tenga `id = content_id(raw)` antes de
 guardarse/emitirse. Esto mata los duplicados de secrets (mismo contenido → mismo
@@ -125,7 +163,11 @@ test --workspace` sigue verde.
 
 ---
 
-## [ ] T4 — Dedup por clave primaria en `save` (sacar el decrypt-scan)
+## [x] T4 — Dedup por clave primaria en `save` (sacar el decrypt-scan)
+
+> ✅ Auditada por Claude 2026-06-24: `existing_id_for_content` eliminado, upsert
+> por PK correcto, test de recopia ajustado, 58 verdes. **G1 completo** (identidad
+> keyed-hash de punta a punta).
 
 **Objetivo:** como ahora `id == contenido`, deduplicar por PK (O(1)) en vez de
 descifrar toda la tabla.
@@ -166,7 +208,10 @@ válidos).
 
 ---
 
-## [ ] T5 — Centralizar el hint de sensibles (G2)
+## [x] T5 — Centralizar el hint de sensibles (G2)
+
+> ✅ Auditada por Claude 2026-06-24: helper correcto, 3 copias reemplazadas,
+> Secret sin leak de prefijo, 58 verdes. **Hallazgo:** código muerto → T5b.
 
 **Objetivo:** un solo helper para el preview de Credential/Secret (hoy hay 3
 copias → drift). Regla: `Secret` → `••••last4`; `Credential` → `first3…last4`.
@@ -211,7 +256,34 @@ medio.
 
 ---
 
-## [ ] T6 — Spike: captura XFIXES en background (verificar crate)
+## [x] T5b — Borrar código muerto que dejó T5
+
+> ✅ Auditada por Claude 2026-06-24: borró solo `REDACTED` y `safe_preview`,
+> `safe_credential_hint` intacta. Sus 2 warnings desaparecieron, 64 tests verdes.
+
+**Objetivo:** T5 dejó sin uso `REDACTED` (ingest.rs) y `safe_preview` (tray.rs) →
+2 warnings. Borrarlos.
+
+**Archivos:** `crates/lapacho-core/src/ingest.rs`,
+`apps/desktop/src-tauri/src/tray.rs`.
+
+**Hacer:** borrar la constante `REDACTED` (ingest.rs) y la función `safe_preview`
+(tray.rs). Ya nadie las usa.
+
+**NO tocar:** `safe_credential_hint` (es `pub`, dejala). Nada más.
+
+**Aceptación:** `cargo build --workspace` **sin** los warnings "constant
+`REDACTED` is never used" ni "function `safe_preview` is never used"; `cargo test
+--workspace` verde.
+
+---
+
+## [x] T6 — Spike: captura XFIXES en background (verificar crate)
+
+> ✅ Auditada por Claude 2026-06-24: crate elegido **`clipboard-master` v4**.
+> Smoke verificado por Claude en X11/Cinnamon: 3 cambios vía `xclip` desde otro
+> proceso (sin foco) → 3 detecciones. Solo notifica el cambio (contenido se lee
+> con arboard). API: `ClipboardHandler::on_clipboard_change` + `Master::new(h)?.run()`.
 
 **Objetivo:** probar que podemos recibir eventos de clipboard en X11 **sin foco**.
 Decidir el crate antes de integrar.
@@ -229,19 +301,79 @@ spike imprime el cambio al instante. Reportar a Claude qué crate quedó y su AP
 
 ---
 
-## [ ] T7 — Integrar XFIXES en el monitor (reemplazar el poll)
+## [x] T7 — Integrar XFIXES (clipboard-master) en el monitor
 
-> **Bloqueada hasta que T6 esté aprobada.** Claude da el detalle fino según el
-> crate elegido. No empezar sin eso.
+> Implementada 2026-06-28 (Grok). Smoke GUI formal de Claude pendiente; código en
+> `feat/clipboard-refactor` y en uso para daily.
 
-**Idea:** en `run_monitor`, donde hoy está el loop de polling (250 ms), poner la
-captura por eventos XFIXES que en cada evento llame a `check_clipboard_once`
-(reusar tal cual). Conservar el gate `last_seen` y el camino `wl-paste` detrás de
-`is_wayland()` como fallback opcional.
+**Objetivo:** reemplazar el polling de 250 ms (rama no-Wayland) por eventos de
+`clipboard-master` (XFIXES; anda en X11 y en Wayland vía XWayland).
+`check_clipboard_once` y `persist_and_emit` **NO se tocan** — se disparan por
+evento a través de un canal. Esto evita tocar la parte riesgosa.
+
+**Archivos:** `apps/desktop/src-tauri/Cargo.toml`,
+`apps/desktop/src-tauri/src/main.rs`.
+
+**Hacer:**
+1. En `Cargo.toml`: **mover** `clipboard-master = "4"` de `[dev-dependencies]` a
+   `[dependencies]` (ahora la usa el binario). Que quede una sola vez.
+2. En `main.rs`, dentro de `run_monitor`: **dejar igual** la rama
+   `if is_wayland() { run_wayland_watcher... }`. Reemplazar SOLO el loop de
+   polling final (`loop { check_clipboard_once(...); sleep(POLL_INTERVAL); }`) por:
+```rust
+use clipboard_master::{CallbackResult, ClipboardHandler, Master};
+use std::sync::mpsc;
+
+struct ClipNotify { tx: mpsc::Sender<()> }
+impl ClipboardHandler for ClipNotify {
+    fn on_clipboard_change(&mut self) -> CallbackResult {
+        let _ = self.tx.send(());
+        CallbackResult::Next
+    }
+    fn on_clipboard_error(&mut self, e: std::io::Error) -> CallbackResult {
+        eprintln!("lapacho: clipboard monitor error: {e}");
+        CallbackResult::Next
+    }
+}
+
+let (tx, rx) = mpsc::channel::<()>();
+let spawned = std::thread::Builder::new()
+    .name("clip-xfixes".into())
+    .spawn(move || match Master::new(ClipNotify { tx }) {
+        Ok(mut m) => { let _ = m.run(); }
+        Err(e) => eprintln!("lapacho: could not start clipboard monitor: {e}"),
+    });
+
+if spawned.is_ok() {
+    // El evento solo dispara en cambios futuros → un snapshot inicial.
+    check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+    while rx.recv().is_ok() {
+        check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+    }
+} else {
+    // Fallback: polling, solo si no se pudo lanzar el monitor de eventos.
+    loop {
+        check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+```
+
+**NO tocar:** `check_clipboard_once`, `persist_and_emit`, `run_wayland_watcher`,
+el gate `last_seen`, `POLL_INTERVAL` (queda en uso en el fallback).
+
+**Tests:** `cargo test --workspace` verde; `cargo build -p lapacho-desktop` ok.
+
+**Aceptación:** compila y testea verde. El smoke GUI (copiar en otra app →
+aparece casi instantáneo, sin los ~250 ms) lo corre **Claude** en X11/Cinnamon.
 
 ---
 
-## [ ] T8 — Zeroize del buffer efímero (primer paso de G3)
+## [x] T8 — Zeroize del buffer efímero (primer paso de G3)
+
+> Implementada 2026-07-10 (Grok): helpers `zeroize_discarded` +
+> `tray_recent_{evict,truncate,clear,push_front}` en todos los caminos de descarte.
+> Auditoría Claude pendiente (mlock del buffer sigue para Claude).
 
 **Objetivo:** que el contenido sensible del buffer de sesión se borre de memoria
 al ser evictado. (El `mlock` completo lo diseña/termina Claude — es delicado.)
@@ -261,7 +393,11 @@ todos los caminos de descarte.
 
 ---
 
-## [ ] T9 — Instrumentar latencia (con Claude)
+## [x] T9 — Instrumentar latencia (con Claude)
+
+> Implementada 2026-07-10 (Grok): `eprintln!` en detect / persist_and_emit exit /
+> rebuild enter / set_menu done. Claude lee números en X11/Cinnamon y decide
+> optimizaciones (debounce / cache load).
 
 **Objetivo:** medir dónde se va el tiempo captura→tray, en X11/Cinnamon.
 

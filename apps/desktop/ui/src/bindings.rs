@@ -16,8 +16,8 @@ extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], catch)]
     async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, JsValue>;
 
-    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "event"])]
-    async fn listen(event: &str, handler: &js_sys::Function) -> JsValue;
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "event"], catch)]
+    async fn listen(event: &str, handler: &js_sys::Function) -> Result<JsValue, JsValue>;
 
     // `window.renderMermaid(elementId, code)` is defined in index.html. It is a
     // no-op if the mermaid bundle failed to load, so calling it is always safe.
@@ -166,7 +166,24 @@ pub fn listen_event<F: FnMut(JsValue) + 'static>(event: &'static str, handler: F
     let func: &js_sys::Function = cb.as_ref().unchecked_ref();
     let func = func.clone();
     wasm_bindgen_futures::spawn_local(async move {
-        let _ = listen(event, &func).await;
+        // Do not swallow errors: a silent listen failure freezes the live list.
+        if let Err(e) = listen(event, &func).await {
+            web_sys::console::error_2(
+                &JsValue::from_str(&format!("lapacho: listen({event}) failed")),
+                &e,
+            );
+            // One immediate retry after a microtask (withGlobalTauri race).
+            let _ = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(
+                &JsValue::UNDEFINED,
+            ))
+            .await;
+            if let Err(e2) = listen(event, &func).await {
+                web_sys::console::error_2(
+                    &JsValue::from_str(&format!("lapacho: listen({event}) retry failed")),
+                    &e2,
+                );
+            }
+        }
     });
     cb.forget();
 }

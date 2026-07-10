@@ -134,33 +134,59 @@ pub fn App() -> impl IntoView {
         set_ttl.set(bindings::get_sensitive_ttl().await);
     });
 
+    // Reload the list from the backend (session recent + DB). Used when the
+    // window is shown again and as a fallback when live events are flaky.
+    let reload_list = move || {
+        let set = set_items;
+        let q = search.get_untracked();
+        spawn_local(async move {
+            let fresh = if q.trim().is_empty() {
+                bindings::get_history().await
+            } else {
+                bindings::search_history(&q).await
+            };
+            set.set(fresh);
+        });
+    };
+
+    // Backend asks for a full re-fetch when the window is opened from tray /
+    // shortcut (the Leptos tree is not remounted on hide/show).
+    {
+        let reload_list = reload_list;
+        bindings::listen_event("history-refresh", move |_evt| {
+            reload_list();
+        });
+    }
+
     // Live capture: prepend the emitted item (works for non-persisted live
     // items too). Update is queued via spawn_local so it runs inside the
     // task executor (avoids "outside Leptos runtime" reactivity issues).
     // If a search is active we re-execute search so a matching new item
     // (by raw content) appears in the filtered results.
+    // Fallback: if the payload can't be decoded, re-fetch the full list.
     bindings::listen_event("clipboard-new", move |evt| {
-        if let Ok(payload) = js_sys::Reflect::get(&evt, &JsValue::from_str("payload")) {
-            if let Ok(item) = serde_wasm_bindgen::from_value::<UIClipboardItem>(payload) {
-                let set = set_items;
-                // Use get_untracked because this runs from a Tauri event callback (outside
-                // normal reactive tracking context).
-                let q = search.get_untracked();
-                spawn_local(async move {
-                    if q.trim().is_empty() {
-                        set.update(|v| {
-                            v.retain(|x| x.id != item.id);
-                            v.insert(0, item);
-                        });
-                    } else {
-                        // Re-apply server search to surface matches on raw content
-                        // and keep list authoritative for the current filter.
-                        let fresh = bindings::search_history(&q).await;
-                        set.set(fresh);
-                    }
-                });
+        let set = set_items;
+        let q = search.get_untracked();
+        let payload = js_sys::Reflect::get(&evt, &JsValue::from_str("payload")).ok();
+        let parsed = payload.and_then(|p| {
+            serde_wasm_bindgen::from_value::<UIClipboardItem>(p).ok()
+        });
+        spawn_local(async move {
+            if q.trim().is_empty() {
+                if let Some(item) = parsed {
+                    set.update(|v| {
+                        v.retain(|x| x.id != item.id);
+                        v.insert(0, item);
+                    });
+                } else {
+                    // Missed/undecodable payload → authoritative reload.
+                    set.set(bindings::get_history().await);
+                }
+            } else {
+                let fresh = bindings::search_history(&q).await;
+                set.set(fresh);
             }
-        }
+        });
     });
 
     let on_persist = move |ev| {
