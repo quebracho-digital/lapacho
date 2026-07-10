@@ -26,7 +26,7 @@ use std::time::Duration;
 use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
 use lapacho_core::types::{ClipboardItem, PersistLevel, UIClipboardItem};
 use lapacho_core::{PluginDefinition, Threat, assess, plugins, process_text};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State}; // Emitter used by emit_new_item / request_history_refresh
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use zeroize::Zeroize;
 
@@ -83,6 +83,8 @@ const POLL_INTERVAL: Duration = Duration::from_millis(250);
 /// Event emitted to the frontend when a new clipboard item is captured.
 /// Kept to a plain `a-z-` name to avoid any event-name validation surprises.
 const EVENT_NEW_ITEM: &str = "clipboard-new";
+/// Ask the UI to re-fetch history (window shown / live event fallback).
+const EVENT_HISTORY_REFRESH: &str = "history-refresh";
 
 /// Backend state shared between Tauri commands and the monitor thread.
 pub(crate) struct AppState {
@@ -138,19 +140,70 @@ fn persist_level_to_str(level: PersistLevel) -> &'static str {
 // Commands
 // ---------------------------------------------------------------------------
 
-/// Returns the persisted history as UI-safe items (never includes `raw_content`).
+/// Session recent + persisted history (recent first), as UI-safe items.
+/// Matches the tray model so the list shows live captures even when the
+/// webview missed a `clipboard-new` event (hidden window, race on listen).
+fn merge_recent_and_db(state: &AppState) -> Result<Vec<ClipboardItem>, String> {
+    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().clone();
+    for db in state.repo.load()? {
+        if result.iter().any(|r| r.id == db.id) {
+            continue;
+        }
+        result.push(db);
+        if result.len() >= 100 {
+            break;
+        }
+    }
+    Ok(result)
+}
+
+/// Returns the live list: session buffer first, then DB (never includes `raw_content`).
 #[tauri::command]
 fn get_history(state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, String> {
-    let items = state.repo.load()?;
+    let items = merge_recent_and_db(&state)?;
     Ok(items.into_iter().map(UIClipboardItem::from).collect())
 }
 
-/// Search the history (raw + display content, case-insensitive).
-/// Used by the UI search box. Returns UI-safe projection.
+/// Search session recent + persisted history (raw + display, case-insensitive).
 #[tauri::command]
 fn search_history(query: String, state: State<'_, AppState>) -> Result<Vec<UIClipboardItem>, String> {
-    let items = state.repo.search(&query)?;
-    Ok(items.into_iter().map(UIClipboardItem::from).collect())
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return get_history(state);
+    }
+    let items = merge_recent_and_db(&state)?;
+    Ok(items
+        .into_iter()
+        .filter(|it| {
+            it.raw_content.to_lowercase().contains(&q)
+                || it.display_content.to_lowercase().contains(&q)
+        })
+        .map(UIClipboardItem::from)
+        .collect())
+}
+
+/// Emit a new item to the main webview (preferred) and as a global fallback.
+fn emit_new_item(app: &AppHandle, ui: UIClipboardItem) {
+    if let Some(w) = app.get_webview_window("main") {
+        if let Err(e) = w.emit(EVENT_NEW_ITEM, ui.clone()) {
+            eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM} to main: {e}");
+        }
+    }
+    if let Err(e) = app.emit(EVENT_NEW_ITEM, ui) {
+        eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM}: {e}");
+    }
+}
+
+/// Tell the UI to re-pull history (e.g. when the window is shown again).
+pub(crate) fn request_history_refresh(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        if let Err(e) = w.emit(EVENT_HISTORY_REFRESH, ()) {
+            eprintln!("lapacho: failed to emit {EVENT_HISTORY_REFRESH} to main: {e}");
+        }
+    }
+    if let Err(e) = app.emit(EVENT_HISTORY_REFRESH, ()) {
+        eprintln!("lapacho: failed to emit {EVENT_HISTORY_REFRESH}: {e}");
+    }
 }
 
 #[tauri::command]
@@ -331,9 +384,7 @@ fn run_plugin(
     }
 
     let ui = UIClipboardItem::from(item);
-    if let Err(e) = app.emit(EVENT_NEW_ITEM, ui.clone()) {
-        eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM} for plugin output: {e}");
-    }
+    emit_new_item(&app, ui.clone());
     tray::schedule_rebuild(&app);
     Ok(ui)
 }
@@ -392,15 +443,13 @@ fn run_monitor(
         }
         let policy = *retention.lock().unwrap();
         let _ = repo.cleanup(&policy);
-        if let Err(e) = app.emit(EVENT_NEW_ITEM, UIClipboardItem::from(item.clone())) {
-            eprintln!("lapacho: failed to emit {EVENT_NEW_ITEM}: {e}");
-        }
-        // Always record in volatile recent so tray shows *new* copied items
+        // Always record in volatile recent so tray/list show *new* copied items
         // this session even when persist level skips writing to DB.
         {
             let mut rec = tray_recent.lock().unwrap();
             tray_recent_push_front(&mut rec, item.clone());
         }
+        emit_new_item(&app, UIClipboardItem::from(item));
         tray::schedule_rebuild(&app);
         eprintln!(
             "lapacho: latency [persist_and_emit exit] {:?}",
