@@ -10,9 +10,10 @@
 //! "Abrir Lapacho…".
 
 use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use base64::Engine as _;
+use lapacho_core::ingest::sensitive_display;
 use lapacho_core::types::{ClipboardItem, DetectedType, Sensitivity};
 use tauri::menu::{IconMenuItem, Menu, MenuBuilder, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -50,9 +51,9 @@ fn item_label(item: &ClipboardItem) -> String {
     }
 
     if sensitivity == Sensitivity::Credential || sensitivity == Sensitivity::Secret {
-        let preview = safe_preview(&item.raw_content);
+        let display = sensitive_display(&item.raw_content, sensitivity);
         let suffix = if sensitivity == Sensitivity::Secret { " [secret]" } else { " [credential]" };
-        return format!("••••{}{}", preview, suffix);
+        return format!("{}{}", display, suffix);
     }
 
     let display = &item.display_content;
@@ -89,18 +90,6 @@ fn item_label(item: &ClipboardItem) -> String {
         }
     };
     base
-}
-
-/// Short safe preview from raw (up to 4 last non-control chars) for tray labels.
-fn safe_preview(raw: &str) -> String {
-    raw.chars()
-        .rev()
-        .filter(|c| !c.is_control())
-        .take(4)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect()
 }
 
 /// Decodes an 18×18 RGBA thumbnail (base64, as produced by `images.rs`) into a
@@ -200,12 +189,19 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 /// top item when it is an image). This gives visual feedback: the panel icon
 /// reflects "what I copied last".
 fn rebuild(app: &AppHandle) {
+    eprintln!("lapacho: latency [rebuild enter]");
+    let t0 = Instant::now();
     let handle = app.clone();
     let res = app.run_on_main_thread(move || {
+        let t_main = Instant::now();
         match build_menu(&handle) {
             Ok(menu) => {
                 if let Some(tray) = handle.tray_by_id(TRAY_ID) {
                     let _ = tray.set_menu(Some(menu));
+                    eprintln!(
+                        "lapacho: latency [set_menu done] build+set {:?}",
+                        t_main.elapsed()
+                    );
                 }
             }
             Err(e) => eprintln!("lapacho: tray rebuild failed: {e}"),
@@ -218,6 +214,8 @@ fn rebuild(app: &AppHandle) {
     });
     if let Err(e) = res {
         eprintln!("lapacho: could not schedule tray rebuild: {e}");
+    } else {
+        eprintln!("lapacho: latency [rebuild scheduled] {:?}", t0.elapsed());
     }
 }
 
@@ -243,11 +241,14 @@ pub fn schedule_rebuild(app: &AppHandle) {
 
 /// Shows and focuses the main window (creating nothing — it is pre-created and
 /// merely hidden when the app launches to tray).
+/// Also asks the webview to re-fetch history: the list only mounts once, and
+/// live `clipboard-new` events can be missed while the window was hidden.
 pub fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
     }
+    crate::request_history_refresh(app);
 }
 
 /// Toggles the main window's visibility — bound to the global shortcut.
@@ -260,6 +261,7 @@ pub fn toggle_main(app: &AppHandle) {
             _ => {
                 let _ = window.show();
                 let _ = window.set_focus();
+                crate::request_history_refresh(app);
             }
         }
     }

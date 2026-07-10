@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": { "cwd": "../ui", "script": "trunk serve --color never" },
-    "beforeBuildCommand": { "cwd": "../ui", "script": "trunk build --color never" }
+    "beforeDevCommand": { "cwd": "../ui", "script": "env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always trunk serve" },
+    "beforeBuildCommand": { "cwd": "../ui", "script": "env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always trunk build --release" }
   },
   "app": {
     "withGlobalTauri": true,
