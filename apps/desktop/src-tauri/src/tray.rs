@@ -241,11 +241,14 @@ pub fn schedule_rebuild(app: &AppHandle) {
 
 /// Shows and focuses the main window (creating nothing — it is pre-created and
 /// merely hidden when the app launches to tray).
+/// Also asks the webview to re-fetch history: the list only mounts once, and
+/// live `clipboard-new` events can be missed while the window was hidden.
 pub fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
     }
+    crate::request_history_refresh(app);
 }
 
 /// Toggles the main window's visibility — bound to the global shortcut.
@@ -258,6 +261,7 @@ pub fn toggle_main(app: &AppHandle) {
             _ => {
                 let _ = window.show();
                 let _ = window.set_focus();
+                crate::request_history_refresh(app);
             }
         }
     }
