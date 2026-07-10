@@ -301,7 +301,10 @@ spike imprime el cambio al instante. Reportar a Claude qué crate quedó y su AP
 
 ---
 
-## [ ] T7 — Integrar XFIXES (clipboard-master) en el monitor
+## [x] T7 — Integrar XFIXES (clipboard-master) en el monitor
+
+> Implementada 2026-06-28 (Grok). Smoke GUI formal de Claude pendiente; código en
+> `feat/clipboard-refactor` y en uso para daily.
 
 **Objetivo:** reemplazar el polling de 250 ms (rama no-Wayland) por eventos de
 `clipboard-master` (XFIXES; anda en X11 y en Wayland vía XWayland).
@@ -366,7 +369,11 @@ aparece casi instantáneo, sin los ~250 ms) lo corre **Claude** en X11/Cinnamon.
 
 ---
 
-## [ ] T8 — Zeroize del buffer efímero (primer paso de G3)
+## [x] T8 — Zeroize del buffer efímero (primer paso de G3)
+
+> Implementada 2026-07-10 (Grok): helpers `zeroize_discarded` +
+> `tray_recent_{evict,truncate,clear,push_front}` en todos los caminos de descarte.
+> Auditoría Claude pendiente (mlock del buffer sigue para Claude).
 
 **Objetivo:** que el contenido sensible del buffer de sesión se borre de memoria
 al ser evictado. (El `mlock` completo lo diseña/termina Claude — es delicado.)
@@ -386,7 +393,11 @@ todos los caminos de descarte.
 
 ---
 
-## [ ] T9 — Instrumentar latencia (con Claude)
+## [x] T9 — Instrumentar latencia (con Claude)
+
+> Implementada 2026-07-10 (Grok): `eprintln!` en detect / persist_and_emit exit /
+> rebuild enter / set_menu done. Claude lee números en X11/Cinnamon y decide
+> optimizaciones (debounce / cache load).
 
 **Objetivo:** medir dónde se va el tiempo captura→tray, en X11/Cinnamon.
 

@@ -28,6 +28,52 @@ use lapacho_core::types::{ClipboardItem, PersistLevel, UIClipboardItem};
 use lapacho_core::{PluginDefinition, Threat, assess, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use zeroize::Zeroize;
+
+/// Max items kept in the volatile session buffer (`tray_recent`).
+const TRAY_RECENT_MAX: usize = 25;
+
+/// Scrub `raw_content` before an item is dropped from the ephemeral buffer.
+fn zeroize_discarded(item: &mut ClipboardItem) {
+    item.raw_content.zeroize();
+}
+
+/// Remove matching id from `tray_recent`, zeroizing the discarded item(s).
+fn tray_recent_evict(rec: &mut Vec<ClipboardItem>, id: &str) {
+    rec.retain_mut(|x| {
+        if x.id == id {
+            zeroize_discarded(x);
+            false
+        } else {
+            true
+        }
+    });
+}
+
+/// Drop excess items past `max`, zeroizing each discarded payload.
+fn tray_recent_truncate(rec: &mut Vec<ClipboardItem>, max: usize) {
+    if rec.len() <= max {
+        return;
+    }
+    for mut item in rec.drain(max..) {
+        zeroize_discarded(&mut item);
+    }
+}
+
+/// Clear the whole buffer, zeroizing every raw payload first.
+fn tray_recent_clear(rec: &mut Vec<ClipboardItem>) {
+    for item in rec.iter_mut() {
+        zeroize_discarded(item);
+    }
+    rec.clear();
+}
+
+/// Insert at front (dedup by id), then cap length — zeroizing all discards.
+fn tray_recent_push_front(rec: &mut Vec<ClipboardItem>, item: ClipboardItem) {
+    tray_recent_evict(rec, &item.id);
+    rec.insert(0, item);
+    tray_recent_truncate(rec, TRAY_RECENT_MAX);
+}
 
 /// How often the monitor polls the system clipboard.
 /// Fallback polling interval when event-driven watching is not available
@@ -110,7 +156,7 @@ fn search_history(query: String, state: State<'_, AppState>) -> Result<Vec<UICli
 #[tauri::command]
 fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.repo.delete(&id)?;
-    state.tray_recent.lock().unwrap().retain(|x| x.id != id);
+    tray_recent_evict(&mut state.tray_recent.lock().unwrap(), &id);
     tray::schedule_rebuild(&app);
     Ok(())
 }
@@ -118,7 +164,7 @@ fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result
 #[tauri::command]
 fn clear_history(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.repo.clear()?;
-    state.tray_recent.lock().unwrap().clear();
+    tray_recent_clear(&mut state.tray_recent.lock().unwrap());
     tray::schedule_rebuild(&app);
     Ok(())
 }
@@ -281,9 +327,7 @@ fn run_plugin(
     // Track in tray_recent so it appears even under restrictive persist.
     {
         let mut rec = state.tray_recent.lock().unwrap();
-        rec.retain(|x| x.id != item.id);
-        rec.insert(0, item.clone());
-        rec.truncate(25);
+        tray_recent_push_front(&mut rec, item.clone());
     }
 
     let ui = UIClipboardItem::from(item);
@@ -339,6 +383,7 @@ fn run_monitor(
     // A failed emit is not swallowed: that's exactly the bug that makes the UI
     // look like it isn't updating in real time.
     let persist_and_emit = |item: ClipboardItem| {
+        let t0 = std::time::Instant::now();
         let mut item = item;
         item.id = repo.content_id(&item.raw_content);
         let level = *persist_level.lock().unwrap();
@@ -354,11 +399,13 @@ fn run_monitor(
         // this session even when persist level skips writing to DB.
         {
             let mut rec = tray_recent.lock().unwrap();
-            rec.retain(|x| x.id != item.id);
-            rec.insert(0, item.clone());
-            rec.truncate(25);
+            tray_recent_push_front(&mut rec, item.clone());
         }
         tray::schedule_rebuild(&app);
+        eprintln!(
+            "lapacho: latency [persist_and_emit exit] {:?}",
+            t0.elapsed()
+        );
     };
 
     // Cheap change-gate so an image sitting on the clipboard isn't re-encoded
@@ -509,6 +556,7 @@ fn check_clipboard_once(
                 }
                 *last = Some(hash);
             }
+            eprintln!("lapacho: latency [detect] text");
             persist_and_emit(process_text(&text));
             return;
         }
@@ -527,6 +575,7 @@ fn check_clipboard_once(
                     }
                     *last = Some(hash);
                 }
+                eprintln!("lapacho: latency [detect] svg/html");
                 persist_and_emit(process_text(&svg));
                 return;
             }
@@ -550,6 +599,7 @@ fn check_clipboard_once(
                 }
                 *last = Some(png_hash);
             }
+            eprintln!("lapacho: latency [detect] image");
             persist_and_emit(item);
         }
     }
