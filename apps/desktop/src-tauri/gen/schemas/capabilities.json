@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Default capability for the main window (core + global shortcut).","local":true,"windows":["main"],"permissions":["core:default","global-shortcut:default"]}}

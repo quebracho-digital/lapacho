@@ -2253,6 +2253,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-global-shortcut",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]

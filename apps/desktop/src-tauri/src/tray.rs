@@ -10,7 +10,7 @@
 //! "Abrir Lapacho…".
 
 use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use base64::Engine as _;
 use lapacho_core::ingest::sensitive_display;
@@ -189,12 +189,19 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 /// top item when it is an image). This gives visual feedback: the panel icon
 /// reflects "what I copied last".
 fn rebuild(app: &AppHandle) {
+    eprintln!("lapacho: latency [rebuild enter]");
+    let t0 = Instant::now();
     let handle = app.clone();
     let res = app.run_on_main_thread(move || {
+        let t_main = Instant::now();
         match build_menu(&handle) {
             Ok(menu) => {
                 if let Some(tray) = handle.tray_by_id(TRAY_ID) {
                     let _ = tray.set_menu(Some(menu));
+                    eprintln!(
+                        "lapacho: latency [set_menu done] build+set {:?}",
+                        t_main.elapsed()
+                    );
                 }
             }
             Err(e) => eprintln!("lapacho: tray rebuild failed: {e}"),
@@ -207,6 +214,8 @@ fn rebuild(app: &AppHandle) {
     });
     if let Err(e) = res {
         eprintln!("lapacho: could not schedule tray rebuild: {e}");
+    } else {
+        eprintln!("lapacho: latency [rebuild scheduled] {:?}", t0.elapsed());
     }
 }
 

@@ -16,6 +16,14 @@ tauri-build = { version = "2", features = [] }
 # chunk, to prove our re-encode strips it. Same major as `image`'s `png` dep.
 png = "0.17"
 
+[features]
+# Embed `frontendDist` (custom asset protocol) instead of loading `devUrl`.
+# Required for installable/release binaries — without it the webview tries
+# http://localhost:1420 and shows "Connection refused" when trunk isn't running.
+# `cargo tauri dev` typically disables this so the live trunk server is used.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
 [dependencies]
 # `tray-icon`: native system-tray indicator + menu (the fluid recent-clips list).
 tauri = { version = "2", features = ["tray-icon"] }
@@ -32,6 +40,8 @@ uuid = { workspace = true }
 lapacho-core = { workspace = true, features = ["mlock"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Zeroize raw_content when items leave the volatile tray buffer (T8).
+zeroize = { workspace = true }
 
 # Linux-only: disable core dumps so a crash can't spill secrets to a core file.
 [target.'cfg(target_os = "linux")'.dependencies]
