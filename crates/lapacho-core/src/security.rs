@@ -112,6 +112,28 @@ fn shannon_entropy(text: &str) -> f64 {
     })
 }
 
+/// True for `http(s)://…` without embedded credentials (`user:pass@host`).
+///
+/// Public URLs (YouTube short links, commits, docs) often mix upper/lower/digits
+/// and punctuation, which trips the high-entropy "password" heuristic. Those
+/// are not secrets unless they carry userinfo credentials.
+fn is_plain_public_url(text: &str) -> bool {
+    let t = text.trim();
+    let rest = if let Some(r) = t.strip_prefix("https://") {
+        r
+    } else if let Some(r) = t.strip_prefix("http://") {
+        r
+    } else {
+        return false;
+    };
+    // Authority ends at first `/`, `?`, or `#`.
+    let authority = rest
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(rest);
+    !authority.contains('@')
+}
+
 /// Like [`classify_sensitivity`], but skips email/phone heuristics — for SVG and
 /// Mermaid payloads where coordinates look like phone numbers.
 pub fn classify_sensitivity_graphics(text: &str) -> Sensitivity {
@@ -154,8 +176,14 @@ pub fn classify_sensitivity(text: &str) -> Sensitivity {
         return Sensitivity::Secret;
     }
 
-    // High-entropy short token without spaces → likely a password/key
-    if !trimmed.contains(char::is_whitespace) && trimmed.len() >= 12 && trimmed.len() <= 64 {
+    // High-entropy short token without spaces → likely a password/key.
+    // Skip plain public URLs (e.g. https://youtu.be/UxmB4nO8qGU): mixed case +
+    // path punctuation looks like a password but is not one.
+    if !is_plain_public_url(trimmed)
+        && !trimmed.contains(char::is_whitespace)
+        && trimmed.len() >= 12
+        && trimmed.len() <= 64
+    {
         let has_digit = trimmed.chars().any(|c| c.is_ascii_digit());
         let has_upper = trimmed.chars().any(|c| c.is_ascii_uppercase());
         let has_lower = trimmed.chars().any(|c| c.is_ascii_lowercase());
@@ -169,7 +197,8 @@ pub fn classify_sensitivity(text: &str) -> Sensitivity {
     // Pure hex of 32+ chars has max entropy ~4.0, so won't hit the >4.2 general rule.
     // Treat as Secret (more paranoid than Credential) because these are typically
     // cryptographic material, not "just an API token".
-    if !trimmed.contains(char::is_whitespace)
+    if !is_plain_public_url(trimmed)
+        && !trimmed.contains(char::is_whitespace)
         && trimmed.len() >= 32
         && trimmed.chars().all(|c| c.is_ascii_hexdigit())
         && shannon_entropy(trimmed) > 3.5
@@ -181,10 +210,11 @@ pub fn classify_sensitivity(text: &str) -> Sensitivity {
         return Sensitivity::Credential;
     }
 
-    // Long high-entropy token without spaces → likely a token/hash
+    // Long high-entropy token without spaces → likely a token/hash.
+    // Plain public URLs are exempt; URLs with embedded credentials are not.
     if !trimmed.contains(char::is_whitespace) && trimmed.len() >= 32 && trimmed.len() <= 128 {
-        let is_url = trimmed.starts_with("http://") || trimmed.starts_with("https://");
-        if (!is_url || trimmed.contains('@')) && shannon_entropy(trimmed) > 4.2 {
+        if !is_plain_public_url(trimmed) && shannon_entropy(trimmed) > 4.2 {
+            // user:pass@host → Credential; raw high-entropy blobs too.
             return Sensitivity::Credential;
         }
     }
@@ -260,6 +290,15 @@ mod tests {
             ),
             Sensitivity::None
         );
+        // Short YouTube / high-entropy-looking path must not be Secret
+        assert_eq!(
+            classify_sensitivity("https://youtu.be/UxmB4nO8qGU"),
+            Sensitivity::None
+        );
+        assert_eq!(
+            classify_sensitivity("https://www.youtube.com/watch?v=UxmB4nO8qGU"),
+            Sensitivity::None
+        );
         // URL with embedded credentials is a credential
         assert_eq!(
             classify_sensitivity("https://user:password@github.com/rust-lang/rust"),
@@ -289,3 +328,5 @@ mod tests {
         assert_eq!(classify_sensitivity("352 180"), Sensitivity::None);
     }
 }
+
+// temporary - we'll add proper tests via search_replace
