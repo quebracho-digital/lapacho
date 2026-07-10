@@ -671,8 +671,26 @@ fn harden_process() {
 #[cfg(not(target_os = "linux"))]
 fn harden_process() {}
 
+/// WebKitGTK on some AMD/NVIDIA stacks paints a blank (black/white) webview when
+/// the DMABUF renderer fails. Tauri docs recommend disabling it before any
+/// WebKit init. Harmless when the driver is fine; set before `Builder::run`.
+#[cfg(target_os = "linux")]
+fn mitigate_webkit_blank_window() {
+    // Only set if the user did not already choose a value.
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // SAFETY: env mutation before other threads start; single-threaded main.
+        unsafe {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn mitigate_webkit_blank_window() {}
+
 fn main() {
     harden_process();
+    mitigate_webkit_blank_window();
     tauri::Builder::default()
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
@@ -721,6 +739,11 @@ fn main() {
 
             // Native tray with the fluid recent-clips menu.
             tray::init(app.handle())?;
+
+            // Debug aid: LAPACHO_SHOW=1 opens the window on launch.
+            if std::env::var_os("LAPACHO_SHOW").is_some() {
+                tray::show_main(app.handle());
+            }
 
             // Global shortcut (Ctrl+Shift+Alt+L) toggles the main window. Registered
             // and handled entirely in Rust, so no webview capability is needed.

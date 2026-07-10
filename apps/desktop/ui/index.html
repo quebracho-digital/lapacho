@@ -6,6 +6,11 @@
     <title>Lapacho</title>
     <link data-trunk rel="rust" data-wasm-opt="z" />
 
+    <!-- Boot diagnostics (black-window / WASM load failures). External file so
+         CSP can stay without 'unsafe-inline'. -->
+    <link data-trunk rel="copy-file" href="vendor/boot-error.js" />
+    <script src="boot-error.js"></script>
+
     <!-- Mermaid live-diagram rendering. Both files vendored (offline); loaded
          as external scripts so there are no inline scripts and the CSP can
          omit 'unsafe-inline' from script-src. securityLevel:strict makes
