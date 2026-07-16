@@ -93,6 +93,13 @@ History search implemented; English translation complete. Sensitivity: long hex 
 - [ ] `LICENSE-APACHE` (standard text copy) before publishing — the dual
   `MIT OR Apache-2.0` is already declared and `LICENSE-MIT` exists.
 - [ ] Decide whether to version `apps/desktop/src-tauri/gen/` (generated capabilities).
+- [ ] **Mobile (Android-first)** — design only: `docs/ARQUITECTURA_MOBILE_ANDROID.md`
+  (IME + companion, encrypted disk as source of truth, local prediction). Not started.
+- [ ] **Multi-client sync (optional, E2E, per-item)** — design: `docs/ARQUITECTURA_MOBILE_ANDROID.md` §5
+  (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
+  hybrid SER5 store-and-forward + LAN/WG direct; Brave-like chain pair (QR/words) for decrypt keys;
+  Authentik optional for relay authz only. Per-item `sync_eligible`; secrets iff paranoia allows.
+  Companion/desktop network only. Not started (P4).
 
 **Recent decision:** Global shortcut changed from Ctrl+Shift+V (too common in terminals, editors, browsers) to **Ctrl+Shift+Alt+L** (Lapacho-exclusive). Updated in code, README, HANDOFF, ROADMAP and CONTEXT.
 
