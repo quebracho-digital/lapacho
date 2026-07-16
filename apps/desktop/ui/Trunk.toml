@@ -1,6 +1,9 @@
 [build]
 target = "index.html"
 dist = "dist"
+# Absolute root paths work with Tauri's asset host (`…/lapacho-ui-….js`).
+# Relative `./` broke loading for us on WebKitGTK once; keep `/`.
+public_url = "/"
 
 [serve]
 addresses = ["127.0.0.1"]
