@@ -24,7 +24,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
-use lapacho_core::types::{ClipboardItem, PersistLevel, UIClipboardItem};
+use lapacho_core::ingest::sensitive_display;
+use lapacho_core::types::{ClipboardItem, PersistLevel, Sensitivity, UIClipboardItem};
 use lapacho_core::{PluginDefinition, Threat, assess, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State}; // Emitter used by emit_new_item / request_history_refresh
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -307,6 +308,36 @@ fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
     copy_raw(&id, &state)
 }
 
+/// User says "this is a secret". Remembers the choice (keyed by content id, so
+/// no plaintext is stored) and re-masks the item everywhere. The next time the
+/// same content is copied, the monitor classifies it Secret from the start.
+#[tauri::command]
+fn mark_secret(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let mut item = load_item(&id, &state)?;
+    // Learn: the id *is* the keyed content hash (crypto::content_id).
+    state.repo.set_preference(&format!("secret:{id}"), "1")?;
+    if item.sensitivity != Sensitivity::Secret {
+        item.sensitivity = Sensitivity::Secret;
+        item.display_content = sensitive_display(&item.raw_content, Sensitivity::Secret);
+        // Re-persist under the active level: delete + save so sensitivity and
+        // display are rewritten (save's upsert only refreshes the timestamp).
+        // Under PersistLevel::Sensitive/None this drops the row — correct:
+        // secrets must not stay on disk at those levels.
+        state.repo.delete(&id)?;
+        let level = *state.persist_level.lock().unwrap();
+        state.repo.save(&item, level)?;
+        {
+            let mut rec = state.tray_recent.lock().unwrap();
+            if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
+                *slot = item.clone();
+            }
+        }
+        tray::schedule_rebuild(&app);
+        request_history_refresh(&app);
+    }
+    Ok(())
+}
+
 /// Raw content prepared for save/export, plus the security findings to surface
 /// before it leaves the app. The content is returned **intact** — we never
 /// rewrite what the user chose to keep; we only warn.
@@ -437,6 +468,14 @@ fn run_monitor(
         let t0 = std::time::Instant::now();
         let mut item = item;
         item.id = repo.content_id(&item.raw_content);
+        // User-taught secrets: if this exact content was ever marked "secret"
+        // in the UI, override the heuristic classification.
+        if item.sensitivity != Sensitivity::Secret
+            && matches!(repo.get_preference(&format!("secret:{}", item.id)), Ok(Some(_)))
+        {
+            item.sensitivity = Sensitivity::Secret;
+            item.display_content = sensitive_display(&item.raw_content, Sensitivity::Secret);
+        }
         let level = *persist_level.lock().unwrap();
         if let Err(e) = repo.save(&item, level) {
             eprintln!("lapacho: failed to save clipboard item: {e}");
@@ -788,6 +827,7 @@ fn main() {
             get_sensitive_ttl,
             set_sensitive_ttl,
             copy_item,
+            mark_secret,
             export_item,
             list_plugins,
             run_plugin
