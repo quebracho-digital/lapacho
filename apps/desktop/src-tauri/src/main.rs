@@ -25,6 +25,7 @@ use std::time::Duration;
 
 use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
 use lapacho_core::ingest::sensitive_display;
+use lapacho_core::security::{matches_secret_prefix, secret_prefix};
 use lapacho_core::types::{ClipboardItem, PersistLevel, Sensitivity, UIClipboardItem};
 use lapacho_core::{PluginDefinition, Threat, assess, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State}; // Emitter used by emit_new_item / request_history_refresh
@@ -316,6 +317,20 @@ fn mark_secret(id: String, app: AppHandle, state: State<'_, AppState>) -> Result
     let mut item = load_item(&id, &state)?;
     // Learn: the id *is* the keyed content hash (crypto::content_id).
     state.repo.set_preference(&format!("secret:{id}"), "1")?;
+    // Generalize: if the value has token structure (literal prefix + random
+    // tail, e.g. "acme_live_9fK2…"), learn the prefix so *different* future
+    // values with the same shape classify Secret too. Only the prefix is
+    // stored — never the secret.
+    if let Some(prefix) = secret_prefix(&item.raw_content) {
+        let existing = state
+            .repo
+            .get_preference("secret_prefixes")?
+            .unwrap_or_default();
+        if !existing.split('\n').any(|p| p == prefix) {
+            let updated = if existing.is_empty() { prefix } else { format!("{existing}\n{prefix}") };
+            state.repo.set_preference("secret_prefixes", &updated)?;
+        }
+    }
     if item.sensitivity != Sensitivity::Secret {
         item.sensitivity = Sensitivity::Secret;
         item.display_content = sensitive_display(&item.raw_content, Sensitivity::Secret);
@@ -468,10 +483,17 @@ fn run_monitor(
         let t0 = std::time::Instant::now();
         let mut item = item;
         item.id = repo.content_id(&item.raw_content);
-        // User-taught secrets: if this exact content was ever marked "secret"
-        // in the UI, override the heuristic classification.
+        // User-taught secrets: exact content match (keyed hash) or a learned
+        // token prefix (e.g. "acme_live_") override the heuristic.
         if item.sensitivity != Sensitivity::Secret
-            && matches!(repo.get_preference(&format!("secret:{}", item.id)), Ok(Some(_)))
+            && (matches!(repo.get_preference(&format!("secret:{}", item.id)), Ok(Some(_)))
+                || repo
+                    .get_preference("secret_prefixes")
+                    .ok()
+                    .flatten()
+                    .is_some_and(|ps| {
+                        ps.split('\n').any(|p| matches_secret_prefix(&item.raw_content, p))
+                    }))
         {
             item.sensitivity = Sensitivity::Secret;
             item.display_content = sensitive_display(&item.raw_content, Sensitivity::Secret);
