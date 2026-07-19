@@ -115,6 +115,13 @@ pub async fn copy_item(id: &str) -> Result<(), String> {
         .map_err(js_err)
 }
 
+pub async fn mark_secret(id: &str) -> Result<(), String> {
+    invoke("mark_secret", args(&IdArgs { id }))
+        .await
+        .map(|_| ())
+        .map_err(js_err)
+}
+
 pub async fn delete_item(id: &str) -> Result<(), String> {
     invoke("delete_item", args(&IdArgs { id }))
         .await

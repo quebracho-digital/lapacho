@@ -352,8 +352,12 @@ pub fn classify_sensitivity(text: &str) -> Sensitivity {
         let has_digit = trimmed.chars().any(|c| c.is_ascii_digit());
         let has_upper = trimmed.chars().any(|c| c.is_ascii_uppercase());
         let has_lower = trimmed.chars().any(|c| c.is_ascii_lowercase());
-        let has_special = trimmed.chars().any(|c| !c.is_alphanumeric());
-        if has_digit && has_upper && has_lower && has_special && shannon_entropy(trimmed) > 3.8 {
+        // Special char is optional: requiring it missed common alphanumeric
+        // passwords (e.g. "MiClave12345"), which then leaked unmasked. Digit +
+        // upper + lower stay mandatory so lowercase markup/prose never matches.
+        // Entropy bar: 3.8 is unreachable for short passwords (max ≈ log2(len)),
+        // so use 3.4 — enough to reject repeated/dictionary-ish strings.
+        if has_digit && has_upper && has_lower && shannon_entropy(trimmed) > 3.4 {
             return Sensitivity::Secret;
         }
     }
@@ -448,6 +452,10 @@ mod tests {
             classify_sensitivity("-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA..."),
             Sensitivity::Secret
         );
+        // Alphanumeric password without special chars (3 of 4 classes) is still Secret
+        assert_eq!(classify_sensitivity("MiClave12345"), Sensitivity::Secret);
+        // Ordinary lowercase word stays None
+        assert_eq!(classify_sensitivity("configuration"), Sensitivity::None);
         // Long public URLs without auth info are not credentials
         assert_eq!(
             classify_sensitivity(
