@@ -344,6 +344,20 @@ pub fn App() -> impl IntoView {
                                             set_detail.set(Some(item_max.clone()));
                                         }
                                     >"⤢"</button>
+                                    {(!sens && it.content_type != "image").then(|| {
+                                        let id_secret = it.id.clone();
+                                        view! {
+                                            <button
+                                                title="Es un secreto: enmascarar y recordar"
+                                                on:click=move |_| {
+                                                    let id = id_secret.clone();
+                                                    spawn_local(async move {
+                                                        let _ = bindings::mark_secret(&id).await;
+                                                    });
+                                                }
+                                            >"🔒"</button>
+                                        }
+                                    })}
                                     <button
                                         title="Delete"
                                         on:click=move |_| {

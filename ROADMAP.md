@@ -6,8 +6,8 @@ the source of truth and is never lost:** it is copied and sent to plugins
 intact, *rendered* sanitized, and on export threats are reported without
 altering it.
 
-## Current Status (2026-06-22)
-History search implemented; English translation complete. Sensitivity: long hex strings (>=32) now Secret. Both Credential/Secret get short safe hints (`••••last4` from raw) for distinction (list/tray/modal); tray always derives preview from raw (even old DB items). Tray merges recent + persisted DB history. Wayland: event-driven `wl-paste --watch` (no constant poll). Poll 250ms + 80ms debounce. ~92%. 
+## Current Status (2026-07-20)
+History search implemented; English translation complete. Sensitivity: long hex strings (>=32) now Secret; alphanumeric passwords without a special char now classify correctly. User-taught secrets (🔒 button, exact + prefix-pattern learning). Both Credential/Secret get short safe hints (`••••last4` from raw) for distinction (list/tray/modal); tray always derives preview from raw (even old DB items). Tray merges recent + persisted DB history; rebuild now loads history once per cycle instead of twice. Wayland: event-driven `wl-paste --watch` (no constant poll). Poll 250ms + 80ms debounce. Threat registry now includes SQL injection. 67 tests passing. ~93%.
 
 ### ✅ `lapacho-core` (lib, 45 unit + integration tests)
 
@@ -72,26 +72,38 @@ History search implemented; English translation complete. Sensitivity: long hex 
 
 ### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
 - [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).
-- [ ] **Reactivity + consistency + identity** (HIGH) — User live testing (own run):
-  - Identical secret duplicated at top of list + tray (Paranoia secrets not saved → live path only dedups by fresh UUID, never by raw_content).
-  - Tray only shows items from this launch (volatile recent wins); modal correctly shows full persisted history.
-  - Secret `••••last4` hint visible only briefly then "disappears".
-  - Tray update still >1s.
-  This session: hints from raw + tray merge + Wayland event watcher. Strong signal to rethink architecture (identity for non-persisted items, unified recent view, live vs persisted split). (2026-06-22)
+- [x] **Reactivity + consistency + identity** (HIGH) — re-audited 2026-07-20, 3 of 4 symptoms already resolved by prior work:
+  - Duplicate secret at top: fixed — `item.id = repo.content_id(&item.raw_content)` (stable keyed hash, even for non-persisted Paranoia items) + dedup-by-id in `tray_recent_push_front`/UI merge.
+  - Tray showing only this-launch items: fixed — `get_tray_items` merges `tray_recent` + persisted DB history.
+  - Hint disappearing: fixed — every projection (`UIClipboardItem::from`) recomputes `••••last4` from raw for Credential/Secret, so a reload can't clobber it with a stale `display_content`.
+  - Tray update latency: mitigated (80ms debounce) but `rebuild` was decrypting the DB twice per cycle (`build_menu` + `tray_icon_for_top` each called `get_tray_items`/`repo.load()` independently) — fixed by loading history once in `rebuild`/`init` and threading the slice into both. (2026-07-20)
 - [x] Distinguish sensitive/secret items: both Credential and Secret now render with short safe hint `••••last4` (from raw) so different tokens are identifiable (list, tray, modal). Tray always recomputes preview from raw_content even for old persisted items. Updated in `mask_display`, `UIClipboardItem::from`, `item_label` + tests. (2026-06-22)
 
 ### 🔐 Security
 
 - [x] Replace the regex SVG sanitizer with a real parser (`ammonia`) — done.
 - [x] Long hex classification as Secret + distinction hints (see above).
-- [ ] More detectors in `threats::REGISTRY` (SQL injection, advanced XSS) — the
-  modular registry already supports this without touching `assess()`.
+- [x] Password-heuristic gap: classifier required all 4 char classes
+  (digit+upper+lower+special) at entropy > 3.8, missing ordinary alphanumeric
+  passwords, whose max entropy can't reach that bar anyway. Relaxed to
+  digit+upper+lower with entropy > 3.4; special char no longer required. (2026-07-19)
+- [x] **User-taught secrets**: 🔒 button per item marks it Secret and teaches
+  Lapacho for next time — exact match via `content_id` (keyed hash, no
+  plaintext stored), plus structural generalization: `secret_prefix()`
+  (`lapacho-core::security`) detects token shape (literal prefix + random
+  tail, e.g. `acme_live_…`) and learns the prefix, so *different* future
+  values with the same shape classify Secret from capture. Command
+  `mark_secret` in `main.rs`; prefixes stored in the `settings` table. (2026-07-19)
+- [x] SQL injection detector added to `threats::REGISTRY` (tautologies,
+  `UNION SELECT`, stacked statements, comment terminators after a quote).
+  One struct + one registry line, per the existing extension pattern. (2026-07-20)
+- [ ] More detectors (advanced XSS beyond `<script>`/handlers/`javascript:`) —
+  the modular registry already supports this without touching `assess()`.
 - [ ] Real-machine verification of keyring + mlock (not testable headless).
 
 ### 📦 Project
 
-- [ ] `LICENSE-APACHE` (standard text copy) before publishing — the dual
-  `MIT OR Apache-2.0` is already declared and `LICENSE-MIT` exists.
+- [x] `LICENSE-APACHE` — full standard text present with copyright line filled in.
 - [ ] Decide whether to version `apps/desktop/src-tauri/gen/` (generated capabilities).
 - [ ] **Mobile (Android-first)** — design only: `docs/ARQUITECTURA_MOBILE_ANDROID.md`
   (IME + companion, encrypted disk as source of truth, local prediction). Not started.

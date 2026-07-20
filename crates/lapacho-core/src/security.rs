@@ -304,6 +304,54 @@ fn looks_like_recovery_key(text: &str) -> bool {
     false
 }
 
+/// Extracts a generalizable pattern from a user-marked secret: a literal
+/// prefix followed by a random tail (the shape of virtually every API token:
+/// `ghp_…`, `sk-…`, `acme_live_…`). Returns the prefix to learn, or `None`
+/// when the content has no such structure (then only exact-match learning
+/// applies — anything fuzzier would mask ordinary text).
+///
+/// Prefix = leading run of lowercase letters / `_` / `-` ending in a
+/// separator, 3–16 chars. Tail must look random: ≥8 chars, no whitespace,
+/// with digits or mixed case.
+pub fn secret_prefix(text: &str) -> Option<String> {
+    let t = text.trim();
+    if t.contains(char::is_whitespace) || t.len() < 12 || t.len() > 256 {
+        return None;
+    }
+    let end = t.find(|c: char| !(c.is_ascii_lowercase() || c == '_' || c == '-'))?;
+    if !(3..=16).contains(&end) || !t[..end].ends_with(['_', '-']) {
+        return None;
+    }
+    let (prefix, tail) = t.split_at(end);
+    if tail.len() >= 8 && tail_looks_random(tail) {
+        Some(prefix.to_string())
+    } else {
+        None
+    }
+}
+
+/// True when `text` matches a learned secret prefix: same literal start and a
+/// random-looking tail. Reused by the desktop backend for every new capture.
+pub fn matches_secret_prefix(text: &str, prefix: &str) -> bool {
+    let t = text.trim();
+    if t.contains(char::is_whitespace) || t.len() > 256 {
+        return false;
+    }
+    match t.strip_prefix(prefix) {
+        Some(tail) => tail.len() >= 8 && tail_looks_random(tail),
+        None => false,
+    }
+}
+
+/// Random-looking token tail: alphanumeric-ish, has a digit or mixed case,
+/// and moderate entropy (rejects `ghp_aaaaaaaa` and plain words).
+fn tail_looks_random(tail: &str) -> bool {
+    let has_digit = tail.chars().any(|c| c.is_ascii_digit());
+    let mixed_case = tail.chars().any(|c| c.is_ascii_uppercase())
+        && tail.chars().any(|c| c.is_ascii_lowercase());
+    (has_digit || mixed_case) && shannon_entropy(tail) > 2.5
+}
+
 /// Classifies the sensitivity of text content.
 pub fn classify_sensitivity(text: &str) -> Sensitivity {
     let trimmed = text.trim();
@@ -352,8 +400,12 @@ pub fn classify_sensitivity(text: &str) -> Sensitivity {
         let has_digit = trimmed.chars().any(|c| c.is_ascii_digit());
         let has_upper = trimmed.chars().any(|c| c.is_ascii_uppercase());
         let has_lower = trimmed.chars().any(|c| c.is_ascii_lowercase());
-        let has_special = trimmed.chars().any(|c| !c.is_alphanumeric());
-        if has_digit && has_upper && has_lower && has_special && shannon_entropy(trimmed) > 3.8 {
+        // Special char is optional: requiring it missed common alphanumeric
+        // passwords (e.g. "MiClave12345"), which then leaked unmasked. Digit +
+        // upper + lower stay mandatory so lowercase markup/prose never matches.
+        // Entropy bar: 3.8 is unreachable for short passwords (max ≈ log2(len)),
+        // so use 3.4 — enough to reject repeated/dictionary-ish strings.
+        if has_digit && has_upper && has_lower && shannon_entropy(trimmed) > 3.4 {
             return Sensitivity::Secret;
         }
     }
@@ -437,6 +489,25 @@ mod tests {
     }
 
     #[test]
+    fn secret_prefix_learning() {
+        // Structured token → learns the literal prefix.
+        assert_eq!(secret_prefix("acme_live_9fK2xQ81pLm4"), Some("acme_live_".into()));
+        assert_eq!(secret_prefix("lp-Zx81QmT4ka"), Some("lp-".into()));
+        // No structure (plain password, no separator) → nothing to generalize.
+        assert_eq!(secret_prefix("MiClave12345"), None);
+        // Prose with spaces or a boring tail → nothing.
+        assert_eq!(secret_prefix("hello there friend"), None);
+        assert_eq!(secret_prefix("prefix_aaaaaaaaaa"), None);
+
+        // A learned prefix matches *different* future values…
+        assert!(matches_secret_prefix("acme_live_B7nRq02WzYx8", "acme_live_"));
+        // …but not the prefix alone, boring tails, or unrelated text.
+        assert!(!matches_secret_prefix("acme_live_", "acme_live_"));
+        assert!(!matches_secret_prefix("acme_live_aaaaaaaa", "acme_live_"));
+        assert!(!matches_secret_prefix("otra cosa cualquiera", "acme_live_"));
+    }
+
+    #[test]
     fn classify_sensitivity_levels() {
         assert_eq!(classify_sensitivity("Hello there"), Sensitivity::None);
         assert_eq!(classify_sensitivity("test@example.com"), Sensitivity::Personal);
@@ -448,6 +519,10 @@ mod tests {
             classify_sensitivity("-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA..."),
             Sensitivity::Secret
         );
+        // Alphanumeric password without special chars is still Secret
+        assert_eq!(classify_sensitivity("MiClave12345"), Sensitivity::Secret);
+        // Ordinary lowercase word stays None
+        assert_eq!(classify_sensitivity("configuration"), Sensitivity::None);
         // Long public URLs without auth info are not credentials
         assert_eq!(
             classify_sensitivity(
