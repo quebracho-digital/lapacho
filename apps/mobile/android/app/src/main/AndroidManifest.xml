@@ -1,0 +1,44 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:theme="@style/Theme.AppCompat.DayNight">
+
+        <!-- android:allowBackup=false: the history DB must never leave
+             app-private storage via auto-backup — see
+             docs/ARQUITECTURA_MOBILE_ANDROID.md §4.3 "do not use ... Backup
+             to Google Drive for the history DB". -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- android:process=":ime" — runs as a separate process under the
+             same app UID, so it shares app-private storage (filesDir,
+             Keystore) with MainActivity's process but can be killed by the
+             system independently (LMK, keyboard-hide). This is the "two
+             processes, one UID" model from
+             docs/ARQUITECTURA_MOBILE_ANDROID.md §4.3, and it's exactly what
+             the P0 spike needs to prove: force-stop one, read from the DB
+             in the other. -->
+        <service
+            android:name=".ime.LapachoIme"
+            android:process=":ime"
+            android:exported="true"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+    </application>
+</manifest>
