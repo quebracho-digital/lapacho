@@ -105,8 +105,16 @@ History search implemented; English translation complete. Sensitivity: long hex 
 
 - [x] `LICENSE-APACHE` — full standard text present with copyright line filled in.
 - [ ] Decide whether to version `apps/desktop/src-tauri/gen/` (generated capabilities).
-- [ ] **Mobile (Android-first)** — design only: `docs/ARQUITECTURA_MOBILE_ANDROID.md`
-  (IME + companion, encrypted disk as source of truth, local prediction). Not started.
+- [ ] **Mobile (Android-first)** — design in `docs/ARQUITECTURA_MOBILE_ANDROID.md` +
+  `docs/DEBATE_ARQUITECTURA_MOBILE.md`. Decided: **no fork** of an existing
+  keyboard (FlorisBoard/HeliBoard ruled out); IME positioned as a
+  "paste keyboard" (KeePassDX Magikeyboard pattern), HeliBoard read only as a
+  lifecycle/accessibility reference. P0 spike scaffolded at
+  `apps/mobile/android/` (Kotlin-only: `storage` module with SQLite +
+  Keystore AES-GCM, one `:app` module with companion `MainActivity` + IME
+  service in its own `:ime` process) — **written blind, not yet built or run**
+  (no Android SDK/NDK in this environment; needs verification on a machine
+  with Android Studio). No Rust/uniffi bridge yet — that's P1.
 - [ ] **Multi-client sync (optional, E2E, per-item)** — design: `docs/ARQUITECTURA_MOBILE_ANDROID.md` §5
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
   hybrid SER5 store-and-forward + LAN/WG direct; Brave-like chain pair (QR/words) for decrypt keys;
