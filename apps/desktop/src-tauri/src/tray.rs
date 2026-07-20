@@ -134,25 +134,17 @@ fn get_tray_items(app: &AppHandle) -> Vec<ClipboardItem> {
 /// Returns an icon for the tray *indicator* (the panel icon) derived from the
 /// top history item. Only images currently carry a thumbnail; everything else
 /// (text, SVG, MD, …) falls back to the default Lapacho icon.
-fn tray_icon_for_top(app: &AppHandle) -> Option<tauri::image::Image<'static>> {
-    let items = get_tray_items(app);
-    if let Some(top) = items.first() {
-        if top.content_type == "image" {
-            if let Some(thumb) = &top.thumbnail {
-                if let Some(icon) = tray_icon_from_thumb(thumb) {
-                    return Some(icon);
-                }
-            }
-        }
+fn tray_icon_for_top(items: &[ClipboardItem]) -> Option<tauri::image::Image<'static>> {
+    let top = items.first()?;
+    if top.content_type != "image" {
+        return None;
     }
-    None
+    tray_icon_from_thumb(top.thumbnail.as_deref()?)
 }
 
-/// Builds the full tray menu: the newest clips, a separator, then the static
-/// "Open Lapacho…" / "Quit" entries.
-fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
-    let items = get_tray_items(app);
-
+/// Builds the full tray menu from an already-loaded item list: the newest
+/// clips, a separator, then the static "Open Lapacho…" / "Quit" entries.
+fn build_menu(app: &AppHandle, items: &[ClipboardItem]) -> tauri::Result<Menu<Wry>> {
     let mut builder = MenuBuilder::new(app);
     if items.is_empty() {
         let empty = MenuItem::with_id(app, ID_EMPTY, "(no clips yet)", false, None::<&str>)?;
@@ -194,7 +186,10 @@ fn rebuild(app: &AppHandle) {
     let handle = app.clone();
     let res = app.run_on_main_thread(move || {
         let t_main = Instant::now();
-        match build_menu(&handle) {
+        // Load history once and reuse it for both the menu and the icon,
+        // instead of decrypting the DB twice per rebuild.
+        let items = get_tray_items(&handle);
+        match build_menu(&handle, &items) {
             Ok(menu) => {
                 if let Some(tray) = handle.tray_by_id(TRAY_ID) {
                     let _ = tray.set_menu(Some(menu));
@@ -208,7 +203,7 @@ fn rebuild(app: &AppHandle) {
         }
         // Update the tray icon itself (debounced together with the menu).
         if let Some(tray) = handle.tray_by_id(TRAY_ID) {
-            let icon = tray_icon_for_top(&handle).or_else(|| handle.default_window_icon().cloned());
+            let icon = tray_icon_for_top(&items).or_else(|| handle.default_window_icon().cloned());
             let _ = tray.set_icon(icon);
         }
     });
@@ -286,14 +281,15 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
 /// Builds the tray icon with its initial menu and click handler. Call once
 /// during setup, on the main thread.
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
-    let menu = build_menu(app)?;
+    let items = get_tray_items(app);
+    let menu = build_menu(app, &items)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("Lapacho — secure clipboard")
         .menu(&menu)
         .on_menu_event(on_menu_event);
     // Set the initial indicator icon to either the top history item's thumbnail
     // (if the most recent copy was an image) or the embedded Lapacho default.
-    let initial_icon = tray_icon_for_top(app).or_else(|| app.default_window_icon().cloned());
+    let initial_icon = tray_icon_for_top(&items).or_else(|| app.default_window_icon().cloned());
     if let Some(icon) = initial_icon {
         builder = builder.icon(icon);
     } else {

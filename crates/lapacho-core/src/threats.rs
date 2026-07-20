@@ -63,6 +63,8 @@ pub enum ThreatKind {
     SensitiveData,
     /// Text that looks like an attempt to subvert an LLM/agent prompt.
     PromptInjection,
+    /// Text that looks like an SQL injection payload.
+    SqlInjection,
 }
 
 /// A single finding from a [`Detector`].
@@ -107,6 +109,7 @@ pub static REGISTRY: &[&dyn Detector] = &[
     &OtherControlChars,
     &SensitiveData,
     &PromptInjection,
+    &SqlInjection,
 ];
 
 /// Inspects raw `content` with every registered [`Detector`] and returns the
@@ -295,6 +298,36 @@ impl Detector for PromptInjection {
     }
 }
 
+/// Heuristic detector for SQL injection payloads: tautologies (`' OR 1=1`),
+/// `UNION SELECT`, stacked statements (`; DROP TABLE`), or SQL comment
+/// terminators (`--`, `/*`) following a quote. Conservative on purpose — it
+/// gates a warning, not a block, since legitimate SQL snippets exist too.
+struct SqlInjection;
+impl Detector for SqlInjection {
+    fn id(&self) -> &'static str {
+        "sql-injection"
+    }
+    fn scan(&self, content: &str) -> Vec<Threat> {
+        static RE: OnceLock<Regex> = OnceLock::new();
+        let re = RE.get_or_init(|| {
+            Regex::new(
+                r#"(?i)'\s*or\s+['"]?\d+['"]?\s*=\s*['"]?\d+|;\s*(drop|delete|truncate|update|insert)\s+\w|\bunion\s+(all\s+)?select\b|'\s*(--|#|/\*)"#,
+            )
+            .unwrap()
+        });
+        if re.is_match(content) {
+            vec![Threat::new(
+                ThreatKind::SqlInjection,
+                ThreatSeverity::Warning,
+                "El texto parece contener un payload de inyección SQL (tautología, UNION SELECT \
+                 o sentencia encadenada). Revisalo antes de pegarlo en una consulta.",
+            )]
+        } else {
+            vec![]
+        }
+    }
+}
+
 // --- shared character predicates --------------------------------------------
 
 /// Bidirectional formatting/override controls used in Trojan Source attacks.
@@ -394,6 +427,17 @@ mod tests {
             .contains(&ThreatKind::PromptInjection));
         // A normal sentence with the word "ignore" must not trip it.
         assert!(!kinds("please ignore the noise outside").contains(&ThreatKind::PromptInjection));
+    }
+
+    #[test]
+    fn flags_sql_injection() {
+        assert!(kinds("admin' OR 1=1 --").contains(&ThreatKind::SqlInjection));
+        assert!(kinds("SELECT * FROM users WHERE id=1 UNION SELECT username, password FROM admins")
+            .contains(&ThreatKind::SqlInjection));
+        assert!(kinds("1; DROP TABLE users").contains(&ThreatKind::SqlInjection));
+        // Ordinary prose/SQL-looking words without an injection shape must not trip it.
+        assert!(!kinds("please select a union representative").contains(&ThreatKind::SqlInjection));
+        assert!(!kinds("SELECT name FROM users WHERE id = 1").contains(&ThreatKind::SqlInjection));
     }
 
     #[test]
