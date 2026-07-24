@@ -56,6 +56,32 @@ lapacho/
 `lapacho-core` does not depend on Tauri or any UI framework: it is reusable
 from any frontend.
 
+### Codebase map
+
+A generated knowledge graph lives at `.ua/knowledge-graph.json`: 218 nodes and
+361 edges across 7 architectural layers, plus a 15-step guided tour that walks
+the security flow end to end (capture → type classification → sensitivity
+classification → masking → persistence policy → release on paste). It is meant
+as the fastest way in for anyone new to the project.
+
+Explore it with the [understand-anything](https://github.com/Egonex-AI/Understand-Anything)
+plugin:
+
+```bash
+/understand-dashboard    # interactive graph viewer
+/understand              # refresh after changes (incremental)
+```
+
+> **A note, and an apology:** the graph's text — summaries, layer names, tour
+> steps — is in **Spanish**, while the rest of this project is in English. That
+> inconsistency is on us, not on you. It was generated in the maintainer's
+> working language and kept rather than discarded, on the grounds that a map in
+> the wrong language still beats no map. Regenerating it in English is a single
+> command (`/understand --full --language en`) if you would rather have it that
+> way, and such a PR is welcome.
+
+The graph is a derived artifact: if it ever contradicts the code, the code wins.
+
 ## Security Model
 
 - The `raw_content` (original content) lives **only in the backend**; the UI

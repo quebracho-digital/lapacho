@@ -4,3 +4,11 @@
 /apps/desktop/ui/dist/
 /apps/desktop/ui/target/
 # Cargo.lock se versiona: este workspace produce binarios (app de escritorio).
+
+# Understand-Anything: se versiona el grafo (util para colaboradores) y el
+# .understandignore (hace reproducible el analisis). El resto es estado local
+# regenerable con /understand.
+/.ua/fingerprints.json
+/.ua/intermediate/
+/.ua/tmp/
+/.ua/.trash-*
