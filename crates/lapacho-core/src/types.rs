@@ -51,6 +51,10 @@ pub struct ClipboardItem {
     pub thumbnail: Option<String>,
     /// Approximate size in bytes for images (PNG payload) so UI can show "peso".
     pub size: Option<usize>,
+    /// Sync placeholder fields for multi-device sync (P0-P4 mobile roadmap)
+    pub sync_id: Option<String>,
+    pub sync_eligible: bool,
+    pub sync_state: String,
 }
 
 /// Safe projection of `ClipboardItem` for the UI (no `raw_content`).
@@ -143,6 +147,9 @@ mod tests {
             timestamp: 0,
             thumbnail: None,
             size: None,
+            sync_id: None,
+            sync_eligible: false,
+            sync_state: "LocalOnly".to_string(),
         };
         let ui: UIClipboardItem = item.clone().into();
         // For secrets the projection forces a safe hinted display from the raw.

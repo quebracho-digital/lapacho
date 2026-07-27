@@ -1,32 +1,27 @@
 <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <!-- Halo celeste argentino, sutil -->
-  <circle cx="256" cy="256" r="240" fill="none" stroke="#74ACDF" stroke-width="4" opacity="0.4"/>
-  <circle cx="256" cy="256" r="224" fill="none" stroke="#74ACDF" stroke-width="2" opacity="0.25"/>
+  <!-- Fondo circular blanco/rosado pastel solido ultra brillante para maximo contraste en panales oscuros -->
+  <circle cx="256" cy="256" r="240" fill="#FFFFFF" stroke="#F472B6" stroke-width="16"/>
   
-  <!-- Hexágono base -->
-  <path d="M256 40 L440 148 L440 364 L256 472 L72 364 L72 148 Z" 
-        fill="#1B4332" stroke="#52B788" stroke-width="8" stroke-linejoin="round"/>
-  
-  <!-- Hoja de lapacho como circuito -->
-  <g stroke="#52B788" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Nervio central -->
-    <path d="M256 140 L256 380" />
-    <!-- Lóbulos izquierdos -->
-    <path d="M256 200 L160 160 L120 220 L160 280 L200 240" />
-    <path d="M256 280 L160 260 L120 320 L180 360 L220 320" />
-    <!-- Lóbulos derechos -->
-    <path d="M256 200 L352 160 L392 220 L352 280 L312 240" />
-    <path d="M256 280 L352 260 L392 320 L332 360 L292 320" />
-    <!-- Tallo -->
-    <path d="M256 380 L256 420" />
+  <!-- Sombra interior sutil de definicion -->
+  <circle cx="256" cy="256" r="228" fill="#FFF1F2"/>
+
+  <!-- Icono de Portapapeles/Hoja central en Rosa Lapacho inteso (#DB2777 / #BE185D) -->
+  <g fill="none" stroke="#DB2777" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Cuerpo del portapapeles/hoja estilizada -->
+    <rect x="120" y="110" width="272" height="330" rx="36" fill="#FCE7F3" stroke="#DB2777" stroke-width="24"/>
+    
+    <!-- Clip superior -->
+    <path d="M190 110 V80 C190 65 202 54 216 54 H296 C310 54 322 65 322 80 V110 Z" fill="#F472B6" stroke="#BE185D" stroke-width="20"/>
+    
+    <!-- Flor/Hoja de Lapacho simplificada de alto contraste dentro del portapapeles -->
+    <path d="M256 190 V370" stroke="#BE185D" stroke-width="24"/>
+    <path d="M256 240 L180 200 L160 260 L256 310" fill="#F472B6" stroke="#BE185D" stroke-width="18"/>
+    <path d="M256 240 L332 200 L352 260 L256 310" fill="#F472B6" stroke="#BE185D" stroke-width="18"/>
   </g>
   
-  <!-- Nodos dorados (puntos de unión) -->
-  <circle cx="256" cy="200" r="10" fill="#D4A373"/>
-  <circle cx="256" cy="280" r="10" fill="#D4A373"/>
-  <circle cx="160" cy="160" r="8" fill="#D4A373"/>
-  <circle cx="352" cy="160" r="8" fill="#D4A373"/>
-  <circle cx="120" cy="220" r="8" fill="#D4A373"/>
-  <circle cx="392" cy="220" r="8" fill="#D4A373"/>
-  <circle cx="256" cy="420" r="12" fill="#D4A373"/>
+  <!-- Nodos amarillos brillantes centelleantes -->
+  <circle cx="256" cy="240" r="18" fill="#FACC15"/>
+  <circle cx="256" cy="310" r="18" fill="#FACC15"/>
+  <circle cx="180" cy="200" r="14" fill="#FACC15"/>
+  <circle cx="332" cy="200" r="14" fill="#FACC15"/>
 </svg>
