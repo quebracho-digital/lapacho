@@ -2257,6 +2257,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "lapacho-predict"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "lapacho-sync"
+version = "0.1.0"
+dependencies = [
+ "lapacho-core",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "libappindicator"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

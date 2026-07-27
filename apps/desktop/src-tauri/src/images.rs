@@ -90,6 +90,9 @@ pub fn process_image(width: usize, height: usize, rgba: &[u8]) -> Option<Clipboa
         timestamp: now_secs(),
         thumbnail,
         size,
+        sync_id: None,
+        sync_eligible: true,
+        sync_state: "LocalOnly".to_string(),
     })
 }
 

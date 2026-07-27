@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "crates/lapacho-core",
+    "crates/lapacho-predict",
+    "crates/lapacho-sync",
     "apps/desktop/src-tauri",
 ]
 # The Leptos/WASM frontend is a standalone crate built by Trunk for the
