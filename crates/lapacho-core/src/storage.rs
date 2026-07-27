@@ -137,6 +137,9 @@ impl SqliteRepo {
             [],
         );
         let _ = conn.execute("ALTER TABLE history ADD COLUMN size INTEGER", []);
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN sync_id TEXT", []);
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN sync_eligible INTEGER NOT NULL DEFAULT 1", []);
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN sync_state TEXT NOT NULL DEFAULT 'LocalOnly'", []);
 
         // Simple key-value settings for user preferences (persist_level, ttl, etc.)
         // so they survive restarts.
@@ -171,12 +174,13 @@ impl HistoryRepo for SqliteRepo {
 
         conn.execute(
             "INSERT INTO history
-               (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)
+               (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
              ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp",
             params![ item.id, enc_raw, enc_display, item.content_type,
                 format!("{:?}", item.sensitivity), format!("{:?}", item.detected_type),
-                item.timestamp, item.thumbnail, item.size.map(|s| s as i64) ],
+                item.timestamp, item.thumbnail, item.size.map(|s| s as i64),
+                item.sync_id, if item.sync_eligible { 1i64 } else { 0i64 }, item.sync_state ],
         ).map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -193,18 +197,22 @@ impl HistoryRepo for SqliteRepo {
             timestamp: u64,
             thumbnail: Option<String>,
             size: Option<i64>,
+            sync_id: Option<String>,
+            sync_eligible: bool,
+            sync_state: String,
         }
 
         let conn = self.conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size
+                "SELECT id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state
                  FROM history ORDER BY timestamp DESC LIMIT 100",
             )
             .map_err(|e| e.to_string())?;
 
         let rows = stmt
             .query_map([], |row| {
+                let sync_elig: i64 = row.get(10).unwrap_or(1);
                 Ok(EncRow {
                     id: row.get(0)?,
                     enc_raw: row.get(1)?,
@@ -215,6 +223,9 @@ impl HistoryRepo for SqliteRepo {
                     timestamp: row.get(6)?,
                     thumbnail: row.get(7)?,
                     size: row.get(8)?,
+                    sync_id: row.get(9)?,
+                    sync_eligible: sync_elig != 0,
+                    sync_state: row.get(11).unwrap_or_else(|_| "LocalOnly".to_string()),
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -257,6 +268,9 @@ impl HistoryRepo for SqliteRepo {
                 timestamp: r.timestamp,
                 thumbnail: r.thumbnail,
                 size: r.size.map(|s| s as usize),
+                sync_id: r.sync_id,
+                sync_eligible: r.sync_eligible,
+                sync_state: r.sync_state,
             });
         }
         Ok(items)
@@ -383,6 +397,9 @@ mod tests {
             timestamp: ts,
             thumbnail: None,
             size: None,
+            sync_id: None,
+            sync_eligible: sensitivity != Sensitivity::Secret,
+            sync_state: "LocalOnly".to_string(),
         }
     }
 
