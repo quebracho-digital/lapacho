@@ -67,8 +67,15 @@ pub trait HistoryRepo: Send + Sync {
 
     /// Marks an item as kept, exempting it from `cleanup`'s max-items cap.
     /// Does **not** exempt sensitive items from the TTL, and does **not** put
-    /// on disk an item that the active `PersistLevel` refuses to write.
+    /// on disk an item that the active `PersistLevel` refuses to write —
+    /// on an item that isn't stored this is a no-op. Use `save` with
+    /// `vaulted` for that.
     fn set_pinned(&self, id: &str, pinned: bool) -> Result<(), String>;
+
+    /// Clears the vault flag of a stored item. Setting it goes through `save`
+    /// instead, because a vaulted item may not be on disk yet — that is the
+    /// whole point of the flag.
+    fn unvault(&self, id: &str) -> Result<(), String>;
 
     /// Removes a single item by id.
     fn delete(&self, id: &str) -> Result<(), String>;
@@ -157,6 +164,7 @@ impl SqliteRepo {
         // as much as the value it names.
         let _ = conn.execute("ALTER TABLE history ADD COLUMN title TEXT", []);
         let _ = conn.execute("ALTER TABLE history ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0", []);
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN vaulted INTEGER NOT NULL DEFAULT 0", []);
 
         // Simple key-value settings for user preferences (persist_level, ttl, etc.)
         // so they survive restarts.
@@ -176,7 +184,7 @@ impl SqliteRepo {
 /// Column list shared by every `SELECT` that decodes into a `ClipboardItem`,
 /// so the indices in `EncRow::from_row` stay valid for all of them.
 const HISTORY_COLUMNS: &str = "id, raw_content, display_content, content_type, sensitivity, \
-     detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state, title, pinned";
+     detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state, title, pinned, vaulted";
 
 /// Encrypted row as read from SQLite, before decryption.
 struct EncRow {
@@ -194,6 +202,7 @@ struct EncRow {
     sync_state: String,
     enc_title: Option<String>,
     pinned: bool,
+    vaulted: bool,
 }
 
 impl EncRow {
@@ -214,6 +223,7 @@ impl EncRow {
             sync_state: row.get(11).unwrap_or_else(|_| "LocalOnly".to_string()),
             enc_title: row.get(12).unwrap_or(None),
             pinned: row.get::<_, i64>(13).unwrap_or(0) != 0,
+            vaulted: row.get::<_, i64>(14).unwrap_or(0) != 0,
         })
     }
 }
@@ -257,18 +267,16 @@ impl SqliteRepo {
             // the whole item — losing the label beats losing the content.
             title: r.enc_title.and_then(|t| self.cipher.decrypt(&t).ok()),
             pinned: r.pinned,
+            vaulted: r.vaulted,
         })
     }
 }
 
 impl HistoryRepo for SqliteRepo {
     fn save(&self, item: &ClipboardItem, level: PersistLevel) -> Result<(), String> {
-        let should_save = match level {
-            PersistLevel::None => item.sensitivity == Sensitivity::None,
-            PersistLevel::Sensitive => item.sensitivity != Sensitivity::Secret,
-            PersistLevel::All => true,
-        };
-        if !should_save {
+        // `vaulted` is the one per-item override of the level: the user asked
+        // for this exact item to be kept.
+        if !item.vaulted && !level.persists(item.sensitivity) {
             return Ok(());
         }
 
@@ -285,14 +293,15 @@ impl HistoryRepo for SqliteRepo {
 
         conn.execute(
             "INSERT INTO history
-               (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state, title, pinned)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)
+               (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state, title, pinned, vaulted)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)
              ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp",
             params![ item.id, enc_raw, enc_display, item.content_type,
                 format!("{:?}", item.sensitivity), format!("{:?}", item.detected_type),
                 item.timestamp, item.thumbnail, item.size.map(|s| s as i64),
                 item.sync_id, if item.sync_eligible { 1i64 } else { 0i64 }, item.sync_state,
-                enc_title, if item.pinned { 1i64 } else { 0i64 } ],
+                enc_title, if item.pinned { 1i64 } else { 0i64 },
+                if item.vaulted { 1i64 } else { 0i64 } ],
         ).map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -311,6 +320,13 @@ impl HistoryRepo for SqliteRepo {
                 "UPDATE history SET pinned = ?1 WHERE id = ?2",
                 params![if pinned { 1i64 } else { 0i64 }, id],
             )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn unvault(&self, id: &str) -> Result<(), String> {
+        self.conn()?
+            .execute("UPDATE history SET vaulted = 0 WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -391,7 +407,8 @@ impl HistoryRepo for SqliteRepo {
             // persistence level. Pinning does NOT buy an exemption here: the TTL
             // on sensitive items is a security guarantee, not a preference.
             let _ = conn.execute(
-                "DELETE FROM history WHERE sensitivity IN ('Credential', 'Secret') AND timestamp < ?1",
+                "DELETE FROM history WHERE sensitivity IN ('Credential', 'Secret')
+                   AND vaulted = 0 AND timestamp < ?1",
                 params![cutoff],
             );
         }
@@ -399,8 +416,9 @@ impl HistoryRepo for SqliteRepo {
         // Hard cap on history size. Pinned items are exempt and don't consume a
         // slot, so pinning can't silently evict the rest of the history.
         let _ = conn.execute(
-            "DELETE FROM history WHERE pinned = 0 AND id NOT IN (
-                SELECT id FROM history WHERE pinned = 0 ORDER BY timestamp DESC LIMIT ?1
+            "DELETE FROM history WHERE pinned = 0 AND vaulted = 0 AND id NOT IN (
+                SELECT id FROM history WHERE pinned = 0 AND vaulted = 0
+                ORDER BY timestamp DESC LIMIT ?1
             )",
             params![policy.max_items],
         );
@@ -477,6 +495,7 @@ mod tests {
             size: None,
             title: None,
             pinned: false,
+            vaulted: false,
             sync_id: None,
             sync_eligible: sensitivity != Sensitivity::Secret,
             sync_state: "LocalOnly".to_string(),
@@ -687,6 +706,53 @@ mod tests {
             repo.get_by_id("old_secret").unwrap().is_none(),
             "a pinned credential must still expire: the TTL is a guarantee, not a preference"
         );
+
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn vault_forces_an_item_onto_disk_that_paranoia_refuses() {
+        let (repo, db) = repo();
+
+        // Baseline: Paranoia refuses a Credential outright.
+        repo.save(&dummy("c", Sensitivity::Credential, 1), PersistLevel::None)
+            .unwrap();
+        assert!(repo.get_by_id("c").unwrap().is_none());
+
+        // Vaulted, the same item at the same level is written.
+        let mut vaulted = dummy("c", Sensitivity::Credential, 1);
+        vaulted.vaulted = true;
+        repo.save(&vaulted, PersistLevel::None).unwrap();
+        let stored = repo.get_by_id("c").unwrap().expect("vaulted item must persist");
+        assert!(stored.vaulted);
+
+        // …and it outlives the TTL that would otherwise purge a Credential.
+        repo.cleanup(&RetentionPolicy { sensitive_ttl_secs: Some(1), max_items: 100 })
+            .unwrap();
+        assert!(repo.get_by_id("c").unwrap().is_some(), "vault must exempt from the TTL");
+
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn unvaulting_at_a_level_that_forbids_the_item_must_erase_it() {
+        // The caller (see `toggle_vault`) is responsible for re-applying the
+        // level; this pins the rule it applies so the two can't drift.
+        assert!(!PersistLevel::None.persists(Sensitivity::Credential));
+        assert!(!PersistLevel::Sensitive.persists(Sensitivity::Secret));
+        assert!(PersistLevel::None.persists(Sensitivity::None));
+        assert!(PersistLevel::All.persists(Sensitivity::Secret));
+
+        let (repo, db) = repo();
+        let mut item = dummy("c", Sensitivity::Credential, 1);
+        item.vaulted = true;
+        repo.save(&item, PersistLevel::None).unwrap();
+
+        // Un-vaulting a Credential under Paranoia: the level forbids it, so it
+        // must leave the disk right away, not linger until the next cleanup.
+        assert!(!PersistLevel::None.persists(item.sensitivity));
+        repo.delete("c").unwrap();
+        assert!(repo.get_by_id("c").unwrap().is_none());
 
         let _ = std::fs::remove_file(&db);
     }
