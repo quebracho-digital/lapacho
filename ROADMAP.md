@@ -69,6 +69,18 @@ History search implemented; English translation complete. Sensitivity: long hex 
   (`src-tauri/src/images.rs`), `<img>` in list/modal and **per-item icon in the
   tray**, paste back with `set_image`. Needs GUI testing.
 - [x] Optimize wasm for release (`trunk build --release`): **~406 KB** (from ~2.9 MB dev unoptimized). JS glue ~37 KB. `mermaid.min.js` ~3.2 MB remains separate vendored asset. Release artifacts in `apps/desktop/ui/dist/`. Use for final `cargo tauri build`. (done 2026-06-22)
+- [x] **Título + pin por item** (2026-07-28): 🏷 pone un nombre editable inline (Enter guarda,
+  Esc cancela), cifrado en disco igual que el contenido, e incluido en `search()` — se encuentra
+  el item por lo que *es*, no por lo que dice. 📍/📌 lo marca persistente: exento del cap de
+  100 items de `cleanup()`, y sin consumir slot (pinnear no desaloja al resto). Título y pin son
+  independientes a propósito: *pin sin título* es el caso común ("esto no lo pierdas").
+  **El pin NO es un override de `PersistLevel`**: en modo Paranoia un item sensible nunca llegó
+  al disco, así que pinnearlo solo lo sostiene en memoria esta sesión; y un `Credential`/`Secret`
+  pinneado **igual expira por TTL** — esa garantía no es una preferencia del usuario.
+  Cierra el debate de "pin / guardar en historial" de `docs/ARQUITECTURA_REFACTOREO.md:542`.
+  Tags múltiples: no, hasta que buscar por título se quede corto. *Falta prueba GUI real.*
+- [ ] Decidir si el pin debe además forzar a disco un item que el `PersistLevel` activo rechaza
+  (hoy no lo hace). Es perforar la política de persistencia — requiere decisión explícita.
 
 ### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
 - [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).
