@@ -106,6 +106,8 @@ pub fn process_text(raw: &str) -> ClipboardItem {
         timestamp: now_secs(),
         thumbnail: None,
         size: None,
+        title: None,
+        pinned: false,
         sync_id: None,
         sync_eligible: sensitivity != Sensitivity::Secret,
         sync_state: "LocalOnly".to_string(),

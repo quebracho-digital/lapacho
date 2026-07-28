@@ -51,6 +51,13 @@ pub struct ClipboardItem {
     pub thumbnail: Option<String>,
     /// Approximate size in bytes for images (PNG payload) so UI can show "peso".
     pub size: Option<usize>,
+    /// User-given name for the item, so it can be found by what it *is* rather
+    /// than by its content. Encrypted at rest like the content itself.
+    pub title: Option<String>,
+    /// User asked to keep this item: exempt from `RetentionPolicy` (TTL and the
+    /// max-items cap). Does **not** override `PersistLevel` — an item the
+    /// active level refuses to write is never on disk to begin with.
+    pub pinned: bool,
     /// Sync placeholder fields for multi-device sync (P0-P4 mobile roadmap)
     pub sync_id: Option<String>,
     pub sync_eligible: bool,
@@ -70,6 +77,8 @@ pub struct UIClipboardItem {
     pub size: Option<usize>,
     /// 18x18 RGBA base64 thumbnail (for list previews or native icons if exposed).
     pub thumbnail: Option<String>,
+    pub title: Option<String>,
+    pub pinned: bool,
 }
 
 impl From<ClipboardItem> for UIClipboardItem {
@@ -92,6 +101,8 @@ impl From<ClipboardItem> for UIClipboardItem {
             timestamp: item.timestamp,
             size: item.size,
             thumbnail: item.thumbnail,
+            title: item.title,
+            pinned: item.pinned,
         }
     }
 }
@@ -147,6 +158,8 @@ mod tests {
             timestamp: 0,
             thumbnail: None,
             size: None,
+            title: None,
+            pinned: false,
             sync_id: None,
             sync_eligible: false,
             sync_state: "LocalOnly".to_string(),

@@ -277,9 +277,7 @@ fn load_item(id: &str, state: &AppState) -> Result<ClipboardItem, String> {
     }
     state
         .repo
-        .load()?
-        .into_iter()
-        .find(|i| i.id == id)
+        .get_by_id(id)?
         .ok_or_else(|| "Item not found in history".to_string())
 }
 
@@ -351,6 +349,46 @@ fn mark_secret(id: String, app: AppHandle, state: State<'_, AppState>) -> Result
         request_history_refresh(&app);
     }
     Ok(())
+}
+
+/// Names an item so it can be found by what it is, not by its content. An empty
+/// title clears it.
+#[tauri::command]
+fn set_item_title(id: String, title: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let title = title.trim();
+    let title = (!title.is_empty()).then_some(title);
+    state.repo.set_title(&id, title)?;
+    {
+        let mut rec = state.tray_recent.lock().unwrap();
+        if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
+            slot.title = title.map(str::to_string);
+        }
+    }
+    tray::schedule_rebuild(&app);
+    request_history_refresh(&app);
+    Ok(())
+}
+
+/// "Keep this one": exempts the item from the history size cap. Returns the new
+/// state so the UI doesn't have to guess.
+///
+/// Deliberately *not* a persistence override: at the Paranoia level a sensitive
+/// item was never written to disk, so pinning it can only keep it for this
+/// session. Making the pin force a secret onto disk would turn a UI affordance
+/// into a hole in the persist policy.
+#[tauri::command]
+fn toggle_pin(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
+    let pinned = !load_item(&id, &state)?.pinned;
+    state.repo.set_pinned(&id, pinned)?;
+    {
+        let mut rec = state.tray_recent.lock().unwrap();
+        if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
+            slot.pinned = pinned;
+        }
+    }
+    tray::schedule_rebuild(&app);
+    request_history_refresh(&app);
+    Ok(pinned)
 }
 
 /// Raw content prepared for save/export, plus the security findings to surface
@@ -850,6 +888,8 @@ fn main() {
             set_sensitive_ttl,
             copy_item,
             mark_secret,
+            set_item_title,
+            toggle_pin,
             export_item,
             list_plugins,
             run_plugin

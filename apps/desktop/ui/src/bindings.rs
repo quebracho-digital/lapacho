@@ -122,6 +122,25 @@ pub async fn mark_secret(id: &str) -> Result<(), String> {
         .map_err(js_err)
 }
 
+pub async fn set_item_title(id: &str, title: &str) -> Result<(), String> {
+    #[derive(serde::Serialize)]
+    struct TitleArgs<'a> {
+        id: &'a str,
+        title: &'a str,
+    }
+    invoke("set_item_title", args(&TitleArgs { id, title }))
+        .await
+        .map(|_| ())
+        .map_err(js_err)
+}
+
+pub async fn toggle_pin(id: &str) -> Result<(), String> {
+    invoke("toggle_pin", args(&IdArgs { id }))
+        .await
+        .map(|_| ())
+        .map_err(js_err)
+}
+
 pub async fn delete_item(id: &str) -> Result<(), String> {
     invoke("delete_item", args(&IdArgs { id }))
         .await

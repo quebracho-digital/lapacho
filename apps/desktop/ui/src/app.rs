@@ -125,6 +125,8 @@ pub fn App() -> impl IntoView {
     let (view_raw, set_view_raw) = signal(false);
     // Search query (client-side filter on display_content for live list).
     let (search, set_search) = signal(String::new());
+    // Id of the item whose title is being edited inline, if any.
+    let (editing, set_editing) = signal(None::<String>);
 
     // Initial load (runs once at mount).
     spawn_local(async move {
@@ -281,6 +283,12 @@ pub fn App() -> impl IntoView {
                     .map(|it| {
                         let id_copy = it.id.clone();
                         let id_del = it.id.clone();
+                        let id_pin = it.id.clone();
+                        let id_tag = it.id.clone();
+                        let id_save = it.id.clone();
+                        let is_editing = editing.get().as_deref() == Some(it.id.as_str());
+                        let title_now = it.title.clone();
+                        let pinned = it.pinned;
                         let item_max = it.clone();
                         let sens = it.sensitivity.is_sensitive();
                         let li_class = if sens { "item sens" } else { "item" };
@@ -318,8 +326,34 @@ pub fn App() -> impl IntoView {
                         view! {
                             <li class=li_class>
                                 <div class="body">
+                                    {if is_editing {
+                                        view! {
+                                            <input
+                                                class="title-edit"
+                                                placeholder="Nombre del item…"
+                                                autofocus
+                                                value=title_now.clone().unwrap_or_default()
+                                                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                                                    if ev.key() == "Escape" { set_editing.set(None); return; }
+                                                    if ev.key() != "Enter" { return; }
+                                                    let id = id_save.clone();
+                                                    let title = event_target_value(&ev);
+                                                    set_editing.set(None);
+                                                    spawn_local(async move {
+                                                        let _ = bindings::set_item_title(&id, &title).await;
+                                                    });
+                                                }
+                                            />
+                                        }.into_any()
+                                    } else {
+                                        title_now
+                                            .filter(|t: &String| !t.is_empty())
+                                            .map(|t| view! { <div class="item-title">{t}</div> })
+                                            .into_any()
+                                    }}
                                     <div class="content">{content_node}</div>
                                     <div class="meta">
+                                        {pinned.then(|| view! { <span class="pin-flag" title="Persistente">"📌"</span> })}
                                         <span class=tag_class>{it.sensitivity.label()}</span>
                                         " · "
                                         {img_label}
@@ -358,6 +392,24 @@ pub fn App() -> impl IntoView {
                                             >"🔒"</button>
                                         }
                                     })}
+                                    <button
+                                        title="Ponerle un nombre (Enter guarda, Esc cancela)"
+                                        on:click=move |_| set_editing.set(Some(id_tag.clone()))
+                                    >"🏷"</button>
+                                    <button
+                                        title=if pinned {
+                                            "Persistente: no lo borra el límite de historial. Click para soltarlo"
+                                        } else {
+                                            "Hacerlo persistente (no aplica a secretos: siguen expirando por TTL)"
+                                        }
+                                        class=if pinned { "pinned" } else { "" }
+                                        on:click=move |_| {
+                                            let id = id_pin.clone();
+                                            spawn_local(async move {
+                                                let _ = bindings::toggle_pin(&id).await;
+                                            });
+                                        }
+                                    >{if pinned { "📌" } else { "📍" }}</button>
                                     <button
                                         title="Delete"
                                         on:click=move |_| {
