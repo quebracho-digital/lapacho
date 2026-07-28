@@ -72,6 +72,8 @@ pub struct UIClipboardItem {
     /// Exempt from the history size cap.
     #[serde(default)]
     pub pinned: bool,
+    #[serde(default)]
+    pub vaulted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]

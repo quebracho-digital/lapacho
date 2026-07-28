@@ -92,6 +92,7 @@ pub fn process_image(width: usize, height: usize, rgba: &[u8]) -> Option<Clipboa
         size,
         title: None,
         pinned: false,
+        vaulted: false,
         sync_id: None,
         sync_eligible: true,
         sync_state: "LocalOnly".to_string(),

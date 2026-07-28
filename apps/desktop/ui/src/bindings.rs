@@ -141,6 +141,13 @@ pub async fn toggle_pin(id: &str) -> Result<(), String> {
         .map_err(js_err)
 }
 
+pub async fn toggle_vault(id: &str) -> Result<(), String> {
+    invoke("toggle_vault", args(&IdArgs { id }))
+        .await
+        .map(|_| ())
+        .map_err(js_err)
+}
+
 pub async fn delete_item(id: &str) -> Result<(), String> {
     invoke("delete_item", args(&IdArgs { id }))
         .await
