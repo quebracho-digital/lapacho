@@ -77,6 +77,15 @@ pub trait HistoryRepo: Send + Sync {
     /// whole point of the flag.
     fn unvault(&self, id: &str) -> Result<(), String>;
 
+    /// Deletes everything already on disk that `level` would refuse to write,
+    /// and returns how many rows went. Vaulted items stay — that flag is the
+    /// user's explicit per-item override of the level.
+    ///
+    /// The level only ever governed *new* writes, so lowering it left the older,
+    /// more sensitive history sitting on disk under a label that claims it is
+    /// gone. Call this whenever the level drops.
+    fn purge_forbidden(&self, level: PersistLevel) -> Result<usize, String>;
+
     /// Removes a single item by id.
     fn delete(&self, id: &str) -> Result<(), String>;
     /// Removes every item.
@@ -384,6 +393,29 @@ impl HistoryRepo for SqliteRepo {
                         .is_some_and(|t| t.to_lowercase().contains(&lower))
             })
             .collect())
+    }
+
+    fn purge_forbidden(&self, level: PersistLevel) -> Result<usize, String> {
+        // Ask the policy which sensitivities this level refuses, rather than
+        // restating the rule in SQL — one source of truth (`persists`) means a
+        // future level can't quietly disagree with itself here.
+        let forbidden: Vec<String> = Sensitivity::ALL
+            .iter()
+            .filter(|s| !level.persists(**s))
+            .map(|s| format!("{s:?}"))
+            .collect();
+        if forbidden.is_empty() {
+            return Ok(0);
+        }
+        let placeholders = vec!["?"; forbidden.len()].join(",");
+        let conn = self.conn()?;
+        conn.execute(
+            &format!(
+                "DELETE FROM history WHERE vaulted = 0 AND sensitivity IN ({placeholders})"
+            ),
+            rusqlite::params_from_iter(forbidden),
+        )
+        .map_err(|e| e.to_string())
     }
 
     fn delete(&self, id: &str) -> Result<(), String> {
@@ -755,6 +787,41 @@ mod tests {
         assert!(!PersistLevel::None.persists(item.sensitivity));
         repo.delete("c").unwrap();
         assert!(repo.get_by_id("c").unwrap().is_none());
+
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn lowering_the_level_purges_what_it_now_forbids() {
+        // The security bug this fixes: history written under `All` survived a
+        // switch to Paranoia, so the app claimed to keep nothing while every
+        // secret was still on disk.
+        let (repo, db) = repo();
+        for (id, s) in [
+            ("plain", Sensitivity::None),
+            ("pers", Sensitivity::Personal),
+            ("cred", Sensitivity::Credential),
+            ("sec", Sensitivity::Secret),
+        ] {
+            repo.save(&dummy(id, s, 1), PersistLevel::All).unwrap();
+        }
+        let mut kept = dummy("keep", Sensitivity::Secret, 1);
+        kept.vaulted = true;
+        repo.save(&kept, PersistLevel::All).unwrap();
+
+        // Balanced forbids Secret only.
+        assert_eq!(repo.purge_forbidden(PersistLevel::Sensitive).unwrap(), 1);
+        assert!(repo.get_by_id("sec").unwrap().is_none());
+        assert!(repo.get_by_id("cred").unwrap().is_some());
+
+        // Paranoia forbids everything but `None`; the vaulted item stays,
+        // because that flag is the user's explicit override of the level.
+        assert_eq!(repo.purge_forbidden(PersistLevel::None).unwrap(), 2);
+        assert!(repo.get_by_id("plain").unwrap().is_some());
+        assert!(repo.get_by_id("keep").unwrap().is_some());
+
+        // Raising the level never deletes anything.
+        assert_eq!(repo.purge_forbidden(PersistLevel::All).unwrap(), 0);
 
         let _ = std::fs::remove_file(&db);
     }

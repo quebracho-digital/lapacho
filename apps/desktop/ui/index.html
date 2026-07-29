@@ -193,6 +193,30 @@
         border: 1px solid #d9b26a;
         border-radius: 3px;
       }
+      .purged { font-size: 11px; color: #d9b26a; }
+
+      /* ---- spotlight (frameless quick-search window) ---- */
+      #spotlight {
+        height: 100vh; display: flex; flex-direction: column;
+        background: #1a1611; border: 1px solid #3a3228; border-radius: 10px;
+        overflow: hidden;
+      }
+      #spotlight #search-input {
+        border: none; border-bottom: 1px solid #3a3228; background: transparent;
+        color: #ece6dd; font-size: 18px; padding: 14px 16px; outline: none;
+      }
+      #spotlight ul { flex: 1; overflow-y: auto; }
+      #spotlight .row {
+        display: flex; gap: 8px; align-items: center;
+        padding: 7px 16px; cursor: pointer; border-bottom: 1px solid #221d16;
+      }
+      #spotlight .row.sel { background: #2e2419; }
+      #spotlight .text {
+        flex: 1; min-width: 0;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      #spotlight .text.masked { font-family: monospace; letter-spacing: 0.1em; opacity: 0.6; }
+      #spotlight .none { padding: 24px; text-align: center; opacity: 0.5; }
       .pin-flag { margin-right: 4px; }
       .row-actions button.pinned { opacity: 1; }
       .row-actions button.vaulted { opacity: 1; color: #7fb069; }
