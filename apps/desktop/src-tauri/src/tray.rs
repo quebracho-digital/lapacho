@@ -250,10 +250,30 @@ pub fn schedule_rebuild(app: &AppHandle) {
 /// live `clipboard-new` events can be missed while the window was hidden.
 pub fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
+        raise(&window);
     }
     crate::request_history_refresh(app);
+}
+
+/// Brings the window to the front and gives it keyboard focus.
+///
+/// `show` + `set_focus` alone is not enough: a hidden window can also be
+/// minimized, and window managers with focus-stealing prevention ignore a
+/// focus request from an app the user did not just interact with — which is
+/// exactly our case, since the request comes from a tray click or a global
+/// shortcut. Toggling always-on-top around the focus call is the portable way
+/// to force the raise, because that *is* a stacking request rather than a
+/// focus one, and WMs honour it.
+///
+/// ponytail: the always-on-top nudge is a workaround, not a fix. If a
+/// compositor ignores it too, the real answer is an activation token
+/// (xdg-activation on Wayland), which Tauri does not expose today.
+fn raise(window: &tauri::WebviewWindow) {
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_always_on_top(true);
+    let _ = window.set_focus();
+    let _ = window.set_always_on_top(false);
 }
 
 /// Toggles the main window's visibility — bound to the global shortcut.
@@ -264,9 +284,11 @@ pub fn toggle_main(app: &AppHandle) {
                 let _ = window.hide();
             }
             _ => {
-                let _ = window.show();
-                let _ = window.set_focus();
+                raise(&window);
                 crate::request_history_refresh(app);
+                // Opening by shortcut is almost always "I want to find
+                // something", so land the cursor in the search box.
+                crate::request_search_focus(app);
             }
         }
     }

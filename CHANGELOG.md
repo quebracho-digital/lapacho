@@ -71,6 +71,16 @@ Tracked in `ROADMAP.md`.
 
 ### Fixed
 
+- **The window opened behind whatever you were using.** Opening Lapacho from
+  the tray or the global shortcut showed the window but left it stacked below
+  the focused app, so you had to hunt for it. `show` + `set_focus` is not
+  enough: a hidden window may also be minimized, and window managers with
+  focus-stealing prevention ignore a focus request coming from a tray click or
+  a shortcut rather than from direct interaction. Both paths now unminimize and
+  force the raise through a stacking request.
+- **The global shortcut now lands the cursor in the search box.** Opening by
+  shortcut is nearly always "I want to find something", so it no longer costs a
+  click and an aim.
 - **Pinning an old item appeared to do nothing.** The list ordered strictly by
   timestamp, so a pinned item stayed buried at whatever position its date gave
   it. Kept items now sort first, and the 100-item query limit can no longer
