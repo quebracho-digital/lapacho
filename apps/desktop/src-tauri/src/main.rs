@@ -922,19 +922,32 @@ fn main() {
                 Some(Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::ALT),
                 Code::KeyL,
             );
+            // Dedicated search shortcut: always opens (never toggles shut) and
+            // lands the cursor in the box, so the muscle memory is "V = find a
+            // clip" without the risk of hiding the window you just asked for.
+            let search = Shortcut::new(
+                Some(Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::ALT),
+                Code::KeyV,
+            );
             let toggle_for_handler = toggle;
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
                     .with_handler(move |app, shortcut, event| {
-                        if event.state == ShortcutState::Pressed && shortcut == &toggle_for_handler
-                        {
+                        if event.state != ShortcutState::Pressed {
+                            return;
+                        }
+                        if shortcut == &toggle_for_handler {
                             tray::toggle_main(app);
+                        } else if shortcut == &search {
+                            tray::show_search(app);
                         }
                     })
                     .build(),
             )?;
-            if let Err(e) = app.global_shortcut().register(toggle) {
-                eprintln!("lapacho: could not register Ctrl+Shift+Alt+L: {e}");
+            for (sc, name) in [(toggle, "Ctrl+Shift+Alt+L"), (search, "Ctrl+Shift+Alt+V")] {
+                if let Err(e) = app.global_shortcut().register(sc) {
+                    eprintln!("lapacho: could not register {name}: {e}");
+                }
             }
 
             Ok(())
