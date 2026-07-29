@@ -69,6 +69,26 @@ History search implemented; English translation complete. Sensitivity: long hex 
   (`src-tauri/src/images.rs`), `<img>` in list/modal and **per-item icon in the
   tray**, paste back with `set_image`. Needs GUI testing.
 - [x] Optimize wasm for release (`trunk build --release`): **~406 KB** (from ~2.9 MB dev unoptimized). JS glue ~37 KB. `mermaid.min.js` ~3.2 MB remains separate vendored asset. Release artifacts in `apps/desktop/ui/dist/`. Use for final `cargo tauri build`. (done 2026-06-22)
+- [x] **Título + pin por item** (2026-07-28): 🏷 pone un nombre editable inline (Enter guarda,
+  Esc cancela), cifrado en disco igual que el contenido, e incluido en `search()` — se encuentra
+  el item por lo que *es*, no por lo que dice. 📍/📌 lo marca persistente: exento del cap de
+  100 items de `cleanup()`, y sin consumir slot (pinnear no desaloja al resto). Título y pin son
+  independientes a propósito: *pin sin título* es el caso común ("esto no lo pierdas").
+  **El pin NO es un override de `PersistLevel`**: en modo Paranoia un item sensible nunca llegó
+  al disco, así que pinnearlo solo lo sostiene en memoria esta sesión; y un `Credential`/`Secret`
+  pinneado **igual expira por TTL** — esa garantía no es una preferencia del usuario.
+  Cierra el debate de "pin / guardar en historial" de `docs/ARQUITECTURA_REFACTOREO.md:542`.
+  Tags múltiples: no, hasta que buscar por título se quede corto. *Falta prueba GUI real.*
+- [x] **Bóveda por item** (2026-07-28, decisión explícita del usuario): 💾 fuerza a disco un item
+  que el `PersistLevel` activo rechaza, y lo exime del TTL de sensibles. **Es la única
+  perforación deliberada de la política de persistencia**, y solo se abre por item y por acto
+  explícito. Activar no puede ser un `UPDATE` (en Paranoia el item nunca se escribió): pasa por
+  `save()` con el flag ya puesto. Desactivar **re-aplica el nivel activo en el acto** — si el
+  nivel lo prohíbe, se borra del disco ya, no en el próximo `cleanup()`. En items sensibles el
+  botón se arma primero (💾 → ⚠ → confirma) para que un secreto no quede en disco por un click
+  de más. `PersistLevel::persists()` es la única fuente de la regla, usada por `save` y por el
+  des-vaulteo, para que no diverjan. Las etiquetas del selector dicen "salvo bóveda": el modo ya
+  no promete lo que no cumple. *Falta prueba GUI real.*
 
 ### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
 - [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).

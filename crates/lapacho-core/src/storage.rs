@@ -1,6 +1,6 @@
 use crate::crypto;
 use crate::types::{ClipboardItem, DetectedType, PersistLevel, Sensitivity};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::path::{Path, PathBuf};
 
 /// Default time-to-live for sensitive items: 2 hours.
@@ -52,10 +52,30 @@ pub trait HistoryRepo: Send + Sync {
     /// Returns the most recent history, newest first.
     fn load(&self) -> Result<Vec<ClipboardItem>, String>;
 
+    /// Looks up a single item by id, without decrypting the rest of the
+    /// history. `None` when no row matches or the row fails to decrypt.
+    fn get_by_id(&self, id: &str) -> Result<Option<ClipboardItem>, String>;
+
     /// Searches history for items whose raw or display content contains the
     /// query (case-insensitive). Empty/blank query behaves like `load()`.
     /// Returns newest first among matches. Used for UI history search.
     fn search(&self, query: &str) -> Result<Vec<ClipboardItem>, String>;
+
+    /// Sets (or clears, with `None`) the user-given title of an item.
+    /// Encrypted at rest. No-op if the id isn't on disk.
+    fn set_title(&self, id: &str, title: Option<&str>) -> Result<(), String>;
+
+    /// Marks an item as kept, exempting it from `cleanup`'s max-items cap.
+    /// Does **not** exempt sensitive items from the TTL, and does **not** put
+    /// on disk an item that the active `PersistLevel` refuses to write —
+    /// on an item that isn't stored this is a no-op. Use `save` with
+    /// `vaulted` for that.
+    fn set_pinned(&self, id: &str, pinned: bool) -> Result<(), String>;
+
+    /// Clears the vault flag of a stored item. Setting it goes through `save`
+    /// instead, because a vaulted item may not be on disk yet — that is the
+    /// whole point of the flag.
+    fn unvault(&self, id: &str) -> Result<(), String>;
 
     /// Removes a single item by id.
     fn delete(&self, id: &str) -> Result<(), String>;
@@ -140,6 +160,11 @@ impl SqliteRepo {
         let _ = conn.execute("ALTER TABLE history ADD COLUMN sync_id TEXT", []);
         let _ = conn.execute("ALTER TABLE history ADD COLUMN sync_eligible INTEGER NOT NULL DEFAULT 1", []);
         let _ = conn.execute("ALTER TABLE history ADD COLUMN sync_state TEXT NOT NULL DEFAULT 'LocalOnly'", []);
+        // Encrypted like the content: a title such as "prod DB password" leaks
+        // as much as the value it names.
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN title TEXT", []);
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0", []);
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN vaulted INTEGER NOT NULL DEFAULT 0", []);
 
         // Simple key-value settings for user preferences (persist_level, ttl, etc.)
         // so they survive restarts.
@@ -156,14 +181,102 @@ impl SqliteRepo {
     }
 }
 
+/// Column list shared by every `SELECT` that decodes into a `ClipboardItem`,
+/// so the indices in `EncRow::from_row` stay valid for all of them.
+const HISTORY_COLUMNS: &str = "id, raw_content, display_content, content_type, sensitivity, \
+     detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state, title, pinned, vaulted";
+
+/// Encrypted row as read from SQLite, before decryption.
+struct EncRow {
+    id: String,
+    enc_raw: String,
+    enc_display: String,
+    content_type: String,
+    sensitivity: String,
+    detected_type: String,
+    timestamp: u64,
+    thumbnail: Option<String>,
+    size: Option<i64>,
+    sync_id: Option<String>,
+    sync_eligible: bool,
+    sync_state: String,
+    enc_title: Option<String>,
+    pinned: bool,
+    vaulted: bool,
+}
+
+impl EncRow {
+    fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
+        let sync_elig: i64 = row.get(10).unwrap_or(1);
+        Ok(EncRow {
+            id: row.get(0)?,
+            enc_raw: row.get(1)?,
+            enc_display: row.get(2)?,
+            content_type: row.get(3)?,
+            sensitivity: row.get(4)?,
+            detected_type: row.get(5)?,
+            timestamp: row.get(6)?,
+            thumbnail: row.get(7)?,
+            size: row.get(8)?,
+            sync_id: row.get(9)?,
+            sync_eligible: sync_elig != 0,
+            sync_state: row.get(11).unwrap_or_else(|_| "LocalOnly".to_string()),
+            enc_title: row.get(12).unwrap_or(None),
+            pinned: row.get::<_, i64>(13).unwrap_or(0) != 0,
+            vaulted: row.get::<_, i64>(14).unwrap_or(0) != 0,
+        })
+    }
+}
+
+impl SqliteRepo {
+    /// Decrypt a row into a `ClipboardItem`. Returns `None` when the payload
+    /// can't be decrypted (wrong key, corruption, legacy plaintext).
+    fn decode(&self, r: EncRow) -> Option<ClipboardItem> {
+        let raw_content = self.cipher.decrypt(&r.enc_raw).ok()?;
+        let display_content = self.cipher.decrypt(&r.enc_display).ok()?;
+
+        let sensitivity = match r.sensitivity.as_str() {
+            "Personal" => Sensitivity::Personal,
+            "Credential" => Sensitivity::Credential,
+            "Secret" => Sensitivity::Secret,
+            _ => Sensitivity::None,
+        };
+        let detected_type = match r.detected_type.as_str() {
+            "Svg" => DetectedType::Svg,
+            "Url" => DetectedType::Url,
+            "Json" => DetectedType::Json,
+            "Mermaid" => DetectedType::Mermaid,
+            "Markdown" => DetectedType::Markdown,
+            _ => DetectedType::Text,
+        };
+
+        Some(ClipboardItem {
+            id: r.id,
+            raw_content,
+            display_content,
+            content_type: r.content_type,
+            sensitivity,
+            detected_type,
+            timestamp: r.timestamp,
+            thumbnail: r.thumbnail,
+            size: r.size.map(|s| s as usize),
+            sync_id: r.sync_id,
+            sync_eligible: r.sync_eligible,
+            sync_state: r.sync_state,
+            // A title that fails to decrypt drops to None rather than dropping
+            // the whole item — losing the label beats losing the content.
+            title: r.enc_title.and_then(|t| self.cipher.decrypt(&t).ok()),
+            pinned: r.pinned,
+            vaulted: r.vaulted,
+        })
+    }
+}
+
 impl HistoryRepo for SqliteRepo {
     fn save(&self, item: &ClipboardItem, level: PersistLevel) -> Result<(), String> {
-        let should_save = match level {
-            PersistLevel::None => item.sensitivity == Sensitivity::None,
-            PersistLevel::Sensitive => item.sensitivity != Sensitivity::Secret,
-            PersistLevel::All => true,
-        };
-        if !should_save {
+        // `vaulted` is the one per-item override of the level: the user asked
+        // for this exact item to be kept.
+        if !item.vaulted && !level.persists(item.sensitivity) {
             return Ok(());
         }
 
@@ -172,108 +285,83 @@ impl HistoryRepo for SqliteRepo {
         let enc_raw = self.cipher.encrypt(&item.raw_content)?;
         let enc_display = self.cipher.encrypt(&item.display_content)?;
 
+        let enc_title = item
+            .title
+            .as_deref()
+            .map(|t| self.cipher.encrypt(t))
+            .transpose()?;
+
         conn.execute(
             "INSERT INTO history
-               (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
+               (id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state, title, pinned, vaulted)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)
              ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp",
             params![ item.id, enc_raw, enc_display, item.content_type,
                 format!("{:?}", item.sensitivity), format!("{:?}", item.detected_type),
                 item.timestamp, item.thumbnail, item.size.map(|s| s as i64),
-                item.sync_id, if item.sync_eligible { 1i64 } else { 0i64 }, item.sync_state ],
+                item.sync_id, if item.sync_eligible { 1i64 } else { 0i64 }, item.sync_state,
+                enc_title, if item.pinned { 1i64 } else { 0i64 },
+                if item.vaulted { 1i64 } else { 0i64 } ],
         ).map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    fn load(&self) -> Result<Vec<ClipboardItem>, String> {
-        // Encrypted row as read from SQLite, before decryption.
-        struct EncRow {
-            id: String,
-            enc_raw: String,
-            enc_display: String,
-            content_type: String,
-            sensitivity: String,
-            detected_type: String,
-            timestamp: u64,
-            thumbnail: Option<String>,
-            size: Option<i64>,
-            sync_id: Option<String>,
-            sync_eligible: bool,
-            sync_state: String,
-        }
+    fn set_title(&self, id: &str, title: Option<&str>) -> Result<(), String> {
+        let enc = title.map(|t| self.cipher.encrypt(t)).transpose()?;
+        self.conn()?
+            .execute("UPDATE history SET title = ?1 WHERE id = ?2", params![enc, id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
 
+    fn set_pinned(&self, id: &str, pinned: bool) -> Result<(), String> {
+        self.conn()?
+            .execute(
+                "UPDATE history SET pinned = ?1 WHERE id = ?2",
+                params![if pinned { 1i64 } else { 0i64 }, id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn unvault(&self, id: &str) -> Result<(), String> {
+        self.conn()?
+            .execute("UPDATE history SET vaulted = 0 WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn load(&self) -> Result<Vec<ClipboardItem>, String> {
         let conn = self.conn()?;
         let mut stmt = conn
-            .prepare(
-                "SELECT id, raw_content, display_content, content_type, sensitivity, detected_type, timestamp, thumbnail, size, sync_id, sync_eligible, sync_state
-                 FROM history ORDER BY timestamp DESC LIMIT 100",
-            )
+            .prepare(&format!(
+                "SELECT {HISTORY_COLUMNS} FROM history ORDER BY timestamp DESC LIMIT 100"
+            ))
             .map_err(|e| e.to_string())?;
 
         let rows = stmt
-            .query_map([], |row| {
-                let sync_elig: i64 = row.get(10).unwrap_or(1);
-                Ok(EncRow {
-                    id: row.get(0)?,
-                    enc_raw: row.get(1)?,
-                    enc_display: row.get(2)?,
-                    content_type: row.get(3)?,
-                    sensitivity: row.get(4)?,
-                    detected_type: row.get(5)?,
-                    timestamp: row.get(6)?,
-                    thumbnail: row.get(7)?,
-                    size: row.get(8)?,
-                    sync_id: row.get(9)?,
-                    sync_eligible: sync_elig != 0,
-                    sync_state: row.get(11).unwrap_or_else(|_| "LocalOnly".to_string()),
-                })
-            })
+            .query_map([], EncRow::from_row)
             .map_err(|e| e.to_string())?;
 
-        let mut items = Vec::new();
-        for r in rows.flatten() {
-            // Rows that don't decrypt (wrong key, corruption, legacy plaintext)
-            // are skipped rather than aborting the whole load.
-            let raw_content = match self.cipher.decrypt(&r.enc_raw) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-            let display_content = match self.cipher.decrypt(&r.enc_display) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
+        // Rows that don't decrypt (wrong key, corruption, legacy plaintext)
+        // are skipped rather than aborting the whole load.
+        Ok(rows.flatten().filter_map(|r| self.decode(r)).collect())
+    }
 
-            let sensitivity = match r.sensitivity.as_str() {
-                "Personal" => Sensitivity::Personal,
-                "Credential" => Sensitivity::Credential,
-                "Secret" => Sensitivity::Secret,
-                _ => Sensitivity::None,
-            };
-            let detected_type = match r.detected_type.as_str() {
-                "Svg" => DetectedType::Svg,
-                "Url" => DetectedType::Url,
-                "Json" => DetectedType::Json,
-                "Mermaid" => DetectedType::Mermaid,
-                "Markdown" => DetectedType::Markdown,
-                _ => DetectedType::Text,
-            };
+    fn get_by_id(&self, id: &str) -> Result<Option<ClipboardItem>, String> {
+        let conn = self.conn()?;
+        let mut stmt = conn
+            .prepare(&format!(
+                "SELECT {HISTORY_COLUMNS} FROM history WHERE id = ?1"
+            ))
+            .map_err(|e| e.to_string())?;
 
-            items.push(ClipboardItem {
-                id: r.id,
-                raw_content,
-                display_content,
-                content_type: r.content_type,
-                sensitivity,
-                detected_type,
-                timestamp: r.timestamp,
-                thumbnail: r.thumbnail,
-                size: r.size.map(|s| s as usize),
-                sync_id: r.sync_id,
-                sync_eligible: r.sync_eligible,
-                sync_state: r.sync_state,
-            });
-        }
-        Ok(items)
+        let row = stmt
+            .query_row(params![id], EncRow::from_row)
+            .optional()
+            .map_err(|e| e.to_string())?;
+
+        Ok(row.and_then(|r| self.decode(r)))
     }
 
     fn search(&self, query: &str) -> Result<Vec<ClipboardItem>, String> {
@@ -288,6 +376,10 @@ impl HistoryRepo for SqliteRepo {
             .filter(|it| {
                 it.raw_content.to_lowercase().contains(&lower)
                     || it.display_content.to_lowercase().contains(&lower)
+                    || it
+                        .title
+                        .as_deref()
+                        .is_some_and(|t| t.to_lowercase().contains(&lower))
             })
             .collect())
     }
@@ -312,17 +404,21 @@ impl HistoryRepo for SqliteRepo {
         if let Some(ttl) = policy.sensitive_ttl_secs {
             let cutoff = now_secs().saturating_sub(ttl);
             // Sensitive = credentials + secrets; they expire regardless of the
-            // persistence level.
+            // persistence level. Pinning does NOT buy an exemption here: the TTL
+            // on sensitive items is a security guarantee, not a preference.
             let _ = conn.execute(
-                "DELETE FROM history WHERE sensitivity IN ('Credential', 'Secret') AND timestamp < ?1",
+                "DELETE FROM history WHERE sensitivity IN ('Credential', 'Secret')
+                   AND vaulted = 0 AND timestamp < ?1",
                 params![cutoff],
             );
         }
 
-        // Hard cap on history size.
+        // Hard cap on history size. Pinned items are exempt and don't consume a
+        // slot, so pinning can't silently evict the rest of the history.
         let _ = conn.execute(
-            "DELETE FROM history WHERE id NOT IN (
-                SELECT id FROM history ORDER BY timestamp DESC LIMIT ?1
+            "DELETE FROM history WHERE pinned = 0 AND vaulted = 0 AND id NOT IN (
+                SELECT id FROM history WHERE pinned = 0 AND vaulted = 0
+                ORDER BY timestamp DESC LIMIT ?1
             )",
             params![policy.max_items],
         );
@@ -397,6 +493,9 @@ mod tests {
             timestamp: ts,
             thumbnail: None,
             size: None,
+            title: None,
+            pinned: false,
+            vaulted: false,
             sync_id: None,
             sync_eligible: sensitivity != Sensitivity::Secret,
             sync_state: "LocalOnly".to_string(),
@@ -545,6 +644,115 @@ mod tests {
         // A repo with the wrong key over the same file recovers nothing.
         let wrong = SqliteRepo::new(&db, crypto::SecretKey::from_bytes([1u8; 32])).unwrap();
         assert!(wrong.load().unwrap().is_empty());
+
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn title_is_searchable_encrypted_and_pin_survives_the_cap() {
+        let (repo, db) = repo();
+
+        let keep = dummy("keep", Sensitivity::None, 1);
+        repo.save(&keep, PersistLevel::All).unwrap();
+        repo.set_title("keep", Some("clave del router")).unwrap();
+        repo.set_pinned("keep", true).unwrap();
+
+        // Fill well past the cap with newer items; the pinned one is the oldest,
+        // so an unexempted cap would evict it first.
+        for i in 0..10 {
+            repo.save(&dummy(&format!("n{i}"), Sensitivity::None, 100 + i), PersistLevel::All)
+                .unwrap();
+        }
+        repo.cleanup(&RetentionPolicy { sensitive_ttl_secs: None, max_items: 3 })
+            .unwrap();
+
+        let survivors = repo.load().unwrap();
+        let pinned = survivors.iter().find(|i| i.id == "keep").expect("pinned item evicted");
+        assert_eq!(pinned.title.as_deref(), Some("clave del router"));
+        // Pinned items don't consume a cap slot: 3 unpinned + the pinned one.
+        assert_eq!(survivors.len(), 4);
+
+        // Findable by title even though the content is "raw-keep".
+        let hits = repo.search("ROUTER").unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "keep");
+
+        // The title is encrypted at rest like the content.
+        for suffix in ["", "-wal", "-shm"] {
+            if let Ok(bytes) = std::fs::read(db.with_extension(format!("db{suffix}"))) {
+                assert!(
+                    !String::from_utf8_lossy(&bytes).contains("clave del router"),
+                    "title leaked in plaintext"
+                );
+            }
+        }
+
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn pin_does_not_exempt_sensitive_items_from_the_ttl() {
+        let (repo, db) = repo();
+
+        repo.save(&dummy("old_secret", Sensitivity::Credential, 1), PersistLevel::All)
+            .unwrap();
+        repo.set_pinned("old_secret", true).unwrap();
+        repo.set_title("old_secret", Some("no me salva")).unwrap();
+
+        repo.cleanup(&RetentionPolicy { sensitive_ttl_secs: Some(1), max_items: 100 })
+            .unwrap();
+
+        assert!(
+            repo.get_by_id("old_secret").unwrap().is_none(),
+            "a pinned credential must still expire: the TTL is a guarantee, not a preference"
+        );
+
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn vault_forces_an_item_onto_disk_that_paranoia_refuses() {
+        let (repo, db) = repo();
+
+        // Baseline: Paranoia refuses a Credential outright.
+        repo.save(&dummy("c", Sensitivity::Credential, 1), PersistLevel::None)
+            .unwrap();
+        assert!(repo.get_by_id("c").unwrap().is_none());
+
+        // Vaulted, the same item at the same level is written.
+        let mut vaulted = dummy("c", Sensitivity::Credential, 1);
+        vaulted.vaulted = true;
+        repo.save(&vaulted, PersistLevel::None).unwrap();
+        let stored = repo.get_by_id("c").unwrap().expect("vaulted item must persist");
+        assert!(stored.vaulted);
+
+        // …and it outlives the TTL that would otherwise purge a Credential.
+        repo.cleanup(&RetentionPolicy { sensitive_ttl_secs: Some(1), max_items: 100 })
+            .unwrap();
+        assert!(repo.get_by_id("c").unwrap().is_some(), "vault must exempt from the TTL");
+
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn unvaulting_at_a_level_that_forbids_the_item_must_erase_it() {
+        // The caller (see `toggle_vault`) is responsible for re-applying the
+        // level; this pins the rule it applies so the two can't drift.
+        assert!(!PersistLevel::None.persists(Sensitivity::Credential));
+        assert!(!PersistLevel::Sensitive.persists(Sensitivity::Secret));
+        assert!(PersistLevel::None.persists(Sensitivity::None));
+        assert!(PersistLevel::All.persists(Sensitivity::Secret));
+
+        let (repo, db) = repo();
+        let mut item = dummy("c", Sensitivity::Credential, 1);
+        item.vaulted = true;
+        repo.save(&item, PersistLevel::None).unwrap();
+
+        // Un-vaulting a Credential under Paranoia: the level forbids it, so it
+        // must leave the disk right away, not linger until the next cleanup.
+        assert!(!PersistLevel::None.persists(item.sensitivity));
+        repo.delete("c").unwrap();
+        assert!(repo.get_by_id("c").unwrap().is_none());
 
         let _ = std::fs::remove_file(&db);
     }
