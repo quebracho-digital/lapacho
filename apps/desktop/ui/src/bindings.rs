@@ -32,6 +32,41 @@ pub fn render_mermaid(element_id: &str, code: &str) {
     render_mermaid_raw(element_id, code);
 }
 
+/// Label of the window this bundle is running in — `main` or `spotlight`.
+///
+/// Both windows load the same `index.html`, so this is what decides which UI
+/// to mount. One bundle, two faces: a second entry point would mean a second
+/// WASM download and a second copy of the app to keep in sync.
+/// Looked up dynamically through `Reflect`, never as a `#[wasm_bindgen]`
+/// import: a static import of a missing JS path fails at *instantiation*, which
+/// takes down the whole module — both windows, black screen, no UI at all.
+/// A lookup that can return `None` degrades to the main UI instead.
+pub fn window_label() -> String {
+    let global = js_sys::global();
+    // Tauri 2 exposes the label on its internals; the public API object is a
+    // wrapper around the same value. Internals first because it is a plain
+    // property, not a function call that could throw.
+    let from_internals = js_sys::Reflect::get(&global, &JsValue::from_str("__TAURI_INTERNALS__"))
+        .ok()
+        .and_then(|i| js_sys::Reflect::get(&i, &JsValue::from_str("metadata")).ok())
+        .and_then(|m| js_sys::Reflect::get(&m, &JsValue::from_str("currentWindow")).ok())
+        .and_then(|w| js_sys::Reflect::get(&w, &JsValue::from_str("label")).ok())
+        .and_then(|l| l.as_string());
+    if let Some(label) = from_internals {
+        return label;
+    }
+
+    js_sys::Reflect::get(&global, &JsValue::from_str("__TAURI__"))
+        .ok()
+        .and_then(|t| js_sys::Reflect::get(&t, &JsValue::from_str("window")).ok())
+        .and_then(|w| js_sys::Reflect::get(&w, &JsValue::from_str("getCurrentWindow")).ok())
+        .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
+        .and_then(|f| f.call0(&JsValue::NULL).ok())
+        .and_then(|w| js_sys::Reflect::get(&w, &JsValue::from_str("label")).ok())
+        .and_then(|l| l.as_string())
+        .unwrap_or_else(|| "main".to_string())
+}
+
 /// Turn a rejected-promise value into a readable error string.
 fn js_err(v: JsValue) -> String {
     serde_wasm_bindgen::from_value::<String>(v.clone())
@@ -115,6 +150,18 @@ pub async fn copy_item(id: &str) -> Result<(), String> {
         .map_err(js_err)
 }
 
+/// Copies the clip and closes the quick-search window in one call.
+pub async fn pick_item(id: &str) -> Result<(), String> {
+    invoke("pick_item", args(&IdArgs { id }))
+        .await
+        .map(|_| ())
+        .map_err(js_err)
+}
+
+pub async fn hide_spotlight() {
+    let _ = invoke("hide_spotlight", JsValue::NULL).await;
+}
+
 pub async fn mark_secret(id: &str) -> Result<(), String> {
     invoke("mark_secret", args(&IdArgs { id }))
         .await
@@ -162,11 +209,12 @@ pub async fn clear_history() -> Result<(), String> {
         .map_err(js_err)
 }
 
-pub async fn set_persist_level(level: &str) -> Result<(), String> {
-    invoke("set_persist_level", args(&LevelArgs { level }))
+/// Returns how many stored items the new level forbade and therefore deleted.
+pub async fn set_persist_level(level: &str) -> Result<usize, String> {
+    let v = invoke("set_persist_level", args(&LevelArgs { level }))
         .await
-        .map(|_| ())
-        .map_err(js_err)
+        .map_err(js_err)?;
+    Ok(serde_wasm_bindgen::from_value(v).unwrap_or(0))
 }
 
 pub async fn set_sensitive_ttl(secs: Option<u64>) -> Result<(), String> {

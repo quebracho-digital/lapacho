@@ -172,7 +172,7 @@ fn build_menu(app: &AppHandle, items: &[ClipboardItem]) -> tauri::Result<Menu<Wr
     let separator = PredefinedMenuItem::separator(app)?;
     // A native GTK/AppIndicator menu can't host a text field, so the tray
     // can't search in place: this opens the window with the search box focused.
-    let search = MenuItem::with_id(app, ID_SEARCH, "Buscar…", true, None::<&str>)?;
+    let search = MenuItem::with_id(app, ID_SEARCH, "Buscar…  (Ctrl+Shift+Alt+V)", true, None::<&str>)?;
     let open = MenuItem::with_id(app, ID_OPEN, "Open Lapacho…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, ID_QUIT, "Quit", true, None::<&str>)?;
     builder
@@ -255,6 +255,25 @@ pub fn show_main(app: &AppHandle) {
     crate::request_history_refresh(app);
 }
 
+/// Opens the frameless quick-search window — search box plus the matching
+/// clips, nothing else.
+///
+/// It is a separate window because it is declared `alwaysOnTop`, so it never
+/// cedes stacking and the WM has nothing to refuse; the main window has to
+/// beg for a raise (see [`raise`]) precisely because it does not. Falls back
+/// to the main window if the spotlight one is missing.
+pub fn show_search(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("spotlight") else {
+        show_main(app);
+        crate::request_search_focus(app);
+        return;
+    };
+    let _ = window.center();
+    let _ = window.show();
+    let _ = window.set_focus();
+    crate::request_search_focus(app);
+}
+
 /// Brings the window to the front and gives it keyboard focus.
 ///
 /// `show` + `set_focus` alone is not enough: a hidden window can also be
@@ -271,9 +290,27 @@ pub fn show_main(app: &AppHandle) {
 fn raise(window: &tauri::WebviewWindow) {
     let _ = window.unminimize();
     let _ = window.show();
+    // Hold the stacking request while the WM catches up. `set_focus` alone is
+    // ignored by focus-stealing prevention, and a `show()` that hasn't been
+    // mapped yet drops it too — so we re-ask a few times and only drop
+    // always-on-top once focus has had a chance to land. Dropping it in the
+    // same tick (the previous version) undid the one hint Muffin honours.
     let _ = window.set_always_on_top(true);
     let _ = window.set_focus();
-    let _ = window.set_always_on_top(false);
+
+    let w = window.clone();
+    std::thread::spawn(move || {
+        for delay in [60, 150, 300] {
+            std::thread::sleep(std::time::Duration::from_millis(delay));
+            if w.is_focused().unwrap_or(false) {
+                break;
+            }
+            let _ = w.set_focus();
+        }
+        // Give up the stacking override either way: staying on top forever is
+        // worse than the occasional missed raise.
+        let _ = w.set_always_on_top(false);
+    });
 }
 
 /// Toggles the main window's visibility — bound to the global shortcut.
@@ -299,10 +336,7 @@ pub fn toggle_main(app: &AppHandle) {
 fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         ID_OPEN => show_main(app),
-        ID_SEARCH => {
-            show_main(app);
-            crate::request_search_focus(app);
-        }
+        ID_SEARCH => show_search(app),
         ID_QUIT => app.exit(0),
         ID_EMPTY => {}
         item_id => {

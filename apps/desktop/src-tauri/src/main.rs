@@ -258,13 +258,18 @@ fn get_persist_level(state: State<'_, AppState>) -> String {
 /// Updates the persistence policy and runs a cleanup pass with the current
 /// retention policy.
 #[tauri::command]
-fn set_persist_level(level: String, state: State<'_, AppState>) -> Result<(), String> {
+fn set_persist_level(level: String, state: State<'_, AppState>) -> Result<usize, String> {
     let lvl = persist_level_from_str(&level);
     *state.persist_level.lock().unwrap() = lvl;
     // Persist the choice so it survives restart.
     let _ = state.repo.set_preference("persist_level", &persist_level_to_str(lvl));
+    // Apply the new level to what is *already* on disk, not just to future
+    // writes. Without this, picking Paranoia leaves every secret written under
+    // a laxer level sitting there, under a label saying it is not kept.
+    let purged = state.repo.purge_forbidden(lvl)?;
     let policy = *state.retention.lock().unwrap();
-    state.repo.cleanup(&policy)
+    state.repo.cleanup(&policy)?;
+    Ok(purged)
 }
 
 /// Returns the current TTL (in seconds) after which sensitive items are purged,
@@ -331,6 +336,23 @@ pub(crate) fn copy_raw(id: &str, state: &AppState) -> Result<(), String> {
 #[tauri::command]
 fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
     copy_raw(&id, &state)
+}
+
+/// Copies the item and dismisses the quick-search window in one step — the
+/// whole point of the launcher is that picking a clip ends the interaction.
+#[tauri::command]
+fn pick_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    copy_raw(&id, &state)?;
+    hide_spotlight(app);
+    Ok(())
+}
+
+/// Dismisses the quick-search window (Esc, or after picking a clip).
+#[tauri::command]
+fn hide_spotlight(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("spotlight") {
+        let _ = w.hide();
+    }
 }
 
 /// User says "this is a secret". Remembers the choice (keyed by content id, so
@@ -917,19 +939,32 @@ fn main() {
                 Some(Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::ALT),
                 Code::KeyL,
             );
+            // Dedicated search shortcut: always opens (never toggles shut) and
+            // lands the cursor in the box, so the muscle memory is "V = find a
+            // clip" without the risk of hiding the window you just asked for.
+            let search = Shortcut::new(
+                Some(Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::ALT),
+                Code::KeyV,
+            );
             let toggle_for_handler = toggle;
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
                     .with_handler(move |app, shortcut, event| {
-                        if event.state == ShortcutState::Pressed && shortcut == &toggle_for_handler
-                        {
+                        if event.state != ShortcutState::Pressed {
+                            return;
+                        }
+                        if shortcut == &toggle_for_handler {
                             tray::toggle_main(app);
+                        } else if shortcut == &search {
+                            tray::show_search(app);
                         }
                     })
                     .build(),
             )?;
-            if let Err(e) = app.global_shortcut().register(toggle) {
-                eprintln!("lapacho: could not register Ctrl+Shift+Alt+L: {e}");
+            for (sc, name) in [(toggle, "Ctrl+Shift+Alt+L"), (search, "Ctrl+Shift+Alt+V")] {
+                if let Err(e) = app.global_shortcut().register(sc) {
+                    eprintln!("lapacho: could not register {name}: {e}");
+                }
             }
 
             Ok(())
@@ -937,9 +972,18 @@ fn main() {
         .on_window_event(|window, event| {
             // Launch-to-tray app: closing the window hides it instead of
             // quitting, so Lapacho keeps watching the clipboard in the tray.
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+                // A launcher that stays up after you click elsewhere is just a
+                // window in the way. Only the spotlight behaves this way — the
+                // main window is a normal window you leave open on purpose.
+                tauri::WindowEvent::Focused(false) if window.label() == "spotlight" => {
+                    let _ = window.hide();
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -952,6 +996,8 @@ fn main() {
             get_sensitive_ttl,
             set_sensitive_ttl,
             copy_item,
+            pick_item,
+            hide_spotlight,
             mark_secret,
             set_item_title,
             toggle_pin,
