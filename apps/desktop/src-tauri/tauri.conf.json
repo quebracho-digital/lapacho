@@ -6,8 +6,14 @@
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": { "cwd": "../ui", "script": "env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always trunk serve" },
-    "beforeBuildCommand": { "cwd": "../ui", "script": "env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always trunk build --release" }
+    "beforeDevCommand": {
+      "cwd": "../ui",
+      "script": "env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always trunk serve"
+    },
+    "beforeBuildCommand": {
+      "cwd": "../ui",
+      "script": "env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always trunk build --release"
+    }
   },
   "app": {
     "withGlobalTauri": true,
@@ -19,6 +25,19 @@
         "height": 660,
         "resizable": true,
         "visible": false
+      },
+      {
+        "label": "spotlight",
+        "title": "Buscar en Lapacho",
+        "url": "index.html",
+        "width": 620,
+        "height": 420,
+        "visible": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": true,
+        "resizable": false
       }
     ],
     "security": {
