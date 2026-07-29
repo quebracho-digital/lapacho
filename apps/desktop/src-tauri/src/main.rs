@@ -874,10 +874,91 @@ fn mitigate_webkit_blank_window() {
 #[cfg(not(target_os = "linux"))]
 fn mitigate_webkit_blank_window() {}
 
+/// Routes SIGTERM/SIGINT through Tauri's own shutdown instead of the default
+/// "die immediately" disposition.
+///
+/// Dying with the tray's StatusNotifierItem still registered leaves
+/// `xapp-sn-watcher` holding a proxy to a name that will never reply. Cinnamon
+/// keeps that dead `GDBusProxy` on the GJS heap with its `g-properties-changed`
+/// handlers attached; when the GC later sweeps it, it tries to call back into
+/// JS mid-sweep and blocks `paint()` — the compositor stops drawing and the
+/// screen goes black until something forces a full repaint.
+///
+/// Signals are blocked process-wide first so no other thread can take one and
+/// terminate on our behalf; a dedicated thread then waits for them. This must
+/// run before any thread is spawned, since the mask is inherited.
+///
+/// ponytail: `sigwait` on a blocked set rather than a `signal()` handler,
+/// because a handler may only call async-signal-safe functions and
+/// `AppHandle::exit` is nowhere near that. SIGKILL is still unfixable by
+/// design — nothing runs on `kill -9`.
+/// The signals we take over, in one place so the mask and the wait cannot
+/// disagree about which ones they cover.
+unsafe fn shutdown_sigset() -> libc::sigset_t {
+    let mut set: libc::sigset_t = std::mem::zeroed();
+    libc::sigemptyset(&mut set);
+    libc::sigaddset(&mut set, libc::SIGTERM);
+    libc::sigaddset(&mut set, libc::SIGINT);
+    libc::sigaddset(&mut set, libc::SIGHUP);
+    set
+}
+
+/// Blocks the shutdown signals process-wide. **Must be the first thing `main`
+/// does**: the mask is only inherited by threads spawned afterwards, so any
+/// thread that already exists keeps its default disposition and will terminate
+/// the process the moment a signal lands — the exact bug this used to have,
+/// when the call sat after `Builder::build`.
+fn block_shutdown_signals() {
+    unsafe {
+        let set = shutdown_sigset();
+        libc::pthread_sigmask(libc::SIG_BLOCK, &set, std::ptr::null_mut());
+    }
+}
+
+/// Takes the tray icon off DBus, lets the main loop actually deliver that,
+/// and only then asks Tauri to exit.
+///
+/// The delay is the whole point. Removing the tray in `RunEvent::Exit` is too
+/// late: by then the GTK main loop is tearing down and the unregister message
+/// never reaches the bus, so `xapp-sn-watcher` is left calling a name that
+/// will never answer (`NoReply`) — which is what strands a dead `GDBusProxy`
+/// on Cinnamon's GJS heap and eventually blocks `paint()` mid-GC.
+///
+/// ponytail: a fixed 300ms wait instead of watching for the bus to confirm
+/// the removal. Tauri exposes no such acknowledgement; if this proves flaky,
+/// the upgrade is to own the StatusNotifierItem directly (ksni) rather than
+/// to grow the timeout.
+pub(crate) fn shutdown(app: &AppHandle) {
+    let _ = app.remove_tray_by_id(tray::TRAY_ID);
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        handle.exit(0);
+    });
+}
+
+/// Waits for a blocked shutdown signal and routes it through [`shutdown`]
+/// instead of letting the default disposition kill the process outright.
+fn spawn_signal_waiter(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let mut sig: libc::c_int = 0;
+        let ok = unsafe {
+            let set = shutdown_sigset();
+            libc::sigwait(&set, &mut sig) == 0
+        };
+        if ok {
+            eprintln!("lapacho: signal {sig}, shutting down cleanly");
+            shutdown(&app);
+        }
+    });
+}
+
 fn main() {
+    // First statement on purpose — see `block_shutdown_signals`.
+    block_shutdown_signals();
     harden_process();
     mitigate_webkit_blank_window();
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
@@ -1006,8 +1087,20 @@ fn main() {
             list_plugins,
             run_plugin
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running the Lapacho desktop app");
+
+    spawn_signal_waiter(app.handle().clone());
+
+    app.run(|handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            // Unregister the tray icon *before* the process goes away, so the
+            // StatusNotifierItem leaves the bus with a live connection to
+            // answer on. See `install_signal_shutdown` for what a dirty exit
+            // does to Cinnamon's compositor.
+            let _ = handle.remove_tray_by_id(tray::TRAY_ID);
+        }
+    });
 }
 
 #[cfg(test)]

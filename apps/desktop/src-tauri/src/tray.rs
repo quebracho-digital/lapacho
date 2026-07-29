@@ -337,7 +337,8 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         ID_OPEN => show_main(app),
         ID_SEARCH => show_search(app),
-        ID_QUIT => app.exit(0),
+        // Same path as a SIGTERM: the tray has to leave the bus before we go.
+        ID_QUIT => crate::shutdown(app),
         ID_EMPTY => {}
         item_id => {
             let state = app.state::<AppState>();
