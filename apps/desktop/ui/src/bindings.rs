@@ -19,9 +19,6 @@ extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "event"], catch)]
     async fn listen(event: &str, handler: &js_sys::Function) -> Result<JsValue, JsValue>;
 
-    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "window"], js_name = getCurrentWindow)]
-    fn get_current_window() -> JsValue;
-
     // `window.renderMermaid(elementId, code)` is defined in index.html. It is a
     // no-op if the mermaid bundle failed to load, so calling it is always safe.
     #[wasm_bindgen(js_namespace = window, js_name = renderMermaid)]
@@ -40,10 +37,33 @@ pub fn render_mermaid(element_id: &str, code: &str) {
 /// Both windows load the same `index.html`, so this is what decides which UI
 /// to mount. One bundle, two faces: a second entry point would mean a second
 /// WASM download and a second copy of the app to keep in sync.
+/// Looked up dynamically through `Reflect`, never as a `#[wasm_bindgen]`
+/// import: a static import of a missing JS path fails at *instantiation*, which
+/// takes down the whole module — both windows, black screen, no UI at all.
+/// A lookup that can return `None` degrades to the main UI instead.
 pub fn window_label() -> String {
-    js_sys::Reflect::get(&get_current_window(), &JsValue::from_str("label"))
+    let global = js_sys::global();
+    // Tauri 2 exposes the label on its internals; the public API object is a
+    // wrapper around the same value. Internals first because it is a plain
+    // property, not a function call that could throw.
+    let from_internals = js_sys::Reflect::get(&global, &JsValue::from_str("__TAURI_INTERNALS__"))
         .ok()
-        .and_then(|v| v.as_string())
+        .and_then(|i| js_sys::Reflect::get(&i, &JsValue::from_str("metadata")).ok())
+        .and_then(|m| js_sys::Reflect::get(&m, &JsValue::from_str("currentWindow")).ok())
+        .and_then(|w| js_sys::Reflect::get(&w, &JsValue::from_str("label")).ok())
+        .and_then(|l| l.as_string());
+    if let Some(label) = from_internals {
+        return label;
+    }
+
+    js_sys::Reflect::get(&global, &JsValue::from_str("__TAURI__"))
+        .ok()
+        .and_then(|t| js_sys::Reflect::get(&t, &JsValue::from_str("window")).ok())
+        .and_then(|w| js_sys::Reflect::get(&w, &JsValue::from_str("getCurrentWindow")).ok())
+        .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
+        .and_then(|f| f.call0(&JsValue::NULL).ok())
+        .and_then(|w| js_sys::Reflect::get(&w, &JsValue::from_str("label")).ok())
+        .and_then(|l| l.as_string())
         .unwrap_or_else(|| "main".to_string())
 }
 
