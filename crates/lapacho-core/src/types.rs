@@ -10,6 +10,17 @@ pub enum Sensitivity {
     Secret,
 }
 
+impl Sensitivity {
+    /// Every variant, so policy code can ask `persists` about each one instead
+    /// of hard-coding which levels forbid which names in SQL.
+    pub const ALL: [Sensitivity; 4] = [
+        Sensitivity::None,
+        Sensitivity::Personal,
+        Sensitivity::Credential,
+        Sensitivity::Secret,
+    ];
+}
+
 /// Detected content type (for rendering and plugin filtering).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum DetectedType {

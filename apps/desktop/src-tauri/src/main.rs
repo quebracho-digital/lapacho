@@ -258,13 +258,18 @@ fn get_persist_level(state: State<'_, AppState>) -> String {
 /// Updates the persistence policy and runs a cleanup pass with the current
 /// retention policy.
 #[tauri::command]
-fn set_persist_level(level: String, state: State<'_, AppState>) -> Result<(), String> {
+fn set_persist_level(level: String, state: State<'_, AppState>) -> Result<usize, String> {
     let lvl = persist_level_from_str(&level);
     *state.persist_level.lock().unwrap() = lvl;
     // Persist the choice so it survives restart.
     let _ = state.repo.set_preference("persist_level", &persist_level_to_str(lvl));
+    // Apply the new level to what is *already* on disk, not just to future
+    // writes. Without this, picking Paranoia leaves every secret written under
+    // a laxer level sitting there, under a label saying it is not kept.
+    let purged = state.repo.purge_forbidden(lvl)?;
     let policy = *state.retention.lock().unwrap();
-    state.repo.cleanup(&policy)
+    state.repo.cleanup(&policy)?;
+    Ok(purged)
 }
 
 /// Returns the current TTL (in seconds) after which sensitive items are purged,

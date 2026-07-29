@@ -162,11 +162,12 @@ pub async fn clear_history() -> Result<(), String> {
         .map_err(js_err)
 }
 
-pub async fn set_persist_level(level: &str) -> Result<(), String> {
-    invoke("set_persist_level", args(&LevelArgs { level }))
+/// Returns how many stored items the new level forbade and therefore deleted.
+pub async fn set_persist_level(level: &str) -> Result<usize, String> {
+    let v = invoke("set_persist_level", args(&LevelArgs { level }))
         .await
-        .map(|_| ())
-        .map_err(js_err)
+        .map_err(js_err)?;
+    Ok(serde_wasm_bindgen::from_value(v).unwrap_or(0))
 }
 
 pub async fn set_sensitive_ttl(secs: Option<u64>) -> Result<(), String> {

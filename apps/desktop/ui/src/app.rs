@@ -117,6 +117,9 @@ fn extract_mermaid_code(raw: &str) -> String {
 pub fn App() -> impl IntoView {
     let (items, set_items) = signal(Vec::<UIClipboardItem>::new());
     let (persist, set_persist) = signal(String::from("none"));
+    // How many stored items the last level change deleted. Shown once, because
+    // a silent purge of real history is indistinguishable from a bug.
+    let (purged, set_purged) = signal(0usize);
     let (plugins, set_plugins) = signal(Vec::<PluginDef>::new());
     let (ttl, set_ttl) = signal(None::<u64>);
     let (detail, set_detail) = signal(None::<UIClipboardItem>);
@@ -213,7 +216,7 @@ pub fn App() -> impl IntoView {
         set_persist.set(level.clone());
         let q = search.get();
         spawn_local(async move {
-            let _ = bindings::set_persist_level(&level).await;
+            set_purged.set(bindings::set_persist_level(&level).await.unwrap_or(0));
             let res = if q.trim().is_empty() {
                 bindings::get_history().await
             } else {
@@ -293,6 +296,11 @@ pub fn App() -> impl IntoView {
                 />
             </label>
             <span class="spacer"></span>
+            {move || (purged.get() > 0).then(|| view! {
+                <span class="purged">
+                    {format!("🧹 {} item(s) borrados del disco por el nuevo nivel", purged.get())}
+                </span>
+            })}
             <button on:click=on_clear>"Clear history"</button>
         </div>
 
