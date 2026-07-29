@@ -335,7 +335,9 @@ impl HistoryRepo for SqliteRepo {
         let conn = self.conn()?;
         let mut stmt = conn
             .prepare(&format!(
-                "SELECT {HISTORY_COLUMNS} FROM history ORDER BY timestamp DESC LIMIT 100"
+                // Kept items float to the top, and the LIMIT can never drop them.
+                "SELECT {HISTORY_COLUMNS} FROM history \
+                 ORDER BY (pinned OR vaulted) DESC, timestamp DESC LIMIT 100"
             ))
             .map_err(|e| e.to_string())?;
 

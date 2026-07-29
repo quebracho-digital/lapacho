@@ -7,6 +7,7 @@
 
 use base64::Engine as _;
 use leptos::prelude::*;
+use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
@@ -164,6 +165,18 @@ pub fn App() -> impl IntoView {
         });
     }
 
+    // The tray's "Buscar…" entry: a native menu can't hold a text field, so the
+    // backend opens the window and asks us to put the cursor in the search box.
+    bindings::listen_event("focus-search", move |_evt| {
+        if let Some(el) = document()
+            .get_element_by_id("search-input")
+            .and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok())
+        {
+            let _ = el.focus();
+            el.select();
+        }
+    });
+
     // Live capture: prepend the emitted item (works for non-persisted live
     // items too). Update is queued via spawn_local so it runs inside the
     // task executor (avoids "outside Leptos runtime" reactivity issues).
@@ -272,6 +285,7 @@ pub fn App() -> impl IntoView {
             <label>
                 "Search: "
                 <input
+                    id="search-input"
                     type="text"
                     placeholder="filter history..."
                     prop:value=move || search.get()

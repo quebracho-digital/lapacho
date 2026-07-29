@@ -87,6 +87,8 @@ const POLL_INTERVAL: Duration = Duration::from_millis(250);
 const EVENT_NEW_ITEM: &str = "clipboard-new";
 /// Ask the UI to re-fetch history (window shown / live event fallback).
 const EVENT_HISTORY_REFRESH: &str = "history-refresh";
+/// Ask the UI to focus its search box (tray "Buscar…" entry).
+const EVENT_FOCUS_SEARCH: &str = "focus-search";
 
 /// Backend state shared between Tauri commands and the monitor thread.
 pub(crate) struct AppState {
@@ -156,7 +158,18 @@ fn merge_recent_and_db(state: &AppState) -> Result<Vec<ClipboardItem>, String> {
             break;
         }
     }
+    sort_for_display(&mut result);
     Ok(result)
+}
+
+/// The order the user sees in the list and the tray: items they asked to keep
+/// float to the top, everything else by recency.
+///
+/// Without this, pinning an old item does nothing visible — it stays buried at
+/// whatever position its timestamp puts it, which is the opposite of what "keep
+/// this one" means.
+pub(crate) fn sort_for_display(items: &mut [ClipboardItem]) {
+    items.sort_by_key(|i| (!(i.pinned || i.vaulted), std::cmp::Reverse(i.timestamp)));
 }
 
 /// Returns the live list: session buffer first, then DB (never includes `raw_content`).
@@ -208,6 +221,16 @@ pub(crate) fn request_history_refresh(app: &AppHandle) {
     }
     if let Err(e) = app.emit(EVENT_HISTORY_REFRESH, ()) {
         eprintln!("lapacho: failed to emit {EVENT_HISTORY_REFRESH}: {e}");
+    }
+}
+
+/// Tell the UI to put the cursor in the search box. Emitted after `show_main`
+/// by the tray's "Buscar…" entry, which can't hold a text field itself.
+pub(crate) fn request_search_focus(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        if let Err(e) = w.emit(EVENT_FOCUS_SEARCH, ()) {
+            eprintln!("lapacho: failed to emit {EVENT_FOCUS_SEARCH} to main: {e}");
+        }
     }
 }
 

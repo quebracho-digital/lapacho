@@ -101,6 +101,15 @@ History search implemented; English translation complete. Sensitivity: long hex 
 
 ### 🔐 Security
 
+- [ ] **(ALTA) Bajar el nivel de persistencia no purga lo que el nivel nuevo prohíbe.** El nivel
+  solo gobierna escrituras *nuevas*: pasar a Paranoia no borra lo que Balanced/All ya escribió, y
+  con `sensitive_ttl_secs=off` nada lo purga después — el TTL es el único mecanismo que lo haría.
+  Resultado: credenciales y secretos en disco mientras la UI dice "Paranoia". No es fuga de texto
+  plano (sigue cifrado con la master key); el problema es que la etiqueta te hace creer que ya no
+  están. Encontrado 2026-07-29 en la DB real: 22 sensibles en disco (5 Secret, 1 Credential,
+  16 Personal) con `persist_level=none`. Documentado en `CHANGELOG.md` con el SQL para revisar y
+  limpiar. **Fix**: al bajar de nivel, ofrecer purgar lo que el nivel nuevo prohíbe (respetando
+  pinned/vaulted, que son deliberados). Decidir si se ofrece o se hace solo.
 - [x] Replace the regex SVG sanitizer with a real parser (`ammonia`) — done.
 - [x] Long hex classification as Secret + distinction hints (see above).
 - [x] Password-heuristic gap: classifier required all 4 char classes
