@@ -32,6 +32,7 @@ const LABEL_MAX: usize = 50;
 // Reserved menu-item ids. History items use UUIDs, which never start with
 // `lapacho:`, so these can't collide.
 const ID_OPEN: &str = "lapacho:open";
+const ID_SEARCH: &str = "lapacho:search";
 const ID_QUIT: &str = "lapacho:quit";
 const ID_EMPTY: &str = "lapacho:empty";
 
@@ -128,6 +129,7 @@ fn get_tray_items(app: &AppHandle) -> Vec<ClipboardItem> {
         }
     }
 
+    crate::sort_for_display(&mut result);
     result
 }
 
@@ -168,9 +170,17 @@ fn build_menu(app: &AppHandle, items: &[ClipboardItem]) -> tauri::Result<Menu<Wr
     }
 
     let separator = PredefinedMenuItem::separator(app)?;
+    // A native GTK/AppIndicator menu can't host a text field, so the tray
+    // can't search in place: this opens the window with the search box focused.
+    let search = MenuItem::with_id(app, ID_SEARCH, "Buscar…", true, None::<&str>)?;
     let open = MenuItem::with_id(app, ID_OPEN, "Open Lapacho…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, ID_QUIT, "Quit", true, None::<&str>)?;
-    builder.item(&separator).item(&open).item(&quit).build()
+    builder
+        .item(&separator)
+        .item(&search)
+        .item(&open)
+        .item(&quit)
+        .build()
 }
 
 /// Rebuilds and installs the tray menu. Menu construction touches the platform
@@ -267,6 +277,10 @@ pub fn toggle_main(app: &AppHandle) {
 fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         ID_OPEN => show_main(app),
+        ID_SEARCH => {
+            show_main(app);
+            crate::request_search_focus(app);
+        }
         ID_QUIT => app.exit(0),
         ID_EMPTY => {}
         item_id => {
