@@ -179,6 +179,9 @@ fn search_history(query: String, state: State<'_, AppState>) -> Result<Vec<UICli
         .filter(|it| {
             it.raw_content.to_lowercase().contains(&q)
                 || it.display_content.to_lowercase().contains(&q)
+                // The point of a title: find the item by what it is, not by
+                // what it says. Kept in sync with `HistoryRepo::search`.
+                || it.title.as_deref().is_some_and(|t| t.to_lowercase().contains(&q))
         })
         .map(UIClipboardItem::from)
         .collect())
@@ -277,9 +280,7 @@ fn load_item(id: &str, state: &AppState) -> Result<ClipboardItem, String> {
     }
     state
         .repo
-        .load()?
-        .into_iter()
-        .find(|i| i.id == id)
+        .get_by_id(id)?
         .ok_or_else(|| "Item not found in history".to_string())
 }
 
@@ -351,6 +352,85 @@ fn mark_secret(id: String, app: AppHandle, state: State<'_, AppState>) -> Result
         request_history_refresh(&app);
     }
     Ok(())
+}
+
+/// Names an item so it can be found by what it is, not by its content. An empty
+/// title clears it.
+#[tauri::command]
+fn set_item_title(id: String, title: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let title = title.trim();
+    let title = (!title.is_empty()).then_some(title);
+    state.repo.set_title(&id, title)?;
+    {
+        let mut rec = state.tray_recent.lock().unwrap();
+        if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
+            slot.title = title.map(str::to_string);
+        }
+    }
+    tray::schedule_rebuild(&app);
+    request_history_refresh(&app);
+    Ok(())
+}
+
+/// "Keep this one": exempts the item from the history size cap. Returns the new
+/// state so the UI doesn't have to guess.
+///
+/// Deliberately *not* a persistence override: at the Paranoia level a sensitive
+/// item was never written to disk, so pinning it can only keep it for this
+/// session. Making the pin force a secret onto disk would turn a UI affordance
+/// into a hole in the persist policy.
+#[tauri::command]
+fn toggle_pin(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
+    let pinned = !load_item(&id, &state)?.pinned;
+    state.repo.set_pinned(&id, pinned)?;
+    {
+        let mut rec = state.tray_recent.lock().unwrap();
+        if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
+            slot.pinned = pinned;
+        }
+    }
+    tray::schedule_rebuild(&app);
+    request_history_refresh(&app);
+    Ok(pinned)
+}
+
+/// "Guardar en bóveda": the one per-item override of the persist level.
+///
+/// Turning it **on** cannot be an UPDATE: at the Paranoia level the item was
+/// never written, so there is no row to flag. It goes through `save` with
+/// `vaulted` already set, which forces the write.
+///
+/// Turning it **off** re-applies the active level immediately: if the level
+/// forbids the item, it leaves the disk right now rather than lingering until
+/// the next cleanup. Dropping the vault flag has to mean the item is gone, or
+/// "unvault" would be a promise the app keeps only eventually.
+#[tauri::command]
+fn toggle_vault(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
+    let mut item = load_item(&id, &state)?;
+    let level = *state.persist_level.lock().unwrap();
+    let vaulted = !item.vaulted;
+
+    if vaulted {
+        item.vaulted = true;
+        state.repo.save(&item, level)?;
+    } else if level.persists(item.sensitivity) {
+        // Still allowed at this level: keep the row, just drop the flag.
+        state.repo.unvault(&id)?;
+        item.vaulted = false;
+    } else {
+        state.repo.delete(&id)?;
+        item.vaulted = false;
+    }
+
+    {
+        let mut rec = state.tray_recent.lock().unwrap();
+        if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
+            slot.vaulted = vaulted;
+        }
+    }
+    tray::schedule_rebuild(&app);
+    request_history_refresh(&app);
+    Ok(vaulted)
 }
 
 /// Raw content prepared for save/export, plus the security findings to surface
@@ -850,6 +930,9 @@ fn main() {
             set_sensitive_ttl,
             copy_item,
             mark_secret,
+            set_item_title,
+            toggle_pin,
+            toggle_vault,
             export_item,
             list_plugins,
             run_plugin

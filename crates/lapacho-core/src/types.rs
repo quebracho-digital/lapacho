@@ -33,6 +33,23 @@ pub enum PersistLevel {
     All,
 }
 
+impl PersistLevel {
+    /// Whether an item of this sensitivity is written to disk at this level,
+    /// ignoring any per-item override.
+    ///
+    /// The single source of truth for the policy: `save` uses it to decide
+    /// whether to write, and un-vaulting uses it to decide whether the item may
+    /// stay. Two copies of this rule would drift into an item that survives a
+    /// level the user believes forbids it.
+    pub fn persists(self, sensitivity: Sensitivity) -> bool {
+        match self {
+            PersistLevel::None => sensitivity == Sensitivity::None,
+            PersistLevel::Sensitive => sensitivity != Sensitivity::Secret,
+            PersistLevel::All => true,
+        }
+    }
+}
+
 /// Raw clipboard item. `raw_content` must never be sent to the UI.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ClipboardItem {
@@ -51,6 +68,21 @@ pub struct ClipboardItem {
     pub thumbnail: Option<String>,
     /// Approximate size in bytes for images (PNG payload) so UI can show "peso".
     pub size: Option<usize>,
+    /// User-given name for the item, so it can be found by what it *is* rather
+    /// than by its content. Encrypted at rest like the content itself.
+    pub title: Option<String>,
+    /// User asked to keep this item: exempt from the max-items cap. Does
+    /// **not** override `PersistLevel` nor the sensitive TTL — for that, see
+    /// `vaulted`.
+    pub pinned: bool,
+    /// User explicitly put this item in the vault: it is written to disk even
+    /// when the active `PersistLevel` would refuse it, and it is exempt from
+    /// the sensitive TTL. Still encrypted at rest like everything else.
+    ///
+    /// This is the one deliberate hole in the persist policy, and it only
+    /// opens per item, by an explicit user act. Clearing it re-applies the
+    /// active level immediately (see `PersistLevel::persists`).
+    pub vaulted: bool,
     /// Sync placeholder fields for multi-device sync (P0-P4 mobile roadmap)
     pub sync_id: Option<String>,
     pub sync_eligible: bool,
@@ -70,6 +102,9 @@ pub struct UIClipboardItem {
     pub size: Option<usize>,
     /// 18x18 RGBA base64 thumbnail (for list previews or native icons if exposed).
     pub thumbnail: Option<String>,
+    pub title: Option<String>,
+    pub pinned: bool,
+    pub vaulted: bool,
 }
 
 impl From<ClipboardItem> for UIClipboardItem {
@@ -92,6 +127,9 @@ impl From<ClipboardItem> for UIClipboardItem {
             timestamp: item.timestamp,
             size: item.size,
             thumbnail: item.thumbnail,
+            title: item.title,
+            pinned: item.pinned,
+            vaulted: item.vaulted,
         }
     }
 }
@@ -147,6 +185,9 @@ mod tests {
             timestamp: 0,
             thumbnail: None,
             size: None,
+            title: None,
+            pinned: false,
+            vaulted: false,
             sync_id: None,
             sync_eligible: false,
             sync_state: "LocalOnly".to_string(),

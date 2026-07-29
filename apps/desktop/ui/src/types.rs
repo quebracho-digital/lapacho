@@ -66,6 +66,14 @@ pub struct UIClipboardItem {
     pub size: Option<usize>,
     /// Small thumbnail (for richer list display).
     pub thumbnail: Option<String>,
+    /// User-given name for the item.
+    #[serde(default)]
+    pub title: Option<String>,
+    /// Exempt from the history size cap.
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub vaulted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]

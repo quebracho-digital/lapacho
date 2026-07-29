@@ -125,6 +125,12 @@ pub fn App() -> impl IntoView {
     let (view_raw, set_view_raw) = signal(false);
     // Search query (client-side filter on display_content for live list).
     let (search, set_search) = signal(String::new());
+    // Id of the item whose title is being edited inline, if any.
+    let (editing, set_editing) = signal(None::<String>);
+    // Id of a sensitive item whose vault button is armed and awaiting the
+    // confirming second click. Putting a secret on disk shouldn't be one stray
+    // click away from the pin next to it.
+    let (arming, set_arming) = signal(None::<String>);
 
     // Initial load (runs once at mount).
     spawn_local(async move {
@@ -245,9 +251,12 @@ pub fn App() -> impl IntoView {
         <div id="controls">
             <label>
                 "Persistence: "
-                <select prop:value=move || persist.get() on:change=on_persist>
-                    <option value="none">"Paranoia"</option>
-                    <option value="sensitive">"Balanced"</option>
+                // The vault is a per-item override of this setting, so the
+                // labels must not promise more than the mode now delivers.
+                <select prop:value=move || persist.get() on:change=on_persist
+                        title="La bóveda (💾) persiste un item puntual aunque el modo lo prohíba">
+                    <option value="none">"Paranoia (salvo bóveda)"</option>
+                    <option value="sensitive">"Balanced (salvo bóveda)"</option>
                     <option value="all">"All"</option>
                 </select>
             </label>
@@ -281,6 +290,15 @@ pub fn App() -> impl IntoView {
                     .map(|it| {
                         let id_copy = it.id.clone();
                         let id_del = it.id.clone();
+                        let id_pin = it.id.clone();
+                        let id_tag = it.id.clone();
+                        let id_save = it.id.clone();
+                        let id_vault = it.id.clone();
+                        let is_editing = editing.get().as_deref() == Some(it.id.as_str());
+                        let is_armed = arming.get().as_deref() == Some(it.id.as_str());
+                        let title_now = it.title.clone();
+                        let pinned = it.pinned;
+                        let vaulted = it.vaulted;
                         let item_max = it.clone();
                         let sens = it.sensitivity.is_sensitive();
                         let li_class = if sens { "item sens" } else { "item" };
@@ -318,8 +336,35 @@ pub fn App() -> impl IntoView {
                         view! {
                             <li class=li_class>
                                 <div class="body">
+                                    {if is_editing {
+                                        view! {
+                                            <input
+                                                class="title-edit"
+                                                placeholder="Nombre del item…"
+                                                autofocus
+                                                value=title_now.clone().unwrap_or_default()
+                                                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                                                    if ev.key() == "Escape" { set_editing.set(None); return; }
+                                                    if ev.key() != "Enter" { return; }
+                                                    let id = id_save.clone();
+                                                    let title = event_target_value(&ev);
+                                                    set_editing.set(None);
+                                                    spawn_local(async move {
+                                                        let _ = bindings::set_item_title(&id, &title).await;
+                                                    });
+                                                }
+                                            />
+                                        }.into_any()
+                                    } else {
+                                        title_now
+                                            .filter(|t: &String| !t.is_empty())
+                                            .map(|t| view! { <div class="item-title">{t}</div> })
+                                            .into_any()
+                                    }}
                                     <div class="content">{content_node}</div>
                                     <div class="meta">
+                                        {vaulted.then(|| view! { <span class="pin-flag" title="En bóveda">"🗄"</span> })}
+                                        {pinned.then(|| view! { <span class="pin-flag" title="Persistente">"📌"</span> })}
                                         <span class=tag_class>{it.sensitivity.label()}</span>
                                         " · "
                                         {img_label}
@@ -358,6 +403,47 @@ pub fn App() -> impl IntoView {
                                             >"🔒"</button>
                                         }
                                     })}
+                                    <button
+                                        title="Ponerle un nombre (Enter guarda, Esc cancela)"
+                                        on:click=move |_| set_editing.set(Some(id_tag.clone()))
+                                    >"🏷"</button>
+                                    <button
+                                        title=if pinned {
+                                            "Persistente: no lo borra el límite de historial. Click para soltarlo"
+                                        } else {
+                                            "Hacerlo persistente (no aplica a secretos: siguen expirando por TTL)"
+                                        }
+                                        class=if pinned { "pinned" } else { "" }
+                                        on:click=move |_| {
+                                            let id = id_pin.clone();
+                                            spawn_local(async move {
+                                                let _ = bindings::toggle_pin(&id).await;
+                                            });
+                                        }
+                                    >{if pinned { "📌" } else { "📍" }}</button>
+                                    <button
+                                        class=if vaulted { "vaulted" } else if is_armed { "arming" } else { "" }
+                                        title=if vaulted {
+                                            "En bóveda: guardado en disco aunque el modo lo prohíba. Click para sacarlo (se borra ya si el modo no lo permite)"
+                                        } else if is_armed {
+                                            "Confirmá: esto queda escrito en disco (cifrado) aunque estés en Paranoia"
+                                        } else {
+                                            "Guardar en bóveda: persiste aunque el modo lo prohíba"
+                                        }
+                                        on:click=move |_| {
+                                            let id = id_vault.clone();
+                                            // Arm sensitive items first; anything else (and any
+                                            // un-vaulting) goes through on the first click.
+                                            if sens && !vaulted && !is_armed {
+                                                set_arming.set(Some(id));
+                                                return;
+                                            }
+                                            set_arming.set(None);
+                                            spawn_local(async move {
+                                                let _ = bindings::toggle_vault(&id).await;
+                                            });
+                                        }
+                                    >{if vaulted { "🗄" } else if is_armed { "⚠" } else { "💾" }}</button>
                                     <button
                                         title="Delete"
                                         on:click=move |_| {
