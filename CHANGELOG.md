@@ -41,9 +41,13 @@ sqlite3 ~/.local/share/digital.quebracho.lapacho/history.db \
 
 Items you pinned (📌) or put in the vault (🗄) are kept — those were deliberate.
 
-**Still open:** changing the persistence level does not offer to purge what the
-new level forbids. Until it does, switching to `Paranoia` is not retroactive.
-Tracked in `ROADMAP.md`.
+**Fixed:** lowering the persistence level now purges what the new level forbids,
+so switching to `Paranoia` *is* retroactive. Pick the level again (even the one
+already selected) to clean up an existing history; the UI reports how many items
+were removed. Vaulted items (🗄) are kept — that flag is an explicit per-item
+override of the level. Note that plain pinning (📌) is **not** an override and
+will not save a sensitive item from the purge, which is why the manual SQL above
+spares pinned rows but the app does not.
 
 ### Added
 
