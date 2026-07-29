@@ -338,6 +338,23 @@ fn copy_item(id: String, state: State<'_, AppState>) -> Result<(), String> {
     copy_raw(&id, &state)
 }
 
+/// Copies the item and dismisses the quick-search window in one step — the
+/// whole point of the launcher is that picking a clip ends the interaction.
+#[tauri::command]
+fn pick_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    copy_raw(&id, &state)?;
+    hide_spotlight(app);
+    Ok(())
+}
+
+/// Dismisses the quick-search window (Esc, or after picking a clip).
+#[tauri::command]
+fn hide_spotlight(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("spotlight") {
+        let _ = w.hide();
+    }
+}
+
 /// User says "this is a secret". Remembers the choice (keyed by content id, so
 /// no plaintext is stored) and re-masks the item everywhere. The next time the
 /// same content is copied, the monitor classifies it Secret from the start.
@@ -955,9 +972,18 @@ fn main() {
         .on_window_event(|window, event| {
             // Launch-to-tray app: closing the window hides it instead of
             // quitting, so Lapacho keeps watching the clipboard in the tray.
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+                // A launcher that stays up after you click elsewhere is just a
+                // window in the way. Only the spotlight behaves this way — the
+                // main window is a normal window you leave open on purpose.
+                tauri::WindowEvent::Focused(false) if window.label() == "spotlight" => {
+                    let _ = window.hide();
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -970,6 +996,8 @@ fn main() {
             get_sensitive_ttl,
             set_sensitive_ttl,
             copy_item,
+            pick_item,
+            hide_spotlight,
             mark_secret,
             set_item_title,
             toggle_pin,

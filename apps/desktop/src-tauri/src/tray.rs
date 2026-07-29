@@ -255,11 +255,22 @@ pub fn show_main(app: &AppHandle) {
     crate::request_history_refresh(app);
 }
 
-/// Opens the window with the cursor already in the search box. Unlike
-/// [`toggle_main`], pressing it again never hides the window: this is the
-/// "find a clip" gesture, and a second press means "I mistyped", not "close".
+/// Opens the frameless quick-search window — search box plus the matching
+/// clips, nothing else.
+///
+/// It is a separate window because it is declared `alwaysOnTop`, so it never
+/// cedes stacking and the WM has nothing to refuse; the main window has to
+/// beg for a raise (see [`raise`]) precisely because it does not. Falls back
+/// to the main window if the spotlight one is missing.
 pub fn show_search(app: &AppHandle) {
-    show_main(app);
+    let Some(window) = app.get_webview_window("spotlight") else {
+        show_main(app);
+        crate::request_search_focus(app);
+        return;
+    };
+    let _ = window.center();
+    let _ = window.show();
+    let _ = window.set_focus();
     crate::request_search_focus(app);
 }
 

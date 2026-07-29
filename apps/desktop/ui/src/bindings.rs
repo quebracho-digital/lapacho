@@ -19,6 +19,9 @@ extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "event"], catch)]
     async fn listen(event: &str, handler: &js_sys::Function) -> Result<JsValue, JsValue>;
 
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "window"], js_name = getCurrentWindow)]
+    fn get_current_window() -> JsValue;
+
     // `window.renderMermaid(elementId, code)` is defined in index.html. It is a
     // no-op if the mermaid bundle failed to load, so calling it is always safe.
     #[wasm_bindgen(js_namespace = window, js_name = renderMermaid)]
@@ -30,6 +33,18 @@ extern "C" {
 /// missing, the element keeps showing the diagram source as plain text.
 pub fn render_mermaid(element_id: &str, code: &str) {
     render_mermaid_raw(element_id, code);
+}
+
+/// Label of the window this bundle is running in — `main` or `spotlight`.
+///
+/// Both windows load the same `index.html`, so this is what decides which UI
+/// to mount. One bundle, two faces: a second entry point would mean a second
+/// WASM download and a second copy of the app to keep in sync.
+pub fn window_label() -> String {
+    js_sys::Reflect::get(&get_current_window(), &JsValue::from_str("label"))
+        .ok()
+        .and_then(|v| v.as_string())
+        .unwrap_or_else(|| "main".to_string())
 }
 
 /// Turn a rejected-promise value into a readable error string.
@@ -113,6 +128,18 @@ pub async fn copy_item(id: &str) -> Result<(), String> {
         .await
         .map(|_| ())
         .map_err(js_err)
+}
+
+/// Copies the clip and closes the quick-search window in one call.
+pub async fn pick_item(id: &str) -> Result<(), String> {
+    invoke("pick_item", args(&IdArgs { id }))
+        .await
+        .map(|_| ())
+        .map_err(js_err)
+}
+
+pub async fn hide_spotlight() {
+    let _ = invoke("hide_spotlight", JsValue::NULL).await;
 }
 
 pub async fn mark_secret(id: &str) -> Result<(), String> {
