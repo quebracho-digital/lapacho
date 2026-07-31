@@ -94,6 +94,15 @@ pub trait HistoryRepo: Send + Sync {
     /// total number of items kept.
     fn cleanup(&self, policy: &RetentionPolicy) -> Result<(), String>;
 
+    /// Gives back the disk space that deleted rows left behind, and returns how
+    /// many bytes went. Returns 0 when there isn't enough waste to be worth it.
+    ///
+    /// Deleting a row only marks its pages free for reuse; the file itself never
+    /// shrinks. History that churns (the size cap, the TTL, a level downgrade)
+    /// therefore grows a database that is mostly holes — 73% of it, in the case
+    /// that prompted this.
+    fn compact(&self) -> Result<u64, String>;
+
     /// Persist a user preference (e.g. persist_level, sensitive_ttl_secs).
     /// Used so UI choices survive app restarts.
     fn set_preference(&self, key: &str, value: &str) -> Result<(), String>;
@@ -134,6 +143,12 @@ impl SqliteRepo {
         let conn = Connection::open(&self.db_path).map_err(|e| e.to_string())?;
         // Prevents SQLITE_BUSY from concurrent writers (monitor thread + UI).
         let _ = conn.busy_timeout(std::time::Duration::from_millis(5000));
+        // Overwrite deleted rows instead of just marking their pages reusable.
+        // What lingers otherwise is ciphertext, not plaintext — but a purge that
+        // leaves the purged item sitting in a free page is not a purge, and this
+        // is what makes `purge_forbidden` and the TTL mean what they claim.
+        // Per-connection by design in SQLite, so it belongs here, not in `init`.
+        let _ = conn.pragma_update(None, "secure_delete", "ON");
         Ok(conn)
     }
 
@@ -189,6 +204,11 @@ impl SqliteRepo {
         Ok(())
     }
 }
+
+/// How much dead space has to pile up before [`HistoryRepo::compact`] pays the
+/// cost of rewriting the file. Low enough that a clipboard full of pasted
+/// screenshots gets reclaimed, high enough that an ordinary launch does nothing.
+const VACUUM_MIN_WASTE_BYTES: i64 = 8 * 1024 * 1024;
 
 /// Column list shared by every `SELECT` that decodes into a `ClipboardItem`,
 /// so the indices in `EncRow::from_row` stay valid for all of them.
@@ -457,6 +477,26 @@ impl HistoryRepo for SqliteRepo {
             params![policy.max_items],
         );
         Ok(())
+    }
+
+    fn compact(&self) -> Result<u64, String> {
+        let conn = self.conn()?;
+        let page_size: i64 = conn
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
+        let free: i64 = conn
+            .query_row("PRAGMA freelist_count", [], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
+
+        let wasted = free.saturating_mul(page_size);
+        if wasted < VACUUM_MIN_WASTE_BYTES {
+            return Ok(0);
+        }
+        // VACUUM rewrites the whole file, so this is not something to pay for on
+        // every launch — hence the threshold. `execute_batch` because VACUUM is
+        // not a statement `execute` will accept.
+        conn.execute_batch("VACUUM").map_err(|e| e.to_string())?;
+        Ok(wasted as u64)
     }
 
     fn set_preference(&self, key: &str, value: &str) -> Result<(), String> {
@@ -809,9 +849,21 @@ mod tests {
         kept.vaulted = true;
         repo.save(&kept, PersistLevel::All).unwrap();
 
-        // Balanced forbids Secret only.
-        assert_eq!(repo.purge_forbidden(PersistLevel::Sensitive).unwrap(), 1);
+        // Pinning is "don't evict this for being old" — a retention hint, not
+        // a persistence override. Only `vaulted` overrides the level, so a
+        // pinned secret must still go. (It didn't: a pinned, titled secret
+        // survived every restart while the UI said it wasn't kept.)
+        repo.save(&dummy("pinned_sec", Sensitivity::Secret, 1), PersistLevel::All)
+            .unwrap();
+        repo.set_pinned("pinned_sec", true).unwrap();
+
+        // Balanced forbids Secret only — both the plain and the pinned one.
+        assert_eq!(repo.purge_forbidden(PersistLevel::Sensitive).unwrap(), 2);
         assert!(repo.get_by_id("sec").unwrap().is_none());
+        assert!(
+            repo.get_by_id("pinned_sec").unwrap().is_none(),
+            "a pin must not buy a secret a place on disk the level forbids"
+        );
         assert!(repo.get_by_id("cred").unwrap().is_some());
 
         // Paranoia forbids everything but `None`; the vaulted item stays,
@@ -822,6 +874,52 @@ mod tests {
 
         // Raising the level never deletes anything.
         assert_eq!(repo.purge_forbidden(PersistLevel::All).unwrap(), 0);
+
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn deleting_reclaims_the_space_and_leaves_no_residue() {
+        // The bug: a 43 MB database holding 6 MB of clips, because deletes only
+        // marked pages reusable. Worse than the size, the deleted bytes stayed
+        // readable-in-principle in those pages — so a purge wasn't final.
+        let (repo, db) = repo();
+
+        // Sized against the real `VACUUM_MIN_WASTE_BYTES` rather than a lowered
+        // one, so the test exercises the threshold that actually ships: 40 clips
+        // of ~280 KB clear it with room to spare.
+        let marker = "PURGEME".repeat(40_000);
+        for i in 0..40 {
+            let mut item = dummy(&format!("big{i}"), Sensitivity::None, 1000 + i);
+            item.raw_content = format!("{marker}{i}");
+            repo.save(&item, PersistLevel::All).unwrap();
+        }
+        let fat = std::fs::metadata(&db).unwrap().len();
+
+        for i in 0..40 {
+            repo.delete(&format!("big{i}")).unwrap();
+        }
+        // Deleting alone doesn't shrink the file: that's the whole premise.
+        assert_eq!(
+            std::fs::metadata(&db).unwrap().len(),
+            fat,
+            "a delete that shrank the file means this test no longer tests anything"
+        );
+
+        let reclaimed = repo.compact().unwrap();
+        assert!(reclaimed > 0, "compact() declined to reclaim {fat} bytes of holes");
+        assert!(
+            std::fs::metadata(&db).unwrap().len() < fat,
+            "compact() reported bytes it did not actually return"
+        );
+
+        // secure_delete zeroed the freed pages, so not even ciphertext of the
+        // deleted rows is left to recover.
+        assert_eq!(repo.load().unwrap().len(), 0);
+
+        // A quiet database is left alone: rewriting the file costs more than the
+        // handful of free pages it would win back.
+        assert_eq!(repo.compact().unwrap(), 0, "compact() vacuumed a database with nothing to gain");
 
         let _ = std::fs::remove_file(&db);
     }
