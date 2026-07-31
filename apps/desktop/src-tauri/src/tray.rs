@@ -268,10 +268,32 @@ pub fn show_search(app: &AppHandle) {
         crate::request_search_focus(app);
         return;
     };
+    pull_to_current_workspace(&window);
     let _ = window.center();
     let _ = window.show();
     let _ = window.set_focus();
     crate::request_search_focus(app);
+}
+
+/// Makes the window land on the workspace the user is on *right now*.
+///
+/// `alwaysOnTop` only wins stacking within one workspace, and GTK maps a hidden
+/// window back onto the desktop it was last on. So from any other desktop
+/// "open Lapacho" looks like nothing happened — the window really did open, two
+/// workspaces away, and the only cure was remembering where it was. Sticking
+/// makes it visible on every desktop; the delayed unstick then drops it onto
+/// whichever one is active by then, which is the one the user asked from.
+///
+/// ponytail: the delay is a guess at WM latency, not a handshake. Switching
+/// desktop inside that window makes the window follow — harmless, and cheaper
+/// than tracking `_NET_CURRENT_DESKTOP` ourselves.
+fn pull_to_current_workspace(window: &tauri::WebviewWindow) {
+    let _ = window.set_visible_on_all_workspaces(true);
+    let w = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        let _ = w.set_visible_on_all_workspaces(false);
+    });
 }
 
 /// Brings the window to the front and gives it keyboard focus.
@@ -289,6 +311,9 @@ pub fn show_search(app: &AppHandle) {
 /// (xdg-activation on Wayland), which Tauri does not expose today.
 fn raise(window: &tauri::WebviewWindow) {
     let _ = window.unminimize();
+    // Before the raise, not after: a raise aimed at another desktop is a raise
+    // the user never sees.
+    pull_to_current_workspace(window);
     let _ = window.show();
     // Hold the stacking request while the WM catches up. `set_focus` alone is
     // ignored by focus-stealing prevention, and a `show()` that hasn't been
