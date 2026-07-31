@@ -110,6 +110,12 @@ env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always CARGO_TERM_COLOR=never \
   cargo tauri dev
 ```
 
+To install it for real (binary, icons and desktop entry under `~/.local`, no root):
+
+```bash
+./install.sh
+```
+
 ## Roadmap
 
 - [x] `lapacho-core`: classification, sanitization, storage, plugins, ingest (50+ tests)
