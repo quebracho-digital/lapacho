@@ -986,6 +986,35 @@ fn main() {
                     r.sensitive_ttl_secs = Some(secs);
                 }
             }
+            // Enforce the loaded rules against what is *already* on disk.
+            // `set_persist_level` purges on change, but that only covers the
+            // one moment the user touches the setting: rows written by an
+            // older build, or under a level that was later lowered while this
+            // code wasn't there to act, survive every restart under a label
+            // saying they are not kept. The level is a promise about the disk,
+            // so it has to be re-applied every time we open the disk.
+            let saved_level = *persist_level.lock().unwrap();
+            match repo.purge_forbidden(saved_level) {
+                Ok(n) if n > 0 => eprintln!("lapacho: purged {n} item(s) the saved persist level forbids"),
+                Err(e) => eprintln!("lapacho: startup purge failed: {e}"),
+                _ => {}
+            }
+            // Same reason for the TTL: reading history doesn't trigger cleanup,
+            // so without this an app closed for a week shows expired secrets
+            // until the next copy happens to run retention.
+            let saved_policy = *retention.lock().unwrap();
+            if let Err(e) = repo.cleanup(&saved_policy) {
+                eprintln!("lapacho: startup cleanup failed: {e}");
+            }
+            // Last, so it reclaims what the two passes above just freed. Here
+            // rather than on a timer because it wants the database to itself,
+            // and startup is the one moment the monitor isn't writing yet.
+            match repo.compact() {
+                Ok(n) if n > 0 => eprintln!("lapacho: reclaimed {} MB of deleted history", n / 1_048_576),
+                Err(e) => eprintln!("lapacho: compaction failed: {e}"),
+                _ => {}
+            }
+
             let last_seen = Arc::new(Mutex::new(None));
             let tray_recent = Arc::new(Mutex::new(Vec::new()));
 
