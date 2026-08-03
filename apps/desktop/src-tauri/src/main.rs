@@ -35,9 +35,22 @@ use zeroize::Zeroize;
 /// Max items kept in the volatile session buffer (`tray_recent`).
 const TRAY_RECENT_MAX: usize = 25;
 
-/// Scrub `raw_content` before an item is dropped from the ephemeral buffer.
+/// Scrub every plaintext-bearing field before an item is dropped from the
+/// ephemeral buffer.
+///
+/// `raw_content` is the obvious one, but it is not the only copy: for a
+/// `Public` item `display_content` *is* the payload, and `title` is whatever
+/// the user typed to describe it. Scrubbing only `raw_content` left the other
+/// two in freed memory, which defeats the point of the buffer.
 fn zeroize_discarded(item: &mut ClipboardItem) {
     item.raw_content.zeroize();
+    item.display_content.zeroize();
+    if let Some(title) = item.title.as_mut() {
+        title.zeroize();
+    }
+    // ponytail: `thumbnail` (18×18 RGBA of an image) is left alone — it is a
+    // deliberate low-resolution preview, not the payload. Revisit if the
+    // thumbnail size ever grows enough to reconstruct content.
 }
 
 /// Remove matching id from `tray_recent`, zeroizing the discarded item(s).
@@ -68,6 +81,25 @@ fn tray_recent_clear(rec: &mut Vec<ClipboardItem>) {
         zeroize_discarded(item);
     }
     rec.clear();
+}
+
+/// Replace an item in place by id, zeroizing the copy being displaced.
+///
+/// Assigning over a slot drops the previous `ClipboardItem` silently, so every
+/// in-place replacement has to funnel through here or it leaks plaintext into
+/// freed memory.
+///
+/// Returns the displaced item — already scrubbed — rather than a bool, so the
+/// scrubbing is observable to a test instead of being a claim in a comment.
+/// Callers are free to drop it.
+fn tray_recent_replace(
+    rec: &mut Vec<ClipboardItem>,
+    id: &str,
+    item: ClipboardItem,
+) -> Option<ClipboardItem> {
+    let slot = rec.iter_mut().find(|x| x.id == id)?;
+    zeroize_discarded(slot);
+    Some(std::mem::replace(slot, item))
 }
 
 /// Insert at front (dedup by id), then cap length — zeroizing all discards.
@@ -389,9 +421,7 @@ fn mark_secret(id: String, app: AppHandle, state: State<'_, AppState>) -> Result
         state.repo.save(&item, level)?;
         {
             let mut rec = state.tray_recent.lock().unwrap();
-            if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
-                *slot = item.clone();
-            }
+            tray_recent_replace(&mut rec, &id, item.clone());
         }
         tray::schedule_rebuild(&app);
         request_history_refresh(&app);
@@ -1142,5 +1172,90 @@ mod clipboard_tests {
         let svg = svg_from_html(html).expect("svg");
         assert!(svg.starts_with("<svg"));
         assert!(svg.ends_with("</svg>"));
+    }
+}
+
+/// The ephemeral session buffer promises that a discarded payload stops
+/// existing. These pin the two ways that promise was broken.
+#[cfg(test)]
+mod tray_recent_tests {
+    use super::*;
+    use lapacho_core::types::DetectedType;
+
+    fn item(id: &str, body: &str) -> ClipboardItem {
+        ClipboardItem {
+            id: id.to_string(),
+            raw_content: body.to_string(),
+            display_content: body.to_string(),
+            content_type: "text".to_string(),
+            sensitivity: Sensitivity::None,
+            detected_type: DetectedType::Text,
+            timestamp: 0,
+            thumbnail: None,
+            size: None,
+            title: Some(format!("title-{body}")),
+            pinned: false,
+            vaulted: false,
+            sync_id: None,
+            sync_eligible: false,
+            sync_state: "local".to_string(),
+        }
+    }
+
+    #[test]
+    fn zeroize_scrubs_every_plaintext_field_not_just_raw() {
+        let mut it = item("a", "hunter2");
+        zeroize_discarded(&mut it);
+        assert!(it.raw_content.is_empty(), "raw_content survived");
+        // Regression: `display_content` *is* the payload for a public item,
+        // and used to be left intact.
+        assert!(it.display_content.is_empty(), "display_content survived");
+        assert_eq!(it.title.as_deref(), Some(""), "title survived");
+    }
+
+    #[test]
+    fn replace_zeroizes_the_displaced_item() {
+        // Regression: `mark_secret` assigned over the slot, dropping the old
+        // item without scrubbing it — on the very path where the user just
+        // said "this is a secret".
+        let mut rec = vec![item("a", "hunter2")];
+        let displaced = tray_recent_replace(&mut rec, "a", item("a", "masked"))
+            .expect("slot should match");
+        assert!(displaced.raw_content.is_empty(), "displaced raw_content survived");
+        assert!(
+            displaced.display_content.is_empty(),
+            "displaced display_content survived"
+        );
+        assert_eq!(rec.len(), 1);
+        assert_eq!(rec[0].raw_content, "masked");
+    }
+
+    #[test]
+    fn replace_reports_a_miss_instead_of_inserting() {
+        let mut rec = vec![item("a", "x")];
+        assert!(tray_recent_replace(&mut rec, "nope", item("nope", "y")).is_none());
+        assert_eq!(rec.len(), 1);
+    }
+
+    #[test]
+    fn push_front_dedups_by_id_and_caps_at_max() {
+        let mut rec = Vec::new();
+        for i in 0..TRAY_RECENT_MAX + 10 {
+            tray_recent_push_front(&mut rec, item(&format!("id{i}"), "body"));
+        }
+        assert_eq!(rec.len(), TRAY_RECENT_MAX);
+        // Newest first, oldest dropped.
+        assert_eq!(rec[0].id, format!("id{}", TRAY_RECENT_MAX + 9));
+
+        tray_recent_push_front(&mut rec, item("id0", "again"));
+        assert_eq!(rec.len(), TRAY_RECENT_MAX);
+        assert_eq!(rec.iter().filter(|x| x.id == "id0").count(), 1);
+    }
+
+    #[test]
+    fn clear_empties_the_buffer() {
+        let mut rec = vec![item("a", "x"), item("b", "y")];
+        tray_recent_clear(&mut rec);
+        assert!(rec.is_empty());
     }
 }
