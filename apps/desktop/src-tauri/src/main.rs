@@ -874,76 +874,6 @@ fn check_clipboard_once(
 // Entry point
 // ---------------------------------------------------------------------------
 
-/// Below this much lockable memory we refuse to call `mlockall`. See
-/// [`keep_out_of_swap`] for why a small limit is worse than none.
-#[cfg(target_os = "linux")]
-const MIN_MEMLOCK_BYTES: libc::rlim_t = 512 * 1024 * 1024;
-
-/// Keeps the process out of swap, so clipboard plaintext can't be written to
-/// disk by the kernel behind our back.
-///
-/// Content is encrypted *at rest* in SQLite, but that only covers the writes
-/// we make. The live session buffer necessarily holds plaintext — the app has
-/// to search it, render it and paste it back — and the kernel is free to page
-/// that plaintext out to a swap device we do not control and that is very
-/// often not encrypted. `zeroize`-ing on discard does not help if a copy left
-/// for disk beforehand. `mlockall` closes that path; it is the only thing that
-/// makes "never written to disk" true.
-///
-/// Two deliberate choices:
-///
-/// - `MCL_ONFAULT` locks pages as they are actually touched instead of
-///   pre-faulting the whole address space, so the cost tracks real usage
-///   (~100 MB) rather than everything WebKit reserves.
-/// - We check `RLIMIT_MEMLOCK` first and skip when it is small. With
-///   `MCL_FUTURE` in effect, crossing the limit makes later allocations fail
-///   outright — so on a host with the common 8 MB default, locking early
-///   would succeed and then kill the app once it grew. Not locking is a
-///   weaker guarantee; locking and then dying is a worse product.
-#[cfg(target_os = "linux")]
-fn keep_out_of_swap() {
-    let mut lim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
-    // SAFETY: `getrlimit`/`setrlimit` write into a fully initialized rlimit we own.
-    let limit = unsafe {
-        if libc::getrlimit(libc::RLIMIT_MEMLOCK, &mut lim) != 0 {
-            eprintln!("lapacho: no pude leer RLIMIT_MEMLOCK; sigo sin mlock (el swap puede recibir texto plano)");
-            return;
-        }
-        // Raising the soft limit to the hard limit needs no privilege and is
-        // often the whole difference between locking and not.
-        if lim.rlim_cur < lim.rlim_max {
-            lim.rlim_cur = lim.rlim_max;
-            libc::setrlimit(libc::RLIMIT_MEMLOCK, &lim);
-        }
-        lim.rlim_cur
-    };
-
-    if limit != libc::RLIM_INFINITY && limit < MIN_MEMLOCK_BYTES {
-        eprintln!(
-            "lapacho: RLIMIT_MEMLOCK es {} MB, por debajo del mínimo de {} MB; sigo sin mlock. \
-             El portapapeles puede terminar en swap. Subilo con LimitMEMLOCK= en la unit systemd \
-             o en /etc/security/limits.conf.",
-            limit / 1024 / 1024,
-            MIN_MEMLOCK_BYTES / 1024 / 1024
-        );
-        return;
-    }
-
-    // SAFETY: `mlockall` takes only flags and touches no memory we own.
-    let rc = unsafe { libc::mlockall(libc::MCL_CURRENT | libc::MCL_FUTURE | libc::MCL_ONFAULT) };
-    if rc != 0 {
-        // Never fatal: a clipboard manager that refuses to start is worse than
-        // one that starts and says it could not lock.
-        eprintln!(
-            "lapacho: mlockall falló ({}); sigo sin fijar memoria (el swap puede recibir texto plano)",
-            std::io::Error::last_os_error()
-        );
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-fn keep_out_of_swap() {}
-
 /// Disables core dumps so a crash can't write decrypted secrets (clipboard
 /// content, key material) to a core file. Linux-only; a no-op elsewhere.
 #[cfg(target_os = "linux")]
@@ -952,7 +882,6 @@ fn harden_process() {
     unsafe {
         libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0);
     }
-    keep_out_of_swap();
 }
 
 #[cfg(not(target_os = "linux"))]
