@@ -139,9 +139,8 @@ What that does **not** cover, stated plainly:
   than assuming.
 
 Locking the *whole process* with `mlockall` was tried and reverted: under
-WebKit it kills the app. `MCL_ONFAULT` controls page population, not
-accounting, so the kernel charges WebKit's multi-GB address space against
-`RLIMIT_MEMLOCK` and later allocations fail. No finite limit survives that.
+WebKit it kills the app. The measurement and the conditions under which it
+would be worth revisiting are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Development
 
@@ -212,8 +211,8 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
 - [x] Full image support (capture, tray thumbnails, metadata sanitization)
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
 
-Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md). Design
-rationale and the decisions behind the current shape: [`docs/ARQUITECTURA_REFACTOREO.md`](docs/ARQUITECTURA_REFACTOREO.md).
+Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md). What was
+evaluated and rejected, with the evidence: [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## License
 

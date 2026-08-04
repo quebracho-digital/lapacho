@@ -262,8 +262,8 @@ Rules of thumb:
 | **Outbox / inbox / ack / retry** | **Own** thin state machine | Not a general CRDT filesystem. Volume is tiny (selected clips), not multi-GB trees. |
 | **Crypto primitives** | **Reuse** (same family as core: AEAD, X25519/Ed25519 or libsodium-class APIs via audited crates) | Do not invent ciphers. |
 | **Full CRDT / Automerge / Yjs** | **Avoid for v1** | Overkill for append-mostly clipboard rows + explicit deletes later; harder threat model (merge of secrets). |
-| **Syncthing / a file-sync service as clipboard store** | **Not as vault** | Fine as *optional* way to move opaque files someday; wrong UX and ACL for per-item secrets. a file-sync service on the self-hosted node stays file sync, not Lapacho history. |
-| **Matrix E2EE as transport** | **Optional adapter later** | Attractive if we already live on a Matrix homeserver; still our envelopes inside room messages. Not required for v1. |
+| **Generic file-sync (Syncthing and friends) as clipboard store** | **Not as vault** | Fine as an *optional* way to move opaque files someday; wrong UX and ACL for per-item secrets. A file-sync tool stays file sync, not Lapacho history. |
+| **Matrix E2EE as transport** | **Optional adapter later** | Attractive for anyone already running a homeserver; still our envelopes inside room messages. Not required for v1. |
 
 **Design stance:** Lapacho sync is a **small, purpose-built E2E message queue for clipboard envelopes**, not a general multi-master database. Each device’s SQLite remains the source of truth locally; the network only moves **explicitly eligible** envelopes.
 
@@ -296,13 +296,13 @@ Why not “just use Syncthing / git / drive folder”?
 | Mode | When | Role |
 |------|------|------|
 | **A. Store-and-forward relay (default for multi-site)** | Devices not online at the same time; phone on LTE, PC at home | Relay holds **encrypted** envelopes with short retention; devices pull/push when awake. |
-| **B. Direct / LAN boost** | Same LAN or WireGuard (`the VPN subnet`) | Prefer direct HTTPS/QUIC or WebSocket between peers if discovery succeeds; lower latency, less load on the self-hosted node. |
+| **B. Direct / LAN boost** | Same LAN, or a VPN the user controls (e.g. WireGuard) | Prefer direct HTTPS/QUIC or WebSocket between peers if discovery succeeds; lower latency, less load on the relay. |
 | **C. Local-only** | Sync master switch off | No network; current product. |
 
 **v1 recommendation (Quebracho):**
 
 1. Ship **protocol + E2E + outbox** in `lapacho-sync`.  
-2. First transport adapter: **self-hosted relay** on the self-hosted node (small service under QuebrachOS / Caddy, tunnel hostname e.g. `lapacho-sync.example.org` or LAN-only + WG).  
+2. First transport adapter: **self-hosted relay** on a node the user controls (a small service behind their own reverse proxy, reachable over a tunnel hostname or LAN/VPN only).  
 3. Second adapter: **direct over WireGuard/LAN** when both peers reachable (can be same API: “push to peer URL” with device certs).  
 4. Do **not** depend on a vendor cloud. Optional later: “bring your own relay URL”.
 
@@ -310,7 +310,7 @@ Why not “just use Syncthing / git / drive folder”?
 
 **Who runs the relay?**
 
-- **Personal / PYME:** the self-hosted node (or any tiny VPS the user controls).  
+- **Personal / small business:** a home server or any tiny VPS the user controls.  
 - **No server:** pair on LAN only, or one device temporarily acts as “introducer” while both online (limited).  
 - Relay is **untrusted for confidentiality**; it is trusted only for availability and (if Authentik is used) for *who may deposit blobs into a mailbox*.
 
@@ -336,7 +336,7 @@ These solve different problems. Mixing them causes either “Authentik can read 
 
 - Logging into the **relay control plane** (create mailbox, list devices’ public ids, revoke a device’s *relay* access).  
 - Multi-user deployments later (family / team): each Authentik user → isolated mailbox namespace.  
-- Aligning with existing the self-hosted node SSO (same as Matrix, Kuma, etc.).
+- Reusing an SSO the user already runs for their other self-hosted services.
 
 **Brave Sync–style pairing is the right model for L1** even when L3 uses Authentik:
 
@@ -450,7 +450,7 @@ lapacho-sync/
   inbox.rs        # pull → open → hand off ClipboardItem to core ingest
   transport/
     trait.rs      # push(env), pull(since) → Vec<env>
-    relay_http.rs # the self-hosted node adapter
+    relay_http.rs # self-hosted relay adapter
     direct.rs     # optional LAN/WG peer
     memory.rs     # tests
 ```
@@ -471,7 +471,7 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 | P0–P1 local mobile | Schema placeholders only (`sync_eligible`, …). |
 | Parallel / early | Pure-Rust `lapacho-sync` + memory transport + chain join tests (no Android required). |
 | P4a | Relay HTTP adapter + desktop ↔ desktop on LAN/WG. |
-| P4b | Android companion push/pull; Authentik in front of relay if public hostname. |
+| P4b | Android companion push/pull; an IdP in front of the relay if it gets a public hostname. |
 | P4c | Direct path optimization; tombstones; device revoke UX. |
 
 - Local mobile P0–P2 ships **without** network.  
@@ -487,7 +487,7 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 - Running sync inside the IME process.  
 - **Authentik (or any IdP) as the encryption root** for clipboard content.  
 - Full ICE/STUN/TURN mesh as a dependency of v1.  
-- Syncthing/a file-sync service as the clipboard database.  
+- A generic file-sync tool as the clipboard database.  
 - Multi-user team sharing with per-recipient ACLs (personal multi-device chain first).  
 - Depending on Google Drive / iCloud as the E2E layer (optional export of **our** ciphertext later only).
 
@@ -639,7 +639,7 @@ Align with desktop: **raw is source of truth inside the vault; UI and logs only 
 | D11 | E2E + self-hostable transport; sync in companion/desktop only | Relay untrusted; IME stays offline-capable |
 | D12 | Default new items: `sync_eligible = false` | Fail closed |
 | D13 | Own thin sync engine (not Syncthing/CRDT as vault) | Domain policy + small volume; see §5.5 / S1 |
-| D14 | Hybrid topology: the self-hosted node relay + optional LAN/WG direct | NAT reality; QuebrachOS-aligned; §5.6 / S2–S3 |
+| D14 | Hybrid topology: self-hosted relay + optional LAN/VPN direct | NAT reality; sovereignty-aligned; §5.6 / S2–S3 |
 | D15 | Brave-like chain for E2E; Authentik only for relay authz | IdP ≠ encryption root; §5.7–5.8 / S4–S6 |
 
 ---
@@ -655,14 +655,15 @@ Align with desktop: **raw is source of truth inside the vault; UI and logs only 
 7. Envelope encoding: CBOR vs JSON+b64 for debuggability.  
 8. **Delete-everywhere / revoke device** — v1 “reset chain” only vs tombstones.  
 9. Auto-rules later (“always sync URLs”) vs forever manual-only for sensitive classes.  
-10. Whether a Matrix adapter is worth it after HTTP relay exists (a Matrix homeserver already on the self-hosted node).
+10. Whether a Matrix adapter is worth it after the HTTP relay exists.
 
 ---
 
 ## 13. Relation to desktop docs
 
-- Desktop refactor debate: `docs/ARQUITECTURA_REFACTOREO.md`  
-- Tasks backlog: `docs/GROK_TASKS.md`  
+- Desktop refactor debate: internal design record (not published; its
+  outcomes live in `docs/DECISIONS.md`, `ROADMAP.md` and the code)  
+- Rejected approaches and why: `docs/DECISIONS.md`  
 - Mobile does **not** block desktop merge; it depends on a **stable `lapacho-core` API** (`HistoryRepo`, ingest, crypto).  
 - Sync is **desktop + mobile**; implement in `lapacho-sync` once, wire both shells.  
 - When mobile/sync land code, update root `ROADMAP.md` + Quebracho `CONTEXT.md` project row.
@@ -671,4 +672,4 @@ Align with desktop: **raw is source of truth inside the vault; UI and logs only 
 
 ## 14. One-paragraph summary
 
-**Same repo, new `apps/mobile/android` + optional `lapacho-predict` + later `lapacho-sync`.** The system keyboard and the companion share an **encrypted on-disk history** as the only durable source of truth because Android will kill the IME; process memory is only a **working set**. Load top-N from storage when the keyboard or history UI needs it; write-through on every accepted clip. Do not re-decrypt the whole vault per keystroke. Default mobile policy should allow **short-TTL encrypted secrets on disk**, with an explicit opt-out that accepts data loss on process death. Prediction stays local and never learns from secrets. **Multi-client sync is optional, E2E, off by default, and opt-in per item**; secrets may sync only when paranoia/`PersistLevel` authorizes it and the user marks the item eligible — never as a silent full-history mirror. The engine is a **small own protocol** (outbox of envelopes), not Syncthing-as-vault; topology is **hybrid** (self-hosted store-and-forward + LAN/WG direct). **Pairing is Brave-like** (QR/codewords → chain keys on device only); **Authentik can authorize the relay API** but must never be the root of clipboard encryption.
+**Same repo, new `apps/mobile/android` + optional `lapacho-predict` + later `lapacho-sync`.** The system keyboard and the companion share an **encrypted on-disk history** as the only durable source of truth because Android will kill the IME; process memory is only a **working set**. Load top-N from storage when the keyboard or history UI needs it; write-through on every accepted clip. Do not re-decrypt the whole vault per keystroke. Default mobile policy should allow **short-TTL encrypted secrets on disk**, with an explicit opt-out that accepts data loss on process death. Prediction stays local and never learns from secrets. **Multi-client sync is optional, E2E, off by default, and opt-in per item**; secrets may sync only when paranoia/`PersistLevel` authorizes it and the user marks the item eligible — never as a silent full-history mirror. The engine is a **small own protocol** (outbox of envelopes), not Syncthing-as-vault; topology is **hybrid** (self-hosted store-and-forward + LAN/VPN direct). **Pairing is Brave-like** (QR/codewords → chain keys on device only); **Authentik can authorize the relay API** but must never be the root of clipboard encryption.

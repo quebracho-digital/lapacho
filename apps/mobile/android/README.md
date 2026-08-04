@@ -21,7 +21,7 @@ read/write it as two processes of the same app.
   `filesDir`, same Keystore alias — no IPC/ContentProvider needed to share
   the DB (see docs §4.3).
 - **"Paste keyboard", not a Gboard replacement.** Per
-  `docs/DEBATE_ARQUITECTURA_MOBILE.md`, the IME's real feature is the paste
+  the internal mobile design debate, the IME's real feature is the paste
   strip (tap a history item → commits raw text). The row of letter keys below
   it exists only to satisfy the literal P0 requirement ("IME that types
   characters") — no shift, no symbols, no autocorrect. Don't read it as an
