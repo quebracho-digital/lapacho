@@ -40,12 +40,26 @@ echo "==> installing desktop entry"
 mkdir -p "$apps_dir"
 # WEBKIT_DISABLE_DMABUF_RENDERER=1 works around WebKitGTK rendering a blank
 # window under some compositors; drop it if your setup doesn't need it.
+#
+# The redirect is not cosmetic. Launched from autostart there is no terminal,
+# so every diagnostic the app writes — failed clipboard access, keyring
+# fallback, tray rebuild errors, the latency instrumentation — went to a
+# stderr nobody could read. A crash at startup left no trace at all. The
+# previous run is kept as .log.1, because the run you need to read is usually
+# the one that just died.
+#
+# Safe to persist: no eprintln! in this codebase prints clipboard content,
+# only errors, content types and timings. Keep it that way — this file is on
+# disk, unencrypted, which is exactly what the buffer is not allowed to be.
+#
+# Set LAPACHO_TRACE=1 here to add the per-copy latency lines; off by default
+# so the log stays small enough to actually read.
 cat > "$apps_dir/lapacho.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=Lapacho
 Comment=Secure clipboard manager (Quebracho Digital)
-Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 lapacho
+Exec=sh -c 'l="${XDG_STATE_HOME:-$HOME/.local/state}/lapacho"; mkdir -p "$l"; [ -f "$l/lapacho.log" ] && mv -f "$l/lapacho.log" "$l/lapacho.log.1"; exec env WEBKIT_DISABLE_DMABUF_RENDERER=1 lapacho >"$l/lapacho.log" 2>&1'
 Icon=lapacho
 Terminal=false
 Categories=Utility;Security;
@@ -60,6 +74,8 @@ gtk-update-icon-cache -f -t "$icon_dir" >/dev/null 2>&1 || true
 update-desktop-database "$apps_dir" >/dev/null 2>&1 || true
 
 echo "==> done. Restart a running Lapacho to pick up the new binary."
+echo "    log: ${XDG_STATE_HOME:-$HOME/.local/state}/lapacho/lapacho.log (previous run: .log.1)"
+echo "    timings: add LAPACHO_TRACE=1 to the Exec line, or run 'LAPACHO_TRACE=1 lapacho' from a shell"
 case ":$PATH:" in
   *":$bin_dir:"*) ;;
   *) echo "    note: $bin_dir is not on your PATH, so the desktop entry won't find it." ;;
