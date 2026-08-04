@@ -32,6 +32,17 @@ use tauri::{AppHandle, Emitter, Manager, State}; // Emitter used by emit_new_ite
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use zeroize::Zeroize;
 
+/// Whether to emit the per-copy latency instrumentation (`LAPACHO_TRACE=1`).
+///
+/// These lines fire on every clipboard capture and every tray rebuild, so
+/// leaving them on would turn the log into a fast-growing file that nobody
+/// reads. Diagnostics worth keeping (errors, fallbacks, key migrations) are
+/// unconditional — this gate is only for the noisy timing lines.
+pub(crate) fn trace_enabled() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("LAPACHO_TRACE").is_some_and(|v| v == "1"))
+}
+
 /// Max items kept in the volatile session buffer (`tray_recent`).
 const TRAY_RECENT_MAX: usize = 25;
 
@@ -667,10 +678,12 @@ fn run_monitor(
         }
         emit_new_item(&app, UIClipboardItem::from(item));
         tray::schedule_rebuild(&app);
-        eprintln!(
-            "lapacho: latency [persist_and_emit exit] {:?}",
-            t0.elapsed()
-        );
+        if trace_enabled() {
+            eprintln!(
+                "lapacho: latency [persist_and_emit exit] {:?}",
+                t0.elapsed()
+            );
+        }
     };
 
     // Cheap change-gate so an image sitting on the clipboard isn't re-encoded
@@ -821,7 +834,7 @@ fn check_clipboard_once(
                 }
                 *last = Some(hash);
             }
-            eprintln!("lapacho: latency [detect] text");
+            if trace_enabled() { eprintln!("lapacho: latency [detect] text"); }
             persist_and_emit(process_text(&text));
             return;
         }
@@ -840,7 +853,7 @@ fn check_clipboard_once(
                     }
                     *last = Some(hash);
                 }
-                eprintln!("lapacho: latency [detect] svg/html");
+                if trace_enabled() { eprintln!("lapacho: latency [detect] svg/html"); }
                 persist_and_emit(process_text(&svg));
                 return;
             }
@@ -864,7 +877,7 @@ fn check_clipboard_once(
                 }
                 *last = Some(png_hash);
             }
-            eprintln!("lapacho: latency [detect] image");
+            if trace_enabled() { eprintln!("lapacho: latency [detect] image"); }
             persist_and_emit(item);
         }
     }
