@@ -112,7 +112,7 @@ fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {
 ///   prioritizing what you just copied this session.
 fn get_tray_items(app: &AppHandle) -> Vec<ClipboardItem> {
     let state = app.state::<AppState>();
-    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().clone();
+    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().snapshot();
 
     // Load from DB and append items not already in recent (by id).
     // This makes tray show persistent history + recent on top.

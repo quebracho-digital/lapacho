@@ -2,6 +2,7 @@ pub mod crypto;
 pub mod detectors;
 pub mod ingest;
 pub mod llm;
+pub mod locked_ring;
 pub mod plugins;
 pub mod security;
 pub mod storage;

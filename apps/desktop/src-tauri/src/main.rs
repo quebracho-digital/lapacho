@@ -26,6 +26,7 @@ use std::time::Duration;
 use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
 use lapacho_core::ingest::sensitive_display;
 use lapacho_core::security::{matches_secret_prefix, secret_prefix};
+use lapacho_core::locked_ring::LockedRing;
 use lapacho_core::types::{ClipboardItem, PersistLevel, Sensitivity, UIClipboardItem};
 use lapacho_core::{PluginDefinition, Threat, assess, plugins, process_text};
 use tauri::{AppHandle, Emitter, Manager, State}; // Emitter used by emit_new_item / request_history_refresh
@@ -46,6 +47,16 @@ pub(crate) fn trace_enabled() -> bool {
 /// Max items kept in the volatile session buffer (`tray_recent`).
 const TRAY_RECENT_MAX: usize = 25;
 
+/// Bytes reserved per item in the locked arena.
+///
+/// Sized from the real history rather than a round number: across 86 text
+/// items the largest was 10.7 KB and the mean 658 B, so 32 KB covers text with
+/// wide headroom, for 800 KB of locked memory in total. Images (~1 MB mean,
+/// 4.6 MB largest) deliberately do not fit — covering them would mean locking
+/// >100 MB permanently, and an image is not what the secret/credential
+/// classifier is protecting.
+const LOCKED_SLOT_BYTES: usize = 32 * 1024;
+
 /// Scrub every plaintext-bearing field before an item is dropped from the
 /// ephemeral buffer.
 ///
@@ -64,60 +75,134 @@ fn zeroize_discarded(item: &mut ClipboardItem) {
     // thumbnail size ever grows enough to reconstruct content.
 }
 
-/// Remove matching id from `tray_recent`, zeroizing the discarded item(s).
-fn tray_recent_evict(rec: &mut Vec<ClipboardItem>, id: &str) {
-    rec.retain_mut(|x| {
-        if x.id == id {
-            zeroize_discarded(x);
-            false
-        } else {
-            true
+/// The volatile session buffer: the recent captures, plus the page-locked
+/// arena that actually owns their plaintext.
+///
+/// The two used to be one plain `Vec` and the lock did not exist. They are a
+/// single type now for one reason: a call site cannot update the list and
+/// forget the arena. Every mutation goes through a method here, so "the
+/// plaintext is scrubbed and unlocked when an item leaves" is a property of
+/// this type rather than a rule each caller has to remember.
+///
+/// `raw_content` — the field that holds the actual secret — is moved into
+/// [`LockedRing`] and emptied in the list, so exactly one copy exists and it
+/// lives in memory the kernel may not swap. Values too large for a slot (in
+/// practice images, ~1 MB average against a 32 KB slot) stay in the list
+/// unlocked; see [`SessionBuffer::locked_ratio`], which exists so the app can
+/// state how much is actually covered instead of assuming all of it.
+pub(crate) struct SessionBuffer {
+    /// Newest first. `raw_content` is empty on every item the arena accepted.
+    recent: Vec<ClipboardItem>,
+    locked: LockedRing,
+}
+
+impl SessionBuffer {
+    fn new() -> Self {
+        Self {
+            recent: Vec::with_capacity(TRAY_RECENT_MAX),
+            locked: LockedRing::new(TRAY_RECENT_MAX, LOCKED_SLOT_BYTES),
         }
-    });
-}
-
-/// Drop excess items past `max`, zeroizing each discarded payload.
-fn tray_recent_truncate(rec: &mut Vec<ClipboardItem>, max: usize) {
-    if rec.len() <= max {
-        return;
     }
-    for mut item in rec.drain(max..) {
-        zeroize_discarded(&mut item);
+
+    /// Whether the arena is really locked into RAM.
+    pub(crate) fn is_locked(&self) -> bool {
+        self.locked.is_locked()
     }
-}
 
-/// Clear the whole buffer, zeroizing every raw payload first.
-fn tray_recent_clear(rec: &mut Vec<ClipboardItem>) {
-    for item in rec.iter_mut() {
-        zeroize_discarded(item);
+    /// How many of the buffered items have their payload in locked memory.
+    /// Reported at startup so the gap (oversized images) is visible.
+    pub(crate) fn locked_ratio(&self) -> (usize, usize) {
+        (self.locked.len(), self.recent.len())
     }
-    rec.clear();
-}
 
-/// Replace an item in place by id, zeroizing the copy being displaced.
-///
-/// Assigning over a slot drops the previous `ClipboardItem` silently, so every
-/// in-place replacement has to funnel through here or it leaks plaintext into
-/// freed memory.
-///
-/// Returns the displaced item — already scrubbed — rather than a bool, so the
-/// scrubbing is observable to a test instead of being a claim in a comment.
-/// Callers are free to drop it.
-fn tray_recent_replace(
-    rec: &mut Vec<ClipboardItem>,
-    id: &str,
-    item: ClipboardItem,
-) -> Option<ClipboardItem> {
-    let slot = rec.iter_mut().find(|x| x.id == id)?;
-    zeroize_discarded(slot);
-    Some(std::mem::replace(slot, item))
-}
+    /// Insert at front (dedup by id), capped at [`TRAY_RECENT_MAX`].
+    fn push_front(&mut self, mut item: ClipboardItem) {
+        self.evict(&item.id);
+        if self.locked.store(&item.id, item.raw_content.as_bytes()) {
+            // The arena owns it now; leaving a second copy in the list would
+            // defeat the whole point.
+            item.raw_content.zeroize();
+        }
+        self.recent.insert(0, item);
+        if self.recent.len() > TRAY_RECENT_MAX {
+            for mut dropped in self.recent.drain(TRAY_RECENT_MAX..) {
+                self.locked.remove(&dropped.id);
+                zeroize_discarded(&mut dropped);
+            }
+        }
+    }
 
-/// Insert at front (dedup by id), then cap length — zeroizing all discards.
-fn tray_recent_push_front(rec: &mut Vec<ClipboardItem>, item: ClipboardItem) {
-    tray_recent_evict(rec, &item.id);
-    rec.insert(0, item);
-    tray_recent_truncate(rec, TRAY_RECENT_MAX);
+    /// Remove an id, scrubbing both halves.
+    fn evict(&mut self, id: &str) {
+        self.locked.remove(id);
+        self.recent.retain_mut(|x| {
+            if x.id == id {
+                zeroize_discarded(x);
+                false
+            } else {
+                true
+            }
+        });
+    }
+
+    /// Drop everything, scrubbing both halves.
+    fn clear(&mut self) {
+        self.locked.clear();
+        for item in self.recent.iter_mut() {
+            zeroize_discarded(item);
+        }
+        self.recent.clear();
+    }
+
+    /// Replace an item in place by id.
+    ///
+    /// Assigning over a slot drops the previous `ClipboardItem` silently, so
+    /// every in-place replacement funnels through here or it leaks plaintext
+    /// into freed memory. Returns the displaced item — already scrubbed — so
+    /// the scrubbing is observable to a test instead of being a claim in a
+    /// comment.
+    fn replace(&mut self, id: &str, mut item: ClipboardItem) -> Option<ClipboardItem> {
+        self.recent.iter().position(|x| x.id == id)?;
+        self.locked.remove(id);
+        if self.locked.store(id, item.raw_content.as_bytes()) {
+            item.raw_content.zeroize();
+        }
+        let slot = self.recent.iter_mut().find(|x| x.id == id)?;
+        zeroize_discarded(slot);
+        Some(std::mem::replace(slot, item))
+    }
+
+    /// Edit the non-secret fields of an item in place (pin, title, vault).
+    /// Never touches the payload, so the arena is left alone.
+    fn update(&mut self, id: &str, f: impl FnOnce(&mut ClipboardItem)) {
+        if let Some(slot) = self.recent.iter_mut().find(|x| x.id == id) {
+            f(slot);
+        }
+    }
+
+    /// One item, with its payload put back. `None` when the id is not buffered.
+    fn get(&self, id: &str) -> Option<ClipboardItem> {
+        let item = self.recent.iter().find(|x| x.id == id)?;
+        Some(self.rehydrated(item))
+    }
+
+    /// Every buffered item, newest first, with payloads put back.
+    fn snapshot(&self) -> Vec<ClipboardItem> {
+        self.recent.iter().map(|i| self.rehydrated(i)).collect()
+    }
+
+    /// Rebuilds the plaintext copy callers need. That copy is ordinary
+    /// unlocked memory and is meant to be short-lived — the long-lived copy,
+    /// the one the kernel would choose to swap, is the one in the arena.
+    fn rehydrated(&self, item: &ClipboardItem) -> ClipboardItem {
+        let mut out = item.clone();
+        if out.raw_content.is_empty()
+            && let Some(bytes) = self.locked.get(&item.id)
+        {
+            out.raw_content = String::from_utf8_lossy(bytes).into_owned();
+        }
+        out
+    }
 }
 
 /// How often the monitor polls the system clipboard.
@@ -152,7 +237,7 @@ pub(crate) struct AppState {
     /// Volatile buffer of the most recent captures (this session). Tray and
     /// live display pull from here so *new* copies always appear even if the
     /// active PersistLevel decided not to write them to disk.
-    tray_recent: Arc<Mutex<Vec<ClipboardItem>>>,
+    tray_recent: Arc<Mutex<SessionBuffer>>,
 }
 
 fn hash_str(s: &str) -> u64 {
@@ -191,7 +276,7 @@ fn persist_level_to_str(level: PersistLevel) -> &'static str {
 /// Matches the tray model so the list shows live captures even when the
 /// webview missed a `clipboard-new` event (hidden window, race on listen).
 fn merge_recent_and_db(state: &AppState) -> Result<Vec<ClipboardItem>, String> {
-    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().clone();
+    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().snapshot();
     for db in state.repo.load()? {
         if result.iter().any(|r| r.id == db.id) {
             continue;
@@ -280,7 +365,7 @@ pub(crate) fn request_search_focus(app: &AppHandle) {
 #[tauri::command]
 fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.repo.delete(&id)?;
-    tray_recent_evict(&mut state.tray_recent.lock().unwrap(), &id);
+    state.tray_recent.lock().unwrap().evict(&id);
     tray::schedule_rebuild(&app);
     Ok(())
 }
@@ -288,7 +373,7 @@ fn delete_item(id: String, app: AppHandle, state: State<'_, AppState>) -> Result
 #[tauri::command]
 fn clear_history(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.repo.clear()?;
-    tray_recent_clear(&mut state.tray_recent.lock().unwrap());
+    state.tray_recent.lock().unwrap().clear();
     tray::schedule_rebuild(&app);
     Ok(())
 }
@@ -344,8 +429,7 @@ fn load_item(id: &str, state: &AppState) -> Result<ClipboardItem, String> {
     // Check volatile recent first (supports items copied this session that the
     // persist level chose not to write to the on-disk history).
     {
-        let rec = state.tray_recent.lock().unwrap();
-        if let Some(it) = rec.iter().find(|i| i.id == id).cloned() {
+        if let Some(it) = state.tray_recent.lock().unwrap().get(id) {
             return Ok(it);
         }
     }
@@ -431,8 +515,7 @@ fn mark_secret(id: String, app: AppHandle, state: State<'_, AppState>) -> Result
         let level = *state.persist_level.lock().unwrap();
         state.repo.save(&item, level)?;
         {
-            let mut rec = state.tray_recent.lock().unwrap();
-            tray_recent_replace(&mut rec, &id, item.clone());
+            state.tray_recent.lock().unwrap().replace(&id, item.clone());
         }
         tray::schedule_rebuild(&app);
         request_history_refresh(&app);
@@ -448,10 +531,7 @@ fn set_item_title(id: String, title: String, app: AppHandle, state: State<'_, Ap
     let title = (!title.is_empty()).then_some(title);
     state.repo.set_title(&id, title)?;
     {
-        let mut rec = state.tray_recent.lock().unwrap();
-        if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
-            slot.title = title.map(str::to_string);
-        }
+        state.tray_recent.lock().unwrap().update(&id, |slot| slot.title = title.map(str::to_string));
     }
     tray::schedule_rebuild(&app);
     request_history_refresh(&app);
@@ -470,10 +550,7 @@ fn toggle_pin(id: String, app: AppHandle, state: State<'_, AppState>) -> Result<
     let pinned = !load_item(&id, &state)?.pinned;
     state.repo.set_pinned(&id, pinned)?;
     {
-        let mut rec = state.tray_recent.lock().unwrap();
-        if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
-            slot.pinned = pinned;
-        }
+        state.tray_recent.lock().unwrap().update(&id, |slot| slot.pinned = pinned);
     }
     tray::schedule_rebuild(&app);
     request_history_refresh(&app);
@@ -509,10 +586,7 @@ fn toggle_vault(id: String, app: AppHandle, state: State<'_, AppState>) -> Resul
     }
 
     {
-        let mut rec = state.tray_recent.lock().unwrap();
-        if let Some(slot) = rec.iter_mut().find(|x| x.id == id) {
-            slot.vaulted = vaulted;
-        }
+        state.tray_recent.lock().unwrap().update(&id, |slot| slot.vaulted = vaulted);
     }
     tray::schedule_rebuild(&app);
     request_history_refresh(&app);
@@ -591,8 +665,7 @@ fn run_plugin(
     }
     // Track in tray_recent so it appears even under restrictive persist.
     {
-        let mut rec = state.tray_recent.lock().unwrap();
-        tray_recent_push_front(&mut rec, item.clone());
+        state.tray_recent.lock().unwrap().push_front(item.clone());
     }
 
     let ui = UIClipboardItem::from(item);
@@ -631,7 +704,7 @@ fn run_monitor(
     persist_level: Arc<Mutex<PersistLevel>>,
     retention: Arc<Mutex<RetentionPolicy>>,
     last_seen: Arc<Mutex<Option<u64>>>,
-    tray_recent: Arc<Mutex<Vec<ClipboardItem>>>,
+    tray_recent: Arc<Mutex<SessionBuffer>>,
 ) {
     let mut clipboard = match arboard::Clipboard::new() {
         Ok(c) => c,
@@ -673,8 +746,7 @@ fn run_monitor(
         // Always record in volatile recent so tray/list show *new* copied items
         // this session even when persist level skips writing to DB.
         {
-            let mut rec = tray_recent.lock().unwrap();
-            tray_recent_push_front(&mut rec, item.clone());
+            tray_recent.lock().unwrap().push_front(item.clone());
         }
         emit_new_item(&app, UIClipboardItem::from(item));
         tray::schedule_rebuild(&app);
@@ -1059,7 +1131,27 @@ fn main() {
             }
 
             let last_seen = Arc::new(Mutex::new(None));
-            let tray_recent = Arc::new(Mutex::new(Vec::new()));
+            let tray_recent = Arc::new(Mutex::new(SessionBuffer::new()));
+            {
+                // Say out loud whether the guarantee actually holds. The last
+                // time this was assumed instead of reported, the security
+                // doctrine claimed "mlock + zeroize" for months while neither
+                // was complete.
+                let buf = tray_recent.lock().unwrap();
+                if buf.is_locked() {
+                    eprintln!(
+                        "lapacho: buffer de sesión fijado en RAM ({} KB, {} ranuras de {} KB)",
+                        TRAY_RECENT_MAX * LOCKED_SLOT_BYTES / 1024,
+                        TRAY_RECENT_MAX,
+                        LOCKED_SLOT_BYTES / 1024
+                    );
+                } else {
+                    eprintln!(
+                        "lapacho: el buffer de sesión NO quedó fijado en RAM; \
+                         el portapapeles puede terminar en swap"
+                    );
+                }
+            }
 
             app.manage(AppState {
                 repo: repo.clone(),
@@ -1231,44 +1323,106 @@ mod tray_recent_tests {
         // Regression: `mark_secret` assigned over the slot, dropping the old
         // item without scrubbing it — on the very path where the user just
         // said "this is a secret".
-        let mut rec = vec![item("a", "hunter2")];
-        let displaced = tray_recent_replace(&mut rec, "a", item("a", "masked"))
-            .expect("slot should match");
+        let mut buf = SessionBuffer::new();
+        buf.push_front(item("a", "hunter2"));
+        let displaced = buf.replace("a", item("a", "masked")).expect("slot should match");
         assert!(displaced.raw_content.is_empty(), "displaced raw_content survived");
         assert!(
             displaced.display_content.is_empty(),
             "displaced display_content survived"
         );
-        assert_eq!(rec.len(), 1);
-        assert_eq!(rec[0].raw_content, "masked");
+        assert_eq!(buf.recent.len(), 1);
+        assert_eq!(buf.get("a").unwrap().raw_content, "masked");
     }
 
     #[test]
     fn replace_reports_a_miss_instead_of_inserting() {
-        let mut rec = vec![item("a", "x")];
-        assert!(tray_recent_replace(&mut rec, "nope", item("nope", "y")).is_none());
-        assert_eq!(rec.len(), 1);
+        let mut buf = SessionBuffer::new();
+        buf.push_front(item("a", "x"));
+        assert!(buf.replace("nope", item("nope", "y")).is_none());
+        assert_eq!(buf.recent.len(), 1);
+    }
+
+    #[test]
+    fn the_payload_lives_in_the_arena_not_in_the_list() {
+        // The whole point of the locked ring: exactly one copy of the secret,
+        // and it is the one in memory the kernel may not swap.
+        let mut buf = SessionBuffer::new();
+        buf.push_front(item("a", "hunter2"));
+        assert!(
+            buf.recent[0].raw_content.is_empty(),
+            "a second, unlocked copy of the payload stayed in the list"
+        );
+        assert_eq!(buf.get("a").unwrap().raw_content, "hunter2");
+    }
+
+    #[test]
+    fn oversized_payloads_stay_in_the_list_rather_than_vanish() {
+        // Images do not fit a slot. Losing them would be a correctness bug;
+        // the honest behaviour is to keep them, unlocked, and say so.
+        let mut buf = SessionBuffer::new();
+        let big = "x".repeat(LOCKED_SLOT_BYTES + 1);
+        buf.push_front(item("img", &big));
+        assert_eq!(buf.get("img").unwrap().raw_content, big);
+        let (locked, total) = buf.locked_ratio();
+        assert_eq!((locked, total), (0, 1), "an oversized item must not count as locked");
+    }
+
+    #[test]
+    fn evicting_clears_the_arena_too() {
+        let mut buf = SessionBuffer::new();
+        buf.push_front(item("a", "hunter2"));
+        buf.evict("a");
+        assert!(buf.get("a").is_none());
+        assert_eq!(buf.locked_ratio(), (0, 0));
+    }
+
+    #[test]
+    fn capping_the_list_also_frees_the_arena_slot() {
+        // Regression risk of splitting state in two: the list caps at 25 and
+        // the arena silently keeps the 26th alive.
+        let mut buf = SessionBuffer::new();
+        for i in 0..TRAY_RECENT_MAX + 5 {
+            buf.push_front(item(&format!("id{i}"), "body"));
+        }
+        let (locked, total) = buf.locked_ratio();
+        assert_eq!(total, TRAY_RECENT_MAX);
+        assert_eq!(locked, TRAY_RECENT_MAX, "arena and list drifted apart");
+        assert!(buf.get("id0").is_none());
+    }
+
+    #[test]
+    fn updating_scalar_fields_leaves_the_payload_alone() {
+        let mut buf = SessionBuffer::new();
+        buf.push_front(item("a", "hunter2"));
+        buf.update("a", |s| s.pinned = true);
+        let got = buf.get("a").unwrap();
+        assert!(got.pinned);
+        assert_eq!(got.raw_content, "hunter2");
+    }
+
+    #[test]
+    fn clear_empties_both_halves() {
+        let mut buf = SessionBuffer::new();
+        buf.push_front(item("a", "x"));
+        buf.push_front(item("b", "y"));
+        buf.clear();
+        assert!(buf.recent.is_empty());
+        assert_eq!(buf.locked_ratio(), (0, 0));
     }
 
     #[test]
     fn push_front_dedups_by_id_and_caps_at_max() {
-        let mut rec = Vec::new();
+        let mut buf = SessionBuffer::new();
         for i in 0..TRAY_RECENT_MAX + 10 {
-            tray_recent_push_front(&mut rec, item(&format!("id{i}"), "body"));
+            buf.push_front(item(&format!("id{i}"), "body"));
         }
-        assert_eq!(rec.len(), TRAY_RECENT_MAX);
+        assert_eq!(buf.recent.len(), TRAY_RECENT_MAX);
         // Newest first, oldest dropped.
-        assert_eq!(rec[0].id, format!("id{}", TRAY_RECENT_MAX + 9));
+        assert_eq!(buf.recent[0].id, format!("id{}", TRAY_RECENT_MAX + 9));
 
-        tray_recent_push_front(&mut rec, item("id0", "again"));
-        assert_eq!(rec.len(), TRAY_RECENT_MAX);
-        assert_eq!(rec.iter().filter(|x| x.id == "id0").count(), 1);
-    }
-
-    #[test]
-    fn clear_empties_the_buffer() {
-        let mut rec = vec![item("a", "x"), item("b", "y")];
-        tray_recent_clear(&mut rec);
-        assert!(rec.is_empty());
+        buf.push_front(item("id0", "again"));
+        assert_eq!(buf.recent.len(), TRAY_RECENT_MAX);
+        assert_eq!(buf.recent.iter().filter(|x| x.id == "id0").count(), 1);
     }
 }
