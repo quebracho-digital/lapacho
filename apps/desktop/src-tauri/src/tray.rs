@@ -112,7 +112,7 @@ fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {
 ///   prioritizing what you just copied this session.
 fn get_tray_items(app: &AppHandle) -> Vec<ClipboardItem> {
     let state = app.state::<AppState>();
-    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().clone();
+    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().snapshot();
 
     // Load from DB and append items not already in recent (by id).
     // This makes tray show persistent history + recent on top.
@@ -191,7 +191,7 @@ fn build_menu(app: &AppHandle, items: &[ClipboardItem]) -> tauri::Result<Menu<Wr
 /// top item when it is an image). This gives visual feedback: the panel icon
 /// reflects "what I copied last".
 fn rebuild(app: &AppHandle) {
-    eprintln!("lapacho: latency [rebuild enter]");
+    if crate::trace_enabled() { eprintln!("lapacho: latency [rebuild enter]"); }
     let t0 = Instant::now();
     let handle = app.clone();
     let res = app.run_on_main_thread(move || {
@@ -203,10 +203,12 @@ fn rebuild(app: &AppHandle) {
             Ok(menu) => {
                 if let Some(tray) = handle.tray_by_id(TRAY_ID) {
                     let _ = tray.set_menu(Some(menu));
-                    eprintln!(
-                        "lapacho: latency [set_menu done] build+set {:?}",
-                        t_main.elapsed()
-                    );
+                    if crate::trace_enabled() {
+                        eprintln!(
+                            "lapacho: latency [set_menu done] build+set {:?}",
+                            t_main.elapsed()
+                        );
+                    }
                 }
             }
             Err(e) => eprintln!("lapacho: tray rebuild failed: {e}"),
@@ -220,7 +222,7 @@ fn rebuild(app: &AppHandle) {
     if let Err(e) = res {
         eprintln!("lapacho: could not schedule tray rebuild: {e}");
     } else {
-        eprintln!("lapacho: latency [rebuild scheduled] {:?}", t0.elapsed());
+        if crate::trace_enabled() { eprintln!("lapacho: latency [rebuild scheduled] {:?}", t0.elapsed()); }
     }
 }
 

@@ -8,11 +8,14 @@ it back.
 Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 `quebracho-client` and `RustyBoard`.
 
-> **Status:** advanced development. The core (`lapacho-core`) is stable with 50+
-> tests. The desktop app (Tauri 2 + Leptos/WASM) has a complete backend, native
-> tray, global shortcut Ctrl+Shift+Alt+L (Lapacho-exclusive), image support, rich rendering
-> (MD/SVG/Mermaid), and a raw-first security model. Verified headless + GUI smoke
-> tests.
+> **Status:** advanced development. 98 tests across the workspace. The desktop
+> app (Tauri 2 + Leptos/WASM) has a complete backend, native tray, global
+> shortcut Ctrl+Shift+Alt+L (Lapacho-exclusive), image support, rich rendering
+> (MD/SVG/Mermaid), and a raw-first security model.
+>
+> Known gap: the tray menu rebuild costs ~290 ms per capture, which is where
+> the end-to-end latency lives (capture and storage together are ~16 ms). See
+> [Diagnostics](#diagnostics) for how to measure it yourself.
 
 ## Features
 
@@ -21,8 +24,11 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 - **Sensitivity classification:** `None` / `Personal` / `Credential` / `Secret`,
   using regex + Shannon entropy (private keys, API tokens, credit cards, emails,
   etc.).
-- **Masking:** credentials and secrets are shown redacted (`••••••••`), never in
-  the clear. The `raw_content` is never sent to the UI layer.
+- **Masking:** credentials and secrets are shown redacted — `••••last4` for a
+  secret, `first3…last4` for a credential — so two of them are still
+  distinguishable in a list without revealing the value or its length. The
+  `raw_content` is never sent to the UI layer. See
+  [Security Model](#security-model) for what that trade does and does not buy.
 - **Persistence policies:**
   - `Paranoia` (default): only stores non-sensitive content.
   - `Balanced`: stores everything except secrets, with TTL for credentials.
@@ -86,10 +92,55 @@ The graph is a derived artifact: if it ever contradicts the code, the code wins.
 
 - The `raw_content` (original content) lives **only in the backend**; the UI
   receives a `UIClipboardItem` that never includes it.
-- Credentials and secrets are masked with a fixed-width placeholder that does
-  not leak the original length.
+- Credentials and secrets are masked before display. The mask is **not** fully
+  opaque, deliberately: a secret shows as `••••last4` and a credential as
+  `first3…last4`, so you can tell two of them apart in a list of twenty. The
+  full value and its length are never shown, but those few characters are. If
+  that trade is wrong for your threat model, it is one function —
+  `ingest::sensitive_display`.
 - Plugins receive their input via `stdin` (not arguments → no injection) and run
   with a timeout; their output is sanitized before reaching the UI.
+
+### Content at rest, and content in memory
+
+These are different problems and it is worth being precise about which is
+solved.
+
+**At rest** — history is encrypted with AES-256-GCM in SQLite. The key lives in
+the OS keyring (file fallback) and is `mlock`-ed so it cannot be swapped. The
+encryption boundary is the storage layer: `save` encrypts, `load` decrypts, and
+everything above that line works with plaintext.
+
+**In memory** — the live session buffer necessarily holds plaintext. It has to:
+the app searches it, renders it, and pastes it back. Encrypting it in RAM with
+the key sitting next to it would be theatre. What can be done, and is:
+
+- The payload is **scrubbed on eviction** (`zeroize`) across every field that
+  carries it — not just `raw_content`, but `display_content` (which *is* the
+  payload for non-sensitive items) and any user-set `title`.
+- The payload is held in a **page-locked arena** (`LockedRing`) that the kernel
+  may not swap: 25 slots of 32 KB, 800 KB locked once at startup and never
+  grown. Scrubbing RAM accomplishes nothing if a copy reached the swap device
+  first, and swap is very often not encrypted.
+
+What that does **not** cover, stated plainly:
+
+- **Images are not locked.** A 32 KB slot is sized for text (across a real
+  history, the largest text item was 10.7 KB); images average ~1 MB and would
+  require locking >100 MB permanently. Oversized items stay in the buffer
+  unlocked rather than being dropped.
+- **Copies handed to the UI are not locked.** Rendering a list or a tray menu
+  builds ordinary `String`s. Those are short-lived; the copy the arena protects
+  is the one that sits idle for hours, which is the one the kernel picks to
+  swap.
+- **The lock is best-effort.** If `RLIMIT_MEMLOCK` forbids it the app starts
+  anyway and says so in the log — a clipboard manager that refuses to start is
+  worse than one that reports it could not lock. Check the startup line rather
+  than assuming.
+
+Locking the *whole process* with `mlockall` was tried and reverted: under
+WebKit it kills the app. The measurement and the conditions under which it
+would be worth revisiting are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Development
 
@@ -116,19 +167,52 @@ To install it for real (binary, icons and desktop entry under `~/.local`, no roo
 ./install.sh
 ```
 
+### Diagnostics
+
+Launched from autostart there is no terminal, so `install.sh` writes a desktop
+entry that redirects output to a log. The previous run is kept, because the run
+you need to read is usually the one that just died:
+
+```
+~/.local/state/lapacho/lapacho.log      # current run
+~/.local/state/lapacho/lapacho.log.1    # previous run
+```
+
+The log is quiet by default: startup state (including whether the session
+buffer actually got locked) and anything that went wrong. No clipboard content
+is ever written to it — only errors, content types and timings. Keep it that
+way if you add a diagnostic; the file is unencrypted, which is precisely what
+the session buffer is not allowed to be.
+
+Per-capture timings are off by default, since they fire on every copy. Turn
+them on for a session:
+
+```bash
+LAPACHO_TRACE=1 lapacho
+```
+
+or add `LAPACHO_TRACE=1` to the `Exec` line in
+`~/.local/share/applications/lapacho.desktop` to keep them across restarts.
+
 ## Roadmap
 
-- [x] `lapacho-core`: classification, sanitization, storage, plugins, ingest (50+ tests)
+- [x] `lapacho-core`: classification, sanitization, storage, plugins, ingest
 - [x] Desktop backend: monitor + Tauri commands + keyring + hardening
 - [x] Reactive UI refresh on live capture
 - [x] At-rest encryption (AES-256-GCM) + key in OS keyring + memory hardening
+- [x] Session buffer plaintext held in page-locked memory (`LockedRing`, 800 KB)
+      + scrubbed on eviction across every field that carries the payload
+- [x] Diagnostics that survive autostart (log file + `LAPACHO_TRACE`)
+- [ ] Tray rebuild latency (~290 ms/capture): `get_tray_items` decrypts 100 rows
+      on every rebuild, and the native menu is rebuilt whole
 - [x] Modular threat scanner + per-item actions (copy/export/plugin)
 - [x] Leptos/WASM frontend + rich rendering (Markdown, safe SVG, JSON, Mermaid)
 - [x] Native system tray + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive) + launch-to-tray + dynamic tray indicator icon (shows last image thumbnail)
 - [x] Full image support (capture, tray thumbnails, metadata sanitization)
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
 
-Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md) and [`HANDOFF.md`](HANDOFF.md).
+Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md). What was
+evaluated and rejected, with the evidence: [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## License
 

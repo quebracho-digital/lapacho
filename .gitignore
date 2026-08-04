@@ -12,3 +12,6 @@
 /.ua/intermediate/
 /.ua/tmp/
 /.ua/.trash-*
+
+# Local agent/editor state — machine-specific paths, never shared
+/.claude/settings.local.json

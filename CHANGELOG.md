@@ -4,6 +4,44 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Security — the session buffer's plaintext no longer reaches swap
+
+Clipboard history is encrypted at rest, but the live session buffer holds
+plaintext by necessity — the app searches it, renders it and pastes it back.
+Nothing kept that plaintext out of swap, and swap is usually not encrypted. On a
+real machine the process had 52 MB of itself already on disk while the only
+locked page was the AES key.
+
+- **Payloads now live in a page-locked arena** (`LockedRing`): one contiguous
+  allocation, 25 slots of 32 KB, 800 KB locked once at startup and never grown.
+  Sized from a real history where the largest text item was 10.7 KB.
+- **Images are deliberately not covered.** They average ~1 MB and covering them
+  would mean locking >100 MB permanently. Oversized items stay in the buffer
+  unlocked rather than being dropped, and the coverage is reported rather than
+  assumed.
+- **Eviction now scrubs every field that carries the payload**, not just
+  `raw_content`: `display_content` (which *is* the payload for non-sensitive
+  items) and any user-set `title` were being left in freed memory. A separate
+  path — marking an item as secret — skipped the scrubbing entirely.
+- **Process-wide `mlockall` is rejected.** It was tried and it kills the app
+  under WebKit: `MCL_ONFAULT` controls page population, not accounting, so the
+  kernel charges the multi-GB address space against `RLIMIT_MEMLOCK`.
+
+### Added — diagnostics that survive autostart
+
+Launched from autostart there is no terminal, so everything the app reported
+went nowhere and a startup crash left no trace. The desktop entry now redirects
+to `~/.local/state/lapacho/lapacho.log`, keeping the previous run as `.log.1`.
+Per-capture timings are behind `LAPACHO_TRACE=1` so the log stays readable. No
+clipboard content is ever written to it.
+
+### Known issue — tray rebuild latency
+
+A capture takes ~300 ms to show up, and now the numbers say where it goes:
+storage is 16–18 ms and the tray menu rebuild is 281–308 ms. `get_tray_items`
+decrypts 100 rows of history on every rebuild. Not yet fixed.
+
+
 ### ⚠️ Security notice — sensitive items may still be on disk from before you switched to Paranoia
 
 **Who is affected:** anyone who ran Lapacho at the `Balanced` or `All`

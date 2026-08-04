@@ -1,4 +1,4 @@
-# Lapacho Security Payloads (from HANDOFF)
+# Lapacho Security Payloads
 
 Use these to manually verify the two defense layers (Mermaid strict + CSP) and sanitizers.
 
@@ -13,7 +13,7 @@ xclip -selection clipboard < test-payloads/c1.mmd
 # then in app: maximize the new item (if appears), switch to View
 ```
 
-## Mermaid XSS (A/C in handoff) — copy the fenced block as text; paste; maximize modal -> View
+## Mermaid XSS — copy the fenced block as text; paste; maximize modal -> View
 
 **C1 — event handler in node label**
 ```
