@@ -1,9 +1,25 @@
-# GROK_TASKS — Backlog masticado del refactor lapacho
+# GROK_TASKS — Backlog del refactor lapacho (CERRADO)
 
-> Decisiones cerradas en `ARQUITECTURA_REFACTOREO.md §10`. Acá están las tareas
-> para ejecutar, **una por vez**. Grok hace una, Claude audita, sigue la próxima.
+> [!warning] Documento histórico — no es un backlog vivo
+> **T1–T9 están todas ejecutadas y auditadas (auditoría cerrada 2026-08-04).**
+> Este archivo se conserva porque las tareas explican *por qué* el código quedó
+> como quedó, no porque quede algo por hacer acá.
+>
+> **El flujo que describe ya no existe.** Grok Build salió de Lapacho el
+> 2026-08-04; Claude Code ejecuta y audita. Las "Reglas para Grok" de abajo y
+> los "queda para Claude" repartidos por el texto son de ese arreglo anterior.
+>
+> **Resultado de la auditoría T7–T9:** T1–T6 y T8 en orden; T7 y T9 no pasaron.
+> T9 imprimía a un stderr descartado (arreglado: log en
+> `~/.local/state/lapacho/`, cronómetros tras `LAPACHO_TRACE=1`). T7 quedó
+> pendiente de reevaluar: se lo midió desde afuera y los ~400 ms resultaron ser
+> el rebuild del menú del tray, no la captura.
+>
+> Trabajo pendiente real: `ROADMAP.md` y `ARQUITECTURA_REFACTOREO.md` §11.
 
-## Reglas para Grok (leer siempre)
+> Decisiones cerradas en `ARQUITECTURA_REFACTOREO.md §10`.
+
+## Reglas del arreglo Grok↔Claude (histórico, ya no vigente)
 
 1. **Una tarea por vez.** No empieces la siguiente hasta que Claude apruebe.
 2. No toques nada fuera de los archivos listados en la tarea.
@@ -100,7 +116,9 @@ fn content_id(&self, raw: &str) -> String { crypto::content_id(&self.content_key
 ## [x] T2b — Zeroizar la subclave de contenido (hallazgo de auditoría T2)
 
 > ✅ Auditada por Claude 2026-06-24: `content_key` ahora es `Zeroizing<[u8;32]>`,
-> en scope, 58 tests verdes. mlock pendiente para Claude (junto a T8).
+> en scope, 58 tests verdes.
+> ✅ **`mlock` resuelto 2026-08-04** por `locked_ring.rs` — el arena fijado cubre
+> el payload del buffer de sesión; ver `README.md §Security Model`.
 
 **Objetivo:** `content_key` es secreto: con la DB (que guarda los `id` = hash de
 contenido en claro) permite un ataque de diccionario. El master ya está
@@ -122,7 +140,6 @@ mlock+zeroize; la subclave debe al menos zeroizarse al dropear.
 verde (no agregar nada).
 
 **Aceptación:** `cargo test --workspace` verde.
-*(mlock del `content_key` lo evalúa Claude junto con T8.)*
 
 ---
 
@@ -373,10 +390,16 @@ aparece casi instantáneo, sin los ~250 ms) lo corre **Claude** en X11/Cinnamon.
 
 > Implementada 2026-07-10 (Grok): helpers `zeroize_discarded` +
 > `tray_recent_{evict,truncate,clear,push_front}` en todos los caminos de descarte.
-> Auditoría Claude pendiente (mlock del buffer sigue para Claude).
+> ⚠️ **Auditada 2026-08-04 — pasaba a medias.** `zeroize_discarded` limpiaba un
+> campo de tres (`display_content`, que para contenido público *es* el payload,
+> y `title` quedaban intactos), y `mark_secret` asignaba sobre el slot sin
+> limpiar el anterior, salteando el borrado en el único camino donde el usuario
+> acaba de declarar que algo es un secreto. Corregido en el PR #14: los helpers
+> son ahora métodos de `SessionBuffer` y el reemplazo en sitio pasa por
+> `replace()`. **`mlock` del buffer resuelto** en el PR #15 (`locked_ring.rs`).
 
 **Objetivo:** que el contenido sensible del buffer de sesión se borre de memoria
-al ser evictado. (El `mlock` completo lo diseña/termina Claude — es delicado.)
+al ser evictado.
 
 **Archivos:** `apps/desktop/src-tauri/src/main.rs` (donde se hace
 `rec.truncate(25)` y `rec.retain(...)` sobre `tray_recent`).
@@ -385,8 +408,9 @@ al ser evictado. (El `mlock` completo lo diseña/termina Claude — es delicado.
 zeroizar su `raw_content` con el crate `zeroize` (ya es dependencia). Hacer un
 helper chico que reciba el item a descartar y haga `item.raw_content.zeroize()`.
 
-**NO tocar:** el modelo de mlock de la clave (`crypto.rs`). El mlock del buffer
-en sí queda para Claude — no lo intentes.
+**NO tocar:** el modelo de mlock de la clave (`crypto.rs`).
+*(Histórico: el mlock del buffer quedaba para Claude. Resuelto el 2026-08-04 en
+`crates/lapacho-core/src/locked_ring.rs`.)*
 
 **Aceptación:** `cargo test --workspace` verde; Claude audita que se zeroiza en
 todos los caminos de descarte.

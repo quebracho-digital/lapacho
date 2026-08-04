@@ -1,5 +1,19 @@
 # Arquitectura Lapacho — Debate de Refactor (junio 2026)
 
+> [!info] Documento histórico — registro de decisiones, no estado actual
+> Este archivo es el **debate** de junio 2026 y las decisiones que salieron de
+> él (§10) más el plan que las ejecutó (§11). Se conserva por el *por qué*.
+> Los diagnósticos escritos en presente describen el código **de junio**, no el
+> de hoy.
+>
+> **Estado de los pasos de §11 al 2026-08-04:** pasos 1–4 hechos; **paso 5
+> (latencia del tray) abierto**, y ahora medido — los ~290 ms están en el
+> rebuild del menú, no en la captura; paso 6 sin cambios.
+>
+> En particular **D1 y G3 (`mlock` del buffer efímero) están resueltos** por
+> `crates/lapacho-core/src/locked_ring.rs`. Para el estado real y sus límites,
+> `README.md §Security Model` es la fuente de verdad.
+
 **Participantes:** Leo + Grok + Claude + Gemini (usando archivos compartidos: CONTEXT.md + este archivo + HANDOFF.md)
 
 **Fecha de inicio del debate:** 2026-06-23 (post-merge del branch `chore/translate-to-english`)
@@ -218,8 +232,10 @@ fallback en DB) y parte de D.
 > de Leo.
 
 **D1 — "Nunca a disco" es una garantía más débil de lo que suena.**
-El buffer efímero en RAM (`tray_recent`, `main.rs:60`) guarda `raw_content` en
-**texto plano** en la memoria del proceso, sin `mlock`. El kernel lo puede
+*(Diagnóstico de junio 2026. **Resuelto el 2026-08-04**: ver `locked_ring.rs` y
+el resumen al principio de este archivo.)*
+El buffer efímero en RAM (`tray_recent`, `main.rs:60`) guardaba `raw_content` en
+**texto plano** en la memoria del proceso, sin `mlock`. El kernel lo podía
 swapear a disco sin cifrar. `harden_process` (`main.rs:532`) pone
 `PR_SET_DUMPABLE=0` — evita core dumps, **no** evita swap. Conclusión incómoda:
 un secret bajo Paranoia HOY puede terminar en disco igual, en claro, vía swap.
@@ -403,14 +419,21 @@ Centralizar en UN helper en `lapacho-core/ingest.rs` y consumirlo desde
 hay 3 copias → riesgo de drift). Regla: `Secret` → `••••last4`; `Credential` →
 `first3…last4` permitido. Nunca primeros chars de un `Secret`.
 
-**Paso 4 — Buffer efímero con mlock (G3).**
+**Paso 4 — Buffer efímero con mlock (G3).** ✅ *Hecho 2026-08-04
+(`crates/lapacho-core/src/locked_ring.rs`). El aviso sobre el `Vec` que realoca
+era correcto y decisivo. Un primer intento con `mlockall` del proceso entero
+—por fuera de este diseño— mató la app bajo WebKit y se revirtió: no reintentar.*
 `tray_recent` guarda `raw_content` en claro. Envolver el buffer en
 almacenamiento **mlock'd + zeroize-on-evict**, reusando `region` (feature
 `mlock`, ya activa en desktop). Ojo: un `Vec` realoca → usar ring buffer de
 capacidad fija pre-asignada y fijada, o contenedor mlock'd dedicado. *Paso más
 delicado; aislarlo y testearlo solo.*
 
-**Paso 5 — Latencia de tray (medir, luego cortar).**
+**Paso 5 — Latencia de tray (medir, luego cortar).** ⏳ *Medido 2026-08-04, sin
+cortar todavía: `set_menu` build+set = 281–308 ms, contra 16–18 ms de
+`persist_and_emit`. La sospecha del `repo.load()` que descifra en cada rebuild
+quedó confirmada como candidata (100 filas de un historial de 34 MB); falta
+separarla del costo de construir 100 items de menú nativo por DBus.*
 Con XFIXES fuera del poll: instrumentar timestamps captura→emit→rebuild, correr
 en X11/Cinnamon, ver el remanente. Probables: debounce 80 ms (bajar si seguro) y
 `repo.load()` que descifra en cada `rebuild` (cachear el recent descifrado en

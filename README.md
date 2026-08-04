@@ -212,7 +212,8 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
 - [x] Full image support (capture, tray thumbnails, metadata sanitization)
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
 
-Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md) and [`HANDOFF.md`](HANDOFF.md).
+Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md). Design
+rationale and the decisions behind the current shape: [`docs/ARQUITECTURA_REFACTOREO.md`](docs/ARQUITECTURA_REFACTOREO.md).
 
 ## License
 
