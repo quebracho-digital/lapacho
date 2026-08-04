@@ -30,7 +30,12 @@ History search implemented; English translation complete. Sensitivity: long hex 
 - Clipboard monitor (`arboard`, 500 ms) → `process_text` → `HistoryRepo`.
 - Encryption key in **OS keyring** (Secret Service / Keychain / Credential
   Manager) with `0600` file fallback and automatic migration.
-- Memory hardening: key `mlock` + no core dumps (Linux `prctl`).
+- Memory hardening: key `mlock` (`crypto.rs`) **and** session-buffer payloads in
+  a page-locked arena (`locked_ring.rs`, 800 KB, text only — images do not fit a
+  slot and stay unlocked), plus no core dumps (Linux `prctl`).
+  Process-wide `mlockall` is **rejected**: under WebKit it kills the app, because
+  `MCL_ONFAULT` controls page population and not accounting, so the kernel
+  charges the multi-GB address space against `RLIMIT_MEMLOCK`.
 - Commands: `get_history`, `delete_item`, `clear_history`, `get/set_persist_level`,
   `get/set_sensitive_ttl`, `copy_item` (raw), `export_item` (raw + threats),
   `list_plugins`, `run_plugin` (operates on raw; output is stored as new item).
@@ -132,7 +137,11 @@ History search implemented; English translation complete. Sensitivity: long hex 
   One struct + one registry line, per the existing extension pattern. (2026-07-20)
 - [ ] More detectors (advanced XSS beyond `<script>`/handlers/`javascript:`) —
   the modular registry already supports this without touching `assess()`.
-- [ ] Real-machine verification of keyring + mlock (not testable headless).
+- [x] Real-machine verification of the session-buffer lock: `VmLck` 808 kB with
+      `VmSwap` 0, launched via the installed desktop entry (2026-08-04).
+- [ ] Real-machine verification of the keyring path (not testable headless).
+- [ ] Paste-back through the tray GUI, which exercises rehydration from the
+      locked arena end to end (no `xdotool` on the dev host).
 
 ### 📦 Project
 
