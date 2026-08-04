@@ -82,7 +82,7 @@ History search implemented; English translation complete. Sensitivity: long hex 
   **El pin NO es un override de `PersistLevel`**: en modo Paranoia un item sensible nunca llegó
   al disco, así que pinnearlo solo lo sostiene en memoria esta sesión; y un `Credential`/`Secret`
   pinneado **igual expira por TTL** — esa garantía no es una preferencia del usuario.
-  Cierra el debate de "pin / guardar en historial" de `docs/ARQUITECTURA_REFACTOREO.md:542`.
+  Cierra el debate de "pin / guardar en historial" del registro de diseño interno.
   Tags múltiples: no, hasta que buscar por título se quede corto. *Falta prueba GUI real.*
 - [x] **Bóveda por item** (2026-07-28, decisión explícita del usuario): 💾 fuerza a disco un item
   que el `PersistLevel` activo rechaza, y lo exime del TTL de sensibles. **Es la única
@@ -148,7 +148,7 @@ History search implemented; English translation complete. Sensitivity: long hex 
 - [x] `LICENSE-APACHE` — full standard text present with copyright line filled in.
 - [ ] Decide whether to version `apps/desktop/src-tauri/gen/` (generated capabilities).
 - [ ] **Mobile (Android-first)** — design in `docs/ARQUITECTURA_MOBILE_ANDROID.md` +
-  `docs/DEBATE_ARQUITECTURA_MOBILE.md`. Decided: **no fork** of an existing
+  the internal mobile design debate. Decided: **no fork** of an existing
   keyboard (FlorisBoard/HeliBoard ruled out); IME positioned as a
   "paste keyboard" (KeePassDX Magikeyboard pattern), HeliBoard read only as a
   lifecycle/accessibility reference. P0 spike scaffolded at
@@ -164,16 +164,16 @@ History search implemented; English translation complete. Sensitivity: long hex 
   *different ids for the same content*, which breaks sync dedup in P4.
   `LapachoCipher.kt` shrinks to Keystore key get/create + `wipeKey()`
   (a real Android API, the one thing Rust can't do); its encrypt/decrypt go to
-  `lapacho-core`. Rule, per `docs/DEBATE_ARQUITECTURA_MOBILE.md:222` and the
+  `lapacho-core`. Rule, per the internal mobile design debate and the
   same pattern Tauri's own mobile plugins use: **Kotlin only where an Android
   system API lives** (IME service, Activity, Keystore), everything else Rust.
 - [ ] **Multi-client sync (optional, E2E, per-item)** — design: `docs/ARQUITECTURA_MOBILE_ANDROID.md` §5
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
-  hybrid SER5 store-and-forward + LAN/WG direct; Brave-like chain pair (QR/words) for decrypt keys;
+  hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;
   Authentik optional for relay authz only. Per-item `sync_eligible`; secrets iff paranoia allows.
   Companion/desktop network only. Not started (P4).
 
-**Recent decision:** Global shortcut changed from Ctrl+Shift+V (too common in terminals, editors, browsers) to **Ctrl+Shift+Alt+L** (Lapacho-exclusive). Updated in code, README, HANDOFF, ROADMAP and CONTEXT.
+**Recent decision:** Global shortcut changed from Ctrl+Shift+V (too common in terminals, editors, browsers) to **Ctrl+Shift+Alt+L** (Lapacho-exclusive).
 
 ## We do not use
 
