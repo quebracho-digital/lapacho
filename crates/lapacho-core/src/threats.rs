@@ -65,6 +65,12 @@ pub enum ThreatKind {
     PromptInjection,
     /// Text that looks like an SQL injection payload.
     SqlInjection,
+    /// Data URL that evaluates to JavaScript (`data:text/html,<script>...`).
+    DataUrlScript,
+    /// Event handler in SVG element (e.g. `onload` in `<svg>`).
+    SvgEventHandler,
+    /// `<img>` with `onerror` handler (image-based XSS vector).
+    ImgOnError,
 }
 
 /// A single finding from a [`Detector`].
@@ -110,6 +116,9 @@ pub static REGISTRY: &[&dyn Detector] = &[
     &SensitiveData,
     &PromptInjection,
     &SqlInjection,
+    &DataUrlScript,
+    &SvgEventHandler,
+    &ImgOnError,
 ];
 
 /// Inspects raw `content` with every registered [`Detector`] and returns the
@@ -450,5 +459,120 @@ mod tests {
         assert!(!requires_confirmation(&assess(
             "ghp_123456789012345678901234567890123456"
         )));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Advanced XSS detectors (beyond ActiveContent)
+// ---------------------------------------------------------------------------
+
+/// Data URL that evaluates to JavaScript, e.g. `data:text/html,<script>...`
+/// or `data:image/svg;base64,...` with embedded `<script>`.
+struct DataUrlScript;
+impl Detector for DataUrlScript {
+    fn id(&self) -> &'static str {
+        "data-url-script"
+    }
+    fn scan(&self, content: &str) -> Vec<Threat> {
+        static RE: OnceLock<Regex> = OnceLock::new();
+        let re = RE.get_or_init(|| {
+            Regex::new(r#"(?i)data:.*(<\s*script|base64,.*c2NyaXB0)"#).unwrap()
+        });
+        if re.is_match(content) {
+            vec![Threat::new(
+                ThreatKind::DataUrlScript,
+                ThreatSeverity::Danger,
+                "Data URL que incluye código ejecutable (<script>). Puede ejecutar acciones si se abre en un navegador.",
+            )]
+        } else {
+            vec![]
+        }
+    }
+}
+
+/// Event handler in SVG element (e.g. `onload` in `<svg>`).
+struct SvgEventHandler;
+impl Detector for SvgEventHandler {
+    fn id(&self) -> &'static str {
+        "svg-event-handler"
+    }
+    fn scan(&self, content: &str) -> Vec<Threat> {
+        static RE: OnceLock<Regex> = OnceLock::new();
+        let re = RE.get_or_init(|| {
+            Regex::new(r#"(?i)<\s*svg\b[\s\S]*(on[a-z]+\s*=|onload\s*=|onerror\s*=)"#).unwrap()
+        });
+        if re.is_match(content) {
+            vec![Threat::new(
+                ThreatKind::SvgEventHandler,
+                ThreatSeverity::Danger,
+                "SVG con manejador de eventos (onload, onerror, etc.). Puede ejecutar código al cargar la imagen.",
+            )]
+        } else {
+            vec![]
+        }
+    }
+}
+
+/// <img> with onerror handler — a classic XSS vector that triggers when the image fails to load.
+struct ImgOnError;
+impl Detector for ImgOnError {
+    fn id(&self) -> &'static str {
+        "img-onerror"
+    }
+    fn scan(&self, content: &str) -> Vec<Threat> {
+        static RE: OnceLock<Regex> = OnceLock::new();
+        let re = RE.get_or_init(|| {
+            Regex::new(r#"(?i)<\s*img\b[^>]*\s(onerror\s*=)"#).unwrap()
+        });
+        if re.is_match(content) {
+            vec![Threat::new(
+                ThreatKind::ImgOnError,
+                ThreatSeverity::Danger,
+                "<img> con manejador onerror. Si la imagen falla, se ejecuta el script (clásico vector XSS).",
+            )]
+        } else {
+            vec![]
+        }
+    }
+}
+
+#[cfg(test)]
+mod advanced_xss_tests {
+    use super::*;
+
+    fn kinds(content: &str) -> Vec<ThreatKind> {
+        assess(content).iter().map(|t| t.kind).collect()
+    }
+
+    #[test]
+    fn flags_data_url_script() {
+        assert!(kinds("data:text/html,<script>alert(1)</script>").contains(&ThreatKind::DataUrlScript));
+        // SVG with script in data URL
+        assert!(kinds("data:image/svg;base64,PHN2Zz48c2NyaXB0PmFsZXJ0KDEpPC9zY3JpcHQ+PC9zdmc+").contains(&ThreatKind::DataUrlScript));
+        // A base64 data URL without script should not trip it
+        assert!(!kinds("data:text/plain;base64,SGVsbG8gV29ybGQ=").contains(&ThreatKind::DataUrlScript));
+    }
+
+    #[test]
+    fn flags_svg_event_handler() {
+        assert!(kinds("<svg onload=evil()>").contains(&ThreatKind::SvgEventHandler));
+        assert!(kinds("<svg><circle onerror=evil()/>").contains(&ThreatKind::SvgEventHandler));
+        // Plain SVG without event handlers should not trip it
+        assert!(!kinds("<svg><rect width=100 height=100/></svg>").contains(&ThreatKind::SvgEventHandler));
+    }
+
+    #[test]
+    fn flags_img_onerror() {
+        assert!(kinds("<img src=x onerror=alert(1)>").contains(&ThreatKind::ImgOnError));
+        assert!(kinds("<img src='no-such-file.png' onerror='steal()'>").contains(&ThreatKind::ImgOnError));
+        // Plain image without onerror should not trip it
+        assert!(!kinds("<img src=\"image.png\" alt=\"logo\">").contains(&ThreatKind::ImgOnError));
+    }
+
+    #[test]
+    fn advanced_xss_not_in_clean_text() {
+        assert!(!kinds("una nota perfectamente normal").contains(&ThreatKind::DataUrlScript));
+        assert!(!kinds("una nota perfectamente normal").contains(&ThreatKind::SvgEventHandler));
+        assert!(!kinds("una nota perfectamente normal").contains(&ThreatKind::ImgOnError));
     }
 }
