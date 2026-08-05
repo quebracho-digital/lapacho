@@ -142,6 +142,22 @@ Locking the *whole process* with `mlockall` was tried and reverted: under
 WebKit it kills the app. The measurement and the conditions under which it
 would be worth revisiting are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+### Keyring path
+
+The encryption key lives in the OS keyring:
+
+- **Linux:** D-Bus Secret Service (`org.freedesktop.secrets`) in the `default`
+  keyring, path `~/.local/share/keyrings/`. The service name is
+  `digital.quebracho.lapacho`, entry name `history-encryption-key`.
+- **macOS:** Keychain (Apple-native backend).
+- **Windows:** Credential Manager (Windows-native backend).
+- **Fallback:** If no keyring is available (headless, server, CI), the key is
+  stored in `history.key` (0600 permissions) in the app data directory.
+
+The keyring path is not testable headless; verify on a machine with a desktop
+session. The key is never plaintext on disk (except in the fallback file, which
+is 0600).
+
 ## Development
 
 Requirements: Rust ≥ 1.85. For the desktop app, the Tauri 2 toolchain

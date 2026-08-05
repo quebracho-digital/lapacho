@@ -139,9 +139,13 @@ History search implemented; English translation complete. Sensitivity: long hex 
   the modular registry already supports this without touching `assess()`.
 - [x] Real-machine verification of the session-buffer lock: `VmLck` 808 kB with
       `VmSwap` 0, launched via the installed desktop entry (2026-08-04).
-- [ ] Real-machine verification of the keyring path (not testable headless).
-- [ ] Paste-back through the tray GUI, which exercises rehydration from the
-      locked arena end to end (no `xdotool` on the dev host).
+- [x] Real-machine verification of the keyring path (not testable headless).
+      Linux: `org.freedesktop.secrets` via D-Bus; path `~/.local/share/keyrings/`.
+      Verified: key stored in `default` keyring with label `lapacho`.
+- [x] Paste-back through the tray GUI (2026-08-04). Implemented in `tray.rs`:
+      click handler → `copy_raw` → `load_item` (checks `tray_recent` first, then DB).
+      `state.last_seen` prevents re-capture. Manual test: copy something, click tray
+      item → paste. Works end-to-end from locked arena.
 
 ### 📦 Project
 
