@@ -171,6 +171,8 @@ History search implemented; English translation complete. Sensitivity: long hex 
   `lapacho-core`. Rule, per the internal mobile design debate and the
   same pattern Tauri's own mobile plugins use: **Kotlin only where an Android
   system API lives** (IME service, Activity, Keystore), everything else Rust.
+  **Plan:** `docs/MIGRACION_MOBILE_RUST.md`. Requiere Android SDK/NDK. **Leo debe
+  ejecutar** (no puedo probar sin SDK/NDK).
 - [ ] **Multi-client sync (optional, E2E, per-item)** — design: `docs/ARQUITECTURA_MOBILE_ANDROID.md` §5
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
   hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;
