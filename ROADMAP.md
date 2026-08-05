@@ -135,8 +135,10 @@ History search implemented; English translation complete. Sensitivity: long hex 
 - [x] SQL injection detector added to `threats::REGISTRY` (tautologies,
   `UNION SELECT`, stacked statements, comment terminators after a quote).
   One struct + one registry line, per the existing extension pattern. (2026-07-20)
-- [ ] More detectors (advanced XSS beyond `<script>`/handlers/`javascript:`) —
-  the modular registry already supports this without touching `assess()`.
+- [x] More detectors (advanced XSS beyond `<script>`/handlers/`javascript:`) —
+  added 3 detectors: DataUrlScript (detects `data:text/html,<script>` and base64 SVG with `<script>`),
+  SvgEventHandler (detects `<svg>` with `onload`/`onerror`/other handlers), ImgOnError (detects `<img>` with `onerror`).
+  4 new tests, 102 total passing.
 - [x] Real-machine verification of the session-buffer lock: `VmLck` 808 kB with
       `VmSwap` 0, launched via the installed desktop entry (2026-08-04).
 - [x] Real-machine verification of the keyring path (not testable headless).

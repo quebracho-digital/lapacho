@@ -4,6 +4,17 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Security — advanced XSS detectors
+
+Added three new threat detectors for advanced XSS attack vectors:
+
+- **DataUrlScript:** detects `data:text/html,<script>...` and base64-encoded SVG
+  with embedded `<script>` (base64 of `<script>` = `c2NyaXB0`).
+- **SvgEventHandler:** detects `<svg>` with `onload`, `onerror`, or other event
+  handlers (including nested elements like `<svg><circle onerror=evil()>`).
+- **ImgOnError:** detects `<img>` with `onerror` handler — a classic XSS vector
+  that triggers when the image fails to load.
+
 ### Performance — tray rebuild reduced from ~300 ms to ~150 ms
 
 The system-tray rebuild was loading the entire history from the database on

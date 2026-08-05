@@ -35,6 +35,10 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
   - `All`: stores everything.
 - **SVG sanitization:** removes XSS vectors (scripts, `on*` handlers,
   `javascript:`).
+- **Advanced XSS detection:** 3 detectors for advanced attack vectors:
+  - **DataUrlScript:** detects `data:text/html,<script>...` and base64-encoded SVG with `<script>`
+  - **SvgEventHandler:** detects `<svg>` with `onload`, `onerror`, or other event handlers
+  - **ImgOnError:** detects `<img>` with `onerror` handler (classic XSS vector)
 - **Transformation plugins:** external commands that receive content via
   `stdin` (no command injection), with timeout, and whose output is sanitized
   before display.

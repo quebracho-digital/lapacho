@@ -23,6 +23,20 @@
 //! 2. Write a zero-sized struct and `impl `[`Detector`]` for it`.
 //! 3. Register it in [`REGISTRY`].
 //!
+//! ## Current detectors
+//!
+//! - **ActiveContent:** `<script>`, inline `on*=` handlers, or `javascript:` URLs.
+//! - **EmbeddedFrame:** `<iframe>`, `<object>`, `<embed>`, `<foreignObject>`, `<form>`.
+//! - **TrojanSourceBidi:** Bidirectional override controls (text renders in different order).
+//! - **ZeroWidthChars:** Zero-width / invisible characters that can hide content.
+//! - **OtherControlChars:** Non-printable control characters.
+//! - **SensitiveData:** Content classified as credential or secret leaving the app.
+//! - **PromptInjection:** Text that looks like an attempt to subvert an LLM/agent prompt.
+//! - **SqlInjection:** Text that looks like an SQL injection payload.
+//! - **DataUrlScript:** Data URL with `<script>` (plain or base64-encoded).
+//! - **SvgEventHandler:** `<svg>` with `onload`, `onerror`, or other event handlers.
+//! - **ImgOnError:** `<img>` with `onerror` handler (classic XSS vector).
+//!
 //! Each detector owns its own patterns and severity, so they stay small and are
 //! tested in isolation.
 
