@@ -104,32 +104,18 @@ fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {
     }
 }
 
-/// Returns the live tray items.
-/// - Recent session copies (from tray_recent, which includes even non-persisted
-///   sensitive items) come first.
-/// - Then we supplement with older items from the persisted history (DB) so the
-///   tray feels more like the full history the modal shows, while still
-///   prioritizing what you just copied this session.
-fn get_tray_items(app: &AppHandle) -> Vec<ClipboardItem> {
-    let state = app.state::<AppState>();
-    let mut result: Vec<ClipboardItem> = state.tray_recent.lock().unwrap().snapshot();
-
-    // Load from DB and append items not already in recent (by id).
-    // This makes tray show persistent history + recent on top.
-    if let Ok(db_items) = state.repo.load() {
-        for db in db_items {
-            if result.iter().any(|r| r.id == db.id) {
-                continue;
-            }
-            result.push(db);
-            // Don't load the entire history into memory for the tray.
-            if result.len() >= 50 {
-                break;
-            }
-        }
-    }
-
+/// Returns the live tray items (session buffer only).
+///
+/// The tray shows only what has been copied this session (up to 25 items),
+/// prioritizing pinned/vaulted items. This keeps the tray instant (~150 ms)
+/// by avoiding a DB decrypt pass. For older items, the user opens the main
+/// window ("Abrir Lapacho…") which searches the full history.
+fn get_tray_items(state: &AppState) -> Vec<ClipboardItem> {
+    let mut result = state.tray_recent.lock().unwrap().snapshot();
     crate::sort_for_display(&mut result);
+    // Cap at TRAY_RECENT_CAP to avoid overwhelming the tray.
+    // This matches the session buffer's own cap, so no surprises.
+    result.truncate(TRAY_RECENT_CAP);
     result
 }
 
@@ -193,12 +179,11 @@ fn build_menu(app: &AppHandle, items: &[ClipboardItem]) -> tauri::Result<Menu<Wr
 fn rebuild(app: &AppHandle) {
     if crate::trace_enabled() { eprintln!("lapacho: latency [rebuild enter]"); }
     let t0 = Instant::now();
+    let state = app.state::<AppState>();
+    let items = get_tray_items(&state);
     let handle = app.clone();
     let res = app.run_on_main_thread(move || {
         let t_main = Instant::now();
-        // Load history once and reuse it for both the menu and the icon,
-        // instead of decrypting the DB twice per rebuild.
-        let items = get_tray_items(&handle);
         match build_menu(&handle, &items) {
             Ok(menu) => {
                 if let Some(tray) = handle.tray_by_id(TRAY_ID) {
@@ -379,7 +364,8 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
 /// Builds the tray icon with its initial menu and click handler. Call once
 /// during setup, on the main thread.
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
-    let items = get_tray_items(app);
+    let state = app.state::<AppState>();
+    let items = get_tray_items(&state);
     let menu = build_menu(app, &items)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("Lapacho — secure clipboard")
