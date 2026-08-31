@@ -15,7 +15,7 @@ Added three new threat detectors for advanced XSS attack vectors:
 - **ImgOnError:** detects `<img>` with `onerror` handler — a classic XSS vector
   that triggers when the image fails to load.
 
-### Performance — tray rebuild reduced from ~300 ms to ~150 ms
+### Performance — a capture went from ~490 ms to ~15 ms, measured
 
 The system-tray rebuild was loading the entire history from the database on
 every clipboard capture. This meant decrypting ~100 rows twice per rebuild
@@ -25,7 +25,13 @@ every clipboard capture. This meant decrypting ~100 rows twice per rebuild
   user copied this session. This keeps the tray instant and avoids database I/O.
 - **Older items remain accessible** via the main window ("Abrir Lapacho…")
   which searches the full history.
-- **Expected latency reduction:** from 280–310 ms to ~150 ms per capture.
+- **Measured, 2026-08-31** (`LAPACHO_TRACE=1`, 20 captures of ~400 B of text,
+  X11/XFIXES, session buffer full at 25 items). The `~150 ms` above was
+  arithmetic on the old numbers; nobody had run it. From the XFIXES event to
+  the item being stored: **13.2–18.6 ms, median ~15 ms**. Of that, the tray
+  menu rebuild — the 281–308 ms that dominated the old capture — is now
+  **0.9–2.9 ms**. The first capture after startup takes ~83 ms (warm-up) and
+  then settles.
 
 ### Security — the session buffer's plaintext no longer reaches swap
 
@@ -50,6 +56,13 @@ locked page was the AES key.
   under WebKit: `MCL_ONFAULT` controls page population, not accounting, so the
   kernel charges the multi-GB address space against `RLIMIT_MEMLOCK`.
 
+### Added — the one timer that could answer "how long does a capture take"
+
+The existing `[detect]` and `[persist_and_emit exit]` traces both start *after*
+the clipboard has been read, so neither could measure the thing the design
+budget is about. A single `[event->stored]` line now spans the XFIXES
+notification to the stored item.
+
 ### Added — diagnostics that survive autostart
 
 Launched from autostart there is no terminal, so everything the app reported
@@ -58,11 +71,12 @@ to `~/.local/state/lapacho/lapacho.log`, keeping the previous run as `.log.1`.
 Per-capture timings are behind `LAPACHO_TRACE=1` so the log stays readable. No
 clipboard content is ever written to it.
 
-### Known issue — tray rebuild latency
+### Fixed — tray rebuild latency
 
-A capture takes ~300 ms to show up, and now the numbers say where it goes:
-storage is 16–18 ms and the tray menu rebuild is 281–308 ms. `get_tray_items`
-decrypts 100 rows of history on every rebuild. Not yet fixed.
+A capture used to take ~300 ms to show up: storage was 16–18 ms and the tray
+menu rebuild 281–308 ms, because `get_tray_items` decrypted 100 rows of history
+on every rebuild. Fixed by the session-buffer change above and **confirmed by
+measurement** on 2026-08-31, not by inference: the rebuild is now 0.9–2.9 ms.
 
 
 ### ⚠️ Security notice — sensitive items may still be on disk from before you switched to Paranoia

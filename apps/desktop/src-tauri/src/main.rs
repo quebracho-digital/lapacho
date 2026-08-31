@@ -805,7 +805,15 @@ fn run_monitor(
         // El evento solo dispara en cambios futuros → un snapshot inicial.
         check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
         while rx.recv().is_ok() {
+            // El único punto donde se puede medir T7 de verdad: desde que XFIXES
+            // avisa hasta que el item quedó guardado. Los tramos de adentro
+            // (`[detect]`, `[persist_and_emit exit]`) no ven la lectura del
+            // selection, que es la parte que depende del dueño del portapapeles.
+            let t_evt = std::time::Instant::now();
             check_clipboard_once(&mut clipboard, &persist_and_emit, &mut last_img_rgba, &last_seen);
+            if trace_enabled() {
+                eprintln!("lapacho: latency [event->stored] {:?}", t_evt.elapsed());
+            }
         }
     } else {
         // Fallback: polling, solo si no se pudo lanzar el monitor de eventos.
