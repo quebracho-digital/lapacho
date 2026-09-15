@@ -88,8 +88,8 @@ fn zeroize_discarded(item: &mut ClipboardItem) {
 /// [`LockedRing`] and emptied in the list, so exactly one copy exists and it
 /// lives in memory the kernel may not swap. Values too large for a slot (in
 /// practice images, ~1 MB average against a 32 KB slot) stay in the list
-/// unlocked; see [`SessionBuffer::locked_ratio`], which exists so the app can
-/// state how much is actually covered instead of assuming all of it.
+/// unlocked; the tests check that gap with `SessionBuffer::locked_ratio`
+/// instead of assuming everything is covered.
 pub(crate) struct SessionBuffer {
     /// Newest first. `raw_content` is empty on every item the arena accepted.
     recent: Vec<ClipboardItem>,
@@ -110,7 +110,8 @@ impl SessionBuffer {
     }
 
     /// How many of the buffered items have their payload in locked memory.
-    /// Reported at startup so the gap (oversized images) is visible.
+    /// Test-only: at startup the buffer is empty, so there is nothing to report.
+    #[cfg(test)]
     pub(crate) fn locked_ratio(&self) -> (usize, usize) {
         (self.locked.len(), self.recent.len())
     }
@@ -687,17 +688,6 @@ fn svg_from_html(html: &str) -> Option<String> {
     Some(html[start..end].to_string())
 }
 
-/// Reads SVG from the HTML MIME type when plain text is empty (common in browsers).
-fn try_clipboard_svg(clipboard: &mut arboard::Clipboard) -> Option<String> {
-    let html = clipboard.get().html().ok()?;
-    let svg = svg_from_html(&html)?;
-    if svg.trim().is_empty() {
-        None
-    } else {
-        Some(svg)
-    }
-}
-
 fn run_monitor(
     app: AppHandle,
     repo: Arc<dyn HistoryRepo>,
@@ -871,12 +861,15 @@ fn run_wayland_watcher(
                 // EOF, watcher died. Restart it.
                 eprintln!("lapacho: wl-paste watcher exited, restarting...");
                 std::thread::sleep(Duration::from_millis(500));
-                // Recreate child (simple restart)
+                // Reap the dead watcher, then read from the new one: reusing
+                // the old reader hit EOF forever and spawned a zombie per loop.
+                let _ = child.wait();
                 child = Command::new("wl-paste")
                     .args(["--watch", "echo", "CLIP_CHANGED"])
                     .stdout(Stdio::piped())
                     .spawn()
                     .map_err(|e| format!("failed to respawn wl-paste: {}", e))?;
+                reader = BufReader::new(child.stdout.take().ok_or("wl-paste has no stdout")?);
                 continue;
             }
             Ok(_) => {
@@ -1017,13 +1010,16 @@ fn mitigate_webkit_blank_window() {}
 /// design — nothing runs on `kill -9`.
 /// The signals we take over, in one place so the mask and the wait cannot
 /// disagree about which ones they cover.
-unsafe fn shutdown_sigset() -> libc::sigset_t {
-    let mut set: libc::sigset_t = std::mem::zeroed();
-    libc::sigemptyset(&mut set);
-    libc::sigaddset(&mut set, libc::SIGTERM);
-    libc::sigaddset(&mut set, libc::SIGINT);
-    libc::sigaddset(&mut set, libc::SIGHUP);
-    set
+fn shutdown_sigset() -> libc::sigset_t {
+    // SAFETY: an all-zero sigset_t is valid, and these only write to our local.
+    unsafe {
+        let mut set: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut set);
+        libc::sigaddset(&mut set, libc::SIGTERM);
+        libc::sigaddset(&mut set, libc::SIGINT);
+        libc::sigaddset(&mut set, libc::SIGHUP);
+        set
+    }
 }
 
 /// Blocks the shutdown signals process-wide. **Must be the first thing `main`
