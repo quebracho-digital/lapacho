@@ -25,12 +25,28 @@
 | `SqliteRepo` | ✅ | Ya implementado en Rust |
 | `SecretKey` / `Cipher` | ✅ | `lapacho-core::crypto` |
 | `ClipboardItem` / `UIClipboardItem` | ✅ | `lapacho_core::types` |
-| Android Keystore | ⚠️ | Requiere `android-keystore` crate o FFI |
-| `uniffi` bindings | ☐ | Generar bindings para Kotlin |
+| Android Keystore | ⚠️ | Envelope en Kotlin, ver abajo |
+| `uniffi` bindings | ✅ parcial | `rust-bridge/` ya expone `MobileCore` (ingest, recent, raw por id) |
 
-**Gap crítico:** `lapacho-core` no tiene Android Keystore integrado. La solución es:
-- Opción A: `android-keystore` crate (Rust) → FFI
-- Opción B: Kotlin Keystore → Rust (pasar `SecretKey` como bytes)
+> **Corrección 2026-09-15.** Este plan describía un estado "sin Rust aún" que ya no
+> era cierto: `rust-bridge/src/lib.rs` existe y `MobileCore::new(db_path, master_key_base64)`
+> es la interfaz real. Las Fases 0–1 de abajo están superadas; quedan como registro.
+
+**Gap crítico: la clave.** `MobileCore` necesita los bytes de la master key, y una clave
+generada *dentro* del `AndroidKeyStore` no es exportable (`secretKey.encoded` devuelve
+`null`). Por eso la **Opción B original ("pasar la clave del Keystore como bytes") no
+funciona**, y la Opción A depende de un crate `android-keystore` que nadie verificó.
+
+**Diseño que sí funciona — envelope (key wrapping):**
+1. Primer arranque: `SecretKey::generate()` en Rust → base64.
+2. Kotlin la cifra con la clave AES-GCM del Keystore (lo que hoy hace `LapachoCipher.encrypt`)
+   y guarda el blob envuelto en `filesDir` (compartido por companion e IME, mismo UID).
+3. Cada arranque: `LapachoCipher.decrypt(blob)` → `MobileCore::new(db, keyB64)`.
+4. `wipeKey()` sigue siendo el borrado: sin la clave del Keystore el blob no se abre y
+   la DB queda ilegible.
+
+`LapachoCipher.kt` sobrevive, pero solo para envolver 32 bytes; deja de tocar filas.
+Igual que en desktop, la master key vive en memoria del proceso mientras corre.
 
 ---
 

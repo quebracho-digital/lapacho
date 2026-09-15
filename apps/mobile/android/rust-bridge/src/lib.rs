@@ -71,7 +71,10 @@ impl MobileCore {
 
     /// Process a new text payload from clipboard and save it.
     pub fn ingest_text(&self, raw: String, persist_level: String) -> Result<MobileItem> {
-        let item = core_process_text(&raw);
+        let mut item = core_process_text(&raw);
+        // Keyed content hash, same as desktop's main.rs: dedups re-copies and
+        // gives the same id on every device sharing the master key.
+        item.id = self.repo.content_id(&item.raw_content);
         let level = match persist_level.as_str() {
             "Sensitive" => PersistLevel::Sensitive,
             "All" => PersistLevel::All,
@@ -122,6 +125,24 @@ mod tests {
             core.get_raw_content("nope".into()),
             Err(MobileError::NotFound { .. })
         ));
+    }
+
+    #[test]
+    fn test_recopy_dedups_with_keyed_content_id() {
+        let db = std::env::temp_dir().join(format!("mobile_dedup_{}.db", uuid::Uuid::new_v4()));
+        let core = MobileCore::new(
+            db.to_str().unwrap().to_string(),
+            crypto::SecretKey::generate().unwrap().to_base64(),
+        )
+        .unwrap();
+        let a = core.ingest_text("mismo texto".into(), "All".into()).unwrap();
+        let b = core.ingest_text("mismo texto".into(), "All".into()).unwrap();
+
+        // Same id scheme as desktop (main.rs sets item.id = repo.content_id(raw)),
+        // so re-copying moves to top instead of duplicating, and sync can dedup.
+        assert_eq!(a.id, b.id);
+        assert_eq!(a.id, core.repo.content_id("mismo texto"));
+        assert_eq!(core.get_recent_items().unwrap().len(), 1);
     }
 
     #[test]
