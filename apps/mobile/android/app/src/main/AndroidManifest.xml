@@ -28,8 +28,13 @@
              docs/ARQUITECTURA_MOBILE_ANDROID.md §4.3, and it's exactly what
              the P0 spike needs to prove: force-stop one, read from the DB
              in the other. -->
+        <!-- Fully qualified on purpose: the namespace here is
+             digital.quebracho.lapacho.app, so ".ime.LapachoIme" resolved to
+             ...app.ime.LapachoIme, which does not exist — the IME showed up in
+             the system list and then died with ClassNotFoundException on first
+             use. The class lives in digital.quebracho.lapacho.ime. -->
         <service
-            android:name=".ime.LapachoIme"
+            android:name="digital.quebracho.lapacho.ime.LapachoIme"
             android:process=":ime"
             android:exported="true"
             android:permission="android.permission.BIND_INPUT_METHOD">
