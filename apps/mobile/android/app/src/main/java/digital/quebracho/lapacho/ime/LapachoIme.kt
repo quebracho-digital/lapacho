@@ -1,5 +1,7 @@
 package digital.quebracho.lapacho.ime
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.inputmethodservice.InputMethodService
 import android.util.Log
 import android.view.View
@@ -9,6 +11,9 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HistoryRepo
+import digital.quebracho.lapacho.storage.PersistLevel
+import digital.quebracho.lapacho.storage.Sensitivity
+import digital.quebracho.lapacho.storage.contentId
 
 /**
  * P0 spike IME. Deliberately NOT a full Gboard replacement — per the
@@ -30,6 +35,7 @@ class LapachoIme : InputMethodService() {
     private lateinit var repo: HistoryRepo
     private lateinit var pasteStrip: LinearLayout
     private var createdAtNanos: Long = 0
+    private var lastCapturedId: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -70,7 +76,54 @@ class LapachoIme : InputMethodService() {
         // keystroke). This is also the read half of the P0 exit criterion:
         // after a Force Stop of either process, this must still show the
         // last items the companion saved.
+        captureClipboard()
         refreshPasteStrip()
+    }
+
+    /**
+     * Stores whatever is on the system clipboard, if it is new.
+     *
+     * This is the only place Android allows it: since Android 10 the clipboard
+     * is off limits to background apps, and the active IME is the one
+     * sanctioned reader while it holds focus — the same reason KeePassDX's
+     * Magikeyboard captures from here. So on mobile, capture is tied to
+     * showing the keyboard; there is no always-on monitor like the desktop's.
+     *
+     * ponytail: stored as [Sensitivity.NONE] / [PersistLevel.ALL] because this
+     * side has no classifier — nothing is masked, nothing expires by TTL, and a
+     * copied password is kept like ordinary text. That arrives with the
+     * lapacho-core bridge (docs/MIGRACION_MOBILE_RUST.md), which is also where
+     * the TTL and the persistence levels come from.
+     */
+    private fun captureClipboard() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        val raw = clipboard.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(this)
+            ?.toString()
+            .orEmpty()
+        if (raw.isBlank()) return
+
+        val id = contentId(raw)
+        // Seeing the same clip again on every keyboard show is not a re-copy:
+        // skipping it keeps the item's timestamp at when it was really copied.
+        if (id == lastCapturedId) return
+        lastCapturedId = id
+
+        repo.save(
+            ClipboardItem(
+                id = id,
+                rawContent = raw,
+                displayContent = raw,
+                contentType = "text",
+                sensitivity = Sensitivity.NONE,
+                detectedType = "Text",
+                timestamp = System.currentTimeMillis() / 1000,
+            ),
+            PersistLevel.ALL,
+        )
+        Log.i(TAG, "captured clipboard item ${id.take(8)}… (${raw.length} chars)")
     }
 
     private fun refreshPasteStrip() {
