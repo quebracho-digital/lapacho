@@ -31,7 +31,8 @@ import digital.quebracho.lapacho.storage.contentId
  * primary feature is the **paste strip** (tap a history item, it commits),
  * modeled on KeePassDX's Magikeyboard. The row of letter keys below exists
  * only to satisfy the P0 spike's literal requirement ("empty IME that types
- * characters"), plus a numbers/symbols layer — no shift/autocorrect. Full typing (or dropping the
+ * characters"), plus a numbers/symbols layer and a one-shot shift — no caps
+ * lock/autocorrect. Full typing (or dropping the
  * key rows entirely) is a P2+ decision once adoption data exists.
  *
  * Cáscara Kotlin fina: no classification, no encryption logic here — both
@@ -45,6 +46,7 @@ class LapachoIme : InputMethodService() {
     private lateinit var pasteStrip: LinearLayout
     private lateinit var keyRows: LinearLayout
     private var symbols = false
+    private var shift = false
     private var createdAtNanos: Long = 0
     private var lastCapturedId: String? = null
 
@@ -208,17 +210,31 @@ class LapachoIme : InputMethodService() {
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
 
-    private fun buildKeyRow(letters: String): LinearLayout =
+    private fun buildKeyRow(letters: String, withShift: Boolean = false): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            if (withShift) {
+                addView(keyButton(if (shift) "⬆" else "⇧", 1.5f) { shift = !shift; showLayer() })
+            }
             for (c in letters) {
-                addView(keyButton(c.toString(), 1f) { currentInputConnection?.commitText(c.toString(), 1) })
+                val key = if (shift) c.uppercase() else c.toString()
+                addView(keyButton(key, 1f) { type(key) })
             }
         }
 
+    /** One-shot shift: it applies to the next letter only, then drops back. */
+    private fun type(key: String) {
+        currentInputConnection?.commitText(key, 1)
+        if (shift) {
+            shift = false
+            showLayer()
+        }
+    }
+
     private fun showLayer() {
         keyRows.removeAllViews()
-        for (row in if (symbols) SYMBOL_ROWS else LETTER_ROWS) keyRows.addView(buildKeyRow(row))
+        val rows = if (symbols) SYMBOL_ROWS else LETTER_ROWS
+        rows.forEachIndexed { i, row -> keyRows.addView(buildKeyRow(row, withShift = !symbols && i == rows.lastIndex)) }
     }
 
     private fun buildActionRow(): LinearLayout =

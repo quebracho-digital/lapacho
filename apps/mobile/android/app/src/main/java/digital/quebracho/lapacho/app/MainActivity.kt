@@ -1,11 +1,15 @@
 package digital.quebracho.lapacho.app
 
 import android.os.Bundle
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ListView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HistoryRepo
 import digital.quebracho.lapacho.storage.PersistLevel
@@ -33,7 +37,17 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         // Shows which build is installed: APKs are sideloaded from a URL a CDN may cache.
-        title = "Lapacho ${packageManager.getPackageInfo(packageName, 0).versionName}"
+        findViewById<TextView>(R.id.header).text =
+            "Lapacho ${packageManager.getPackageInfo(packageName, 0).versionName} — companion (P0 spike)"
+        // Targeting API 35 draws edge-to-edge: keep the content clear of the
+        // status bar, the navigation bar and the keyboard.
+        val root = findViewById<View>(R.id.root)
+        val pad = root.paddingTop
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
+            v.setPadding(pad + bars.left, pad + bars.top, pad + bars.right, pad + bars.bottom)
+            insets
+        }
 
         repo = HistoryRepo(applicationContext)
 
