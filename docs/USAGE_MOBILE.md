@@ -78,9 +78,9 @@ Lapacho never stores a password, and never shows one:
   history ("🔒 campo privado: historial oculto") and nothing is captured. If
   something is on the clipboard, the 🔑 ••••••  chip is still there, so a
   copied password can go into a password field.
-- **Anything already stored that looks like a secret** (for example, saved
-  before the classifier existed) is shown as 🔑 •••••• in both the strip and
-  the app.
+- **Secrets captured by versions before 0.1.7**, which had no classifier, are
+  deleted the first time 0.1.11 or later starts. A secret you saved on purpose
+  with GUARDAR in the app is kept, shown as 🔑 •••••• with a short id.
 
 The history keeps the **last 100 clips** — as far as search reaches — and
 trims the oldest on every new one. What is *not* covered yet: there are no

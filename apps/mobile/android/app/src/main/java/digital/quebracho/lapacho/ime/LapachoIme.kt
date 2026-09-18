@@ -26,6 +26,7 @@ import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.isSecret
 import digital.quebracho.lapacho.matchesQuery
+import digital.quebracho.lapacho.purgeUnclassifiedSecrets
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HISTORY_MAX
 import digital.quebracho.lapacho.storage.HistoryRepo
@@ -73,6 +74,7 @@ class LapachoIme : InputMethodService() {
         // Same DB the companion writes to (app-private storage, shared by
         // both processes under this app's UID) — no IPC needed to read it.
         repo = HistoryRepo(applicationContext)
+        repo.purgeUnclassifiedSecrets()
     }
 
     override fun onCreateInputView(): View {
