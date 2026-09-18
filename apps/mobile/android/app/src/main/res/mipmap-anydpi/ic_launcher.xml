@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The foreground PNGs are Tauri's, rendered from the desktop icon
+     (apps/desktop/src-tauri/icons/lapacho-source.svg). They fill the whole
+     108dp canvas, but launchers only guarantee the central 66dp circle, so the
+     ring would be cropped: the inset shrinks the art into that safe zone. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground>
+        <inset
+            android:drawable="@mipmap/ic_launcher_foreground"
+            android:inset="19%" />
+    </foreground>
+</adaptive-icon>
