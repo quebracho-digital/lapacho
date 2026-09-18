@@ -84,9 +84,8 @@ Lapacho never stores a password, and never shows one:
 
 The history keeps the **last 100 clips** — as far as search reaches — and
 trims the oldest on every new one. What is *not* covered yet: there are no
-persistence levels as on desktop, no expiry (TTL), and the app cannot delete
-items — the only way to wipe the history is **Settings → Apps → Lapacho →
-Storage → Clear data**.
+persistence levels as on desktop, no expiry (TTL), and single items cannot be
+deleted yet — **Borrar historial** in the app wipes all of it.
 
 ## The keyboard
 
@@ -99,12 +98,21 @@ Storage → Clear data**.
 | , and . | Next to the space bar, on both layers. |
 | ⌫ / ↵ | Delete / new line. |
 
+Keys vibrate and click according to the phone's own settings (keyboard
+vibration, touch sounds); Lapacho has no setting of its own for that.
+
 ## The app
 
-The app shows the same history as the keyboard (secrets masked), with a
-search box on top. **Tap an item to copy it** back to the clipboard, ready to
-paste anywhere; a masked one is copied flagged as sensitive, so it stays
-masked. **GUARDAR** saves text by hand. The list refreshes every time you come
+The app is also the keyboard's settings: Android's keyboard list opens it from
+the settings entry next to Lapacho.
+
+It shows the same history as the keyboard, with a search box on top. Secrets
+are masked and carry a short id so two of them can be told apart. **Tap an
+item to copy it** back to the clipboard, ready to paste anywhere; a masked one
+is copied flagged as sensitive, so it stays masked. **GUARDAR** saves text by
+hand. **BORRAR HISTORIAL** deletes every stored item and empties the clipboard
+(otherwise the clip still on it would come back the next time the keyboard
+opens); it asks first. The list refreshes every time you come
 back to the app. Its screen is protected: screenshots, screen recording and the recent-apps
 thumbnail come out black.
 

@@ -86,7 +86,8 @@ screenshots of the companion) are the usual reasons a check "fails".
 - `contentId()` is a plain SHA-256, not desktop's keyed hash; mobile and
   desktop give the same content different ids until storage moves to Rust.
   Required for sync dedup (P4).
-- No persistence levels, no TTL, no delete from the UI. The history is capped
+- No persistence levels, no TTL, no deleting a single item (only the whole
+  history). The history is capped
   at `HISTORY_MAX` (100), trimmed after every write; search covers exactly
   that, so nothing is kept out of reach.
 - Acting on an item is copy (app) or paste (keyboard) only. `MainActivity.copy`

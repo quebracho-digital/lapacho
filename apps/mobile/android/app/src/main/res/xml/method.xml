@@ -1,4 +1,7 @@
-<input-method xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- settingsActivity: the app is the keyboard's settings, reachable from
+     Android's keyboard list next to "Lapacho". -->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="digital.quebracho.lapacho.app.MainActivity">
     <subtype
         android:label="@string/app_name"
         android:imeSubtypeLocale="es_AR"

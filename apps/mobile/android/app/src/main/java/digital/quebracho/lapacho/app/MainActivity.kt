@@ -13,6 +13,7 @@ import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -74,6 +75,8 @@ class MainActivity : AppCompatActivity() {
         historyList.adapter = adapter
         historyList.setOnItemClickListener { _, _, position, _ -> copy(shown[position]) }
 
+        findViewById<Button>(R.id.clear_button).setOnClickListener { confirmClear() }
+
         search = findViewById(R.id.search)
         search.doAfterTextChanged { applyFilter() }
 
@@ -119,10 +122,33 @@ class MainActivity : AppCompatActivity() {
         val query = search.text.toString()
         shown = if (query.isBlank()) all else all.filter { !it.isMasked() && matchesQuery(it.displayContent, query) }
         adapter.clear()
-        adapter.addAll(shown.map { "${label(it)}  ·  id=${it.id.take(8)}…" })
+        adapter.addAll(shown.map(::label))
     }
 
-    private fun label(item: ClipboardItem): String = if (item.isMasked()) "🔑 ••••••" else item.displayContent
+    /**
+     * Wipes the history and empties the clipboard too: otherwise the clip
+     * still on it would be captured again the next time the keyboard opens,
+     * and the "cleared" history would come back with it.
+     */
+    private fun confirmClear() {
+        AlertDialog.Builder(this)
+            .setTitle("Borrar historial")
+            .setMessage("Se borran todos los items guardados y se vacía el portapapeles. No se puede deshacer.")
+            .setPositiveButton("Borrar") { _, _ ->
+                repo.clear()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).clearPrimaryClip()
+                }
+                refresh()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    // Masked items all look alike, so they carry a short id to tell them
+    // apart; for the rest the content itself does that.
+    private fun label(item: ClipboardItem): String =
+        if (item.isMasked()) "🔑 ••••••  ·  id=${item.id.take(8)}…" else item.displayContent
 
     /**
      * Puts the item back on the clipboard, raw. A masked one goes out flagged

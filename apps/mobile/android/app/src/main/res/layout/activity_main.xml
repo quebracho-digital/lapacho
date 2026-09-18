@@ -18,11 +18,24 @@
         android:layout_height="wrap_content"
         android:hint="Escribí algo para guardar en el historial cifrado…" />
 
-    <Button
-        android:id="@+id/save_button"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Guardar" />
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/save_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Guardar" />
+
+        <Button
+            android:id="@+id/clear_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Borrar historial" />
+    </LinearLayout>
 
     <TextView
         android:layout_width="match_parent"

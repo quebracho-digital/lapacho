@@ -11,6 +11,7 @@ import android.text.InputType
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -295,7 +296,7 @@ class LapachoIme : InputMethodService() {
         Button(this).apply {
             text = label
             isAllCaps = false
-            setOnClickListener { onClick() }
+            setOnClickListener { keyFeedback(it); onClick() }
         }
 
     /**
@@ -323,8 +324,18 @@ class LapachoIme : InputMethodService() {
                 val m = dp(2f).toInt()
                 setMargins(m, m, m, m)
             }
-            setOnClickListener { onClick() }
+            setOnClickListener { keyFeedback(it); onClick() }
         }
+
+    /**
+     * Vibration on every key and chip, following the system's own touch /
+     * keyboard vibration setting (no setting of ours). The click sound needs
+     * nothing: performClick() already plays it when the system's "touch
+     * sounds" setting is on.
+     */
+    private fun keyFeedback(view: View) {
+        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+    }
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
 
