@@ -1,84 +1,92 @@
 # Lapacho mobile — Android (P0 spike)
 
-Scaffolded, **not yet built or run** — this environment has no Android
-SDK/NDK/Gradle installed. Everything below needs verification on a machine
-with Android Studio (or SDK + `adb` + an emulator/device).
+Developer notes. How to *use* the app: [`docs/USAGE_MOBILE.md`](../../../docs/USAGE_MOBILE.md).
 
 ## What this is
 
-The P0 spike from `docs/ARQUITECTURA_MOBILE_ANDROID.md` §9: prove that
-encrypted on-disk storage — not process memory — is what survives Android
-killing things, and that both the companion app and the keyboard (IME) can
-read/write it as two processes of the same app.
+The P0 spike from `docs/ARQUITECTURA_MOBILE_ANDROID.md` §9, grown into
+something usable day to day: encrypted on-disk storage shared by the companion
+app and the keyboard (IME), which capture and paste the clipboard.
 
-- **No Rust yet.** `lapacho-core` behind `uniffi` is P1. This spike is plain
-  Kotlin: `HistoryRepo` (SQLite) + `LapachoCipher` (AES-256-GCM, key in the
-  Android Keystore). Schema mirrors `lapacho_core::storage::SqliteRepo` by
-  hand; expect a hand-kept-mirror drift until P1 replaces it.
-- **One app, two processes.** `:app` module contains both `MainActivity`
-  (companion) and `LapachoIme` (the keyboard service), the latter declared
-  with `android:process=":ime"` in `AndroidManifest.xml`. Same UID, same
-  `filesDir`, same Keystore alias — no IPC/ContentProvider needed to share
-  the DB (see docs §4.3).
-- **"Paste keyboard", not a Gboard replacement.** Per
-  the internal mobile design debate, the IME's real feature is the paste
-  strip (tap a history item → commits raw text). The row of letter keys below
-  it exists only to satisfy the literal P0 requirement ("IME that types
-  characters") — no shift, no symbols, no autocorrect. Don't read it as an
-  attempt at a full keyboard.
+- **One app, two processes.** `:app` contains both `MainActivity` (companion)
+  and `LapachoIme` (the keyboard), the latter declared with
+  `android:process=":ime"`. Same UID, same `filesDir`, same Keystore alias —
+  no IPC needed to share the DB (docs §4.3).
+- **Storage is still Kotlin.** `HistoryRepo` (SQLite) + `LapachoCipher`
+  (AES-256-GCM, key in the Android Keystore), schema mirrored from
+  `lapacho_core::storage::SqliteRepo` by hand.
+- **Classification is Rust.** `lapacho-core` is compiled for Android through
+  `rust-bridge/` (uniffi) and the app calls `classify_sensitivity`, so a
+  password is recognized by the same rules as on desktop. The rest of the
+  migration (storage, keyed ids, persistence levels) is
+  [`docs/MIGRACION_MOBILE_RUST.md`](../../../docs/MIGRACION_MOBILE_RUST.md).
+- **"Paste keyboard", not a Gboard replacement.** The IME's real feature is the
+  paste strip. The keys (letters, ñ, dead-key acute, shift/caps lock, a
+  numbers/symbols layer) are enough to type with, nothing more — no
+  autocorrect, no swipe, no emoji.
 
 ## Module layout
 
 ```
 apps/mobile/android/
-  storage/    # library module: HistoryRepo, LapachoCipher, Types — shared by app + IME
-  app/        # companion Activity + LapachoIme service (separate :ime process)
+  storage/      # library module: HistoryRepo, LapachoCipher, Types
+  app/          # companion Activity + LapachoIme service (separate :ime process)
+  rust-bridge/  # lapacho-core behind uniffi; build-android.sh builds it for :app
 ```
 
-## Before you can build
+## Building
 
-1. Install Android Studio (bundles SDK + a Gradle-compatible JDK), or the
-   command-line SDK tools + JDK 17.
-2. Generate the Gradle wrapper once (not checked in — needs network/Gradle
-   installed to fetch): from `apps/mobile/android/`:
-   ```
-   gradle wrapper --gradle-version 8.10.2
-   ```
-3. Then the usual:
-   ```
-   ./gradlew :app:assembleDebug
-   ./gradlew :app:installDebug   # needs a running emulator or device via adb
-   ```
+Needs JDK 17, the Android SDK (platform 35, build-tools 35) and NDK, plus Rust
+with `cargo-ndk` and the targets `aarch64-linux-android` and
+`x86_64-linux-android`. The Gradle wrapper is not checked in; generate it once
+with `gradle wrapper --gradle-version 8.10.2`.
 
-## Running the P0 checklist (docs §9)
+```
+./gradlew :app:assembleDebug        # also builds the Rust bridge
+./gradlew :app:testDebugUnitTest    # JVM tests (keyboard logic)
+cargo test -p lapacho-mobile-bridge # bridge tests, from the repo root
+```
 
-1. Install the app, open it, type something into the `EditText`, tap
-   "Guardar". Confirm it appears in the list below (companion process, own
-   read).
-2. Settings → System → Languages & input → On-screen keyboard → enable
-   "Lapacho" as an input method. Switch to it in any text field (long-press
-   the keyboard-switch icon, or the on-screen picker).
-3. Confirm the paste strip at the top of the Lapacho keyboard shows the item
-   you just saved — cross-process read, no restart needed.
-4. `adb shell am force-stop digital.quebracho.lapacho` (kills **both**
-   processes — companion and `:ime` share the app, so this is the closest adb
-   equivalent to what LMK does to either one independently). Reopen the
-   keyboard: the paste strip must still show the item. This is the actual
-   proof the spike exists for.
-5. Cold-start timing: `adb logcat -s LapachoIme` while switching into the
-   keyboard after a force-stop. `onCreateInputView` logs the time from
-   `onCreate`; `onStartInputView` logs the `loadTopN` query time separately.
-   P0 exit criterion is "measure it", not a specific target yet.
+`preBuild` runs `rust-bridge/build-android.sh`, which builds the `.so` for
+`arm64-v8a` (devices) and `x86_64` (emulator) and generates the Kotlin
+bindings into `app/build/generated/rust/`. The APK is limited to those two
+ABIs.
 
-## Known gaps (intentional, P0 scope only)
+## Releasing a build
 
-- `contentId()` in `LapachoCipher.kt` is a plain SHA-256, not the keyed hash
-  desktop uses (`crypto::content_id`). Fine for a single-device spike; **must**
-  be replaced by calling into `lapacho-core` once the uniffi bridge (P1)
-  exists, so mobile and desktop agree on the same id for the same content —
-  required for sync dedup in P4.
-- No classification (`classify_sensitivity`), no `PersistLevel`/TTL settings
-  UI, no ingest pipeline. Companion writes everything as `Sensitivity.NONE` /
-  `PersistLevel.ALL`. All of this is P1 (`lapacho-core` behind uniffi).
-- No biometric gate, no image support, no prediction, no sync. Explicit
-  non-goals for P0–P3 per docs §10.
+Bump `versionCode`/`versionName` in `app/build.gradle.kts` (the version is
+shown in the app, which is how a user tells a cached download from a new one),
+then publish the APK under a **versioned** file name together with its
+checksum:
+
+```
+lapacho-<versionName>.apk
+lapacho-<versionName>.apk.sha256
+```
+
+Never reuse a file name: the download URL sits behind a CDN that caches APKs.
+
+## Manual checks
+
+- **Cross-process read.** Save an item in the companion, open the keyboard:
+  the strip shows it. `adb shell am force-stop digital.quebracho.lapacho`,
+  reopen the keyboard: still there.
+- **Cold start.** `adb logcat -s LapachoIme` logs the time to the input view
+  and the `loadTopN` query time.
+- **Secrets.** Copy a password-like string from a normal field: the strip
+  shows 🔑 •••••• and logcat shows no capture. In an `<input type=password>`
+  the history is hidden and the chip still pastes.
+
+Emulator gotchas (window required for the IME, `force-stop` disabling the
+keyboard, `uiautomator dump` not seeing the IME, FLAG_SECURE blacking out
+screenshots of the companion) are the usual reasons a check "fails".
+
+## Known gaps
+
+- `contentId()` is a plain SHA-256, not desktop's keyed hash; mobile and
+  desktop give the same content different ids until storage moves to Rust.
+  Required for sync dedup (P4).
+- No persistence levels, no TTL, no history size limit (`HistoryRepo.cleanup`
+  exists but nothing calls it), no delete from the UI.
+- No biometric gate, no image support, no prediction, no sync — non-goals for
+  P0–P3 per docs §10.

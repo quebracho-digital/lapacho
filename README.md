@@ -1,6 +1,6 @@
 # Lapacho
 
-A **secure** desktop clipboard manager. It classifies, sanitizes, and masks
+A **secure** clipboard manager for the desktop and Android. It classifies, sanitizes, and masks
 content before it reaches the UI: credentials and secrets are never shown in
 plain text, and the original content is only released when you explicitly paste
 it back.
@@ -16,6 +16,17 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > Known gap: the tray menu rebuild costs ~290 ms per capture, which is where
 > the end-to-end latency lives (capture and storage together are ~16 ms). See
 > [Diagnostics](#diagnostics) for how to measure it yourself.
+>
+> **Android** is an early spike, usable day to day: a keyboard with a paste
+> strip, encrypted history, and the same sensitivity classifier as desktop
+> (`lapacho-core` compiled for Android). See [Mobile](#mobile).
+
+## Usage
+
+- **Desktop:** [`docs/USAGE_DESKTOP.md`](docs/USAGE_DESKTOP.md) — shortcuts,
+  tray, per-item actions, persistence modes, plugins.
+- **Android:** [`docs/USAGE_MOBILE.md`](docs/USAGE_MOBILE.md) — install,
+  enabling the keyboard, capture and paste, how passwords are handled.
 
 ## Features
 
@@ -57,10 +68,14 @@ lapacho/
 │  ├─ storage      # SQLite: history, persistence levels, TTL
 │  ├─ plugins      # external plugin execution
 │  └─ ingest       # pipeline that composes everything + masking
-└─ apps/desktop/
-   ├─ src-tauri/   # Tauri 2 backend (clipboard monitor + commands)
-   ├─ ui/          # Leptos/WASM frontend (standalone crate, built with Trunk)
-   └─ legacy-ui/   # Original vanilla UI, kept as reference
+├─ apps/desktop/
+│  ├─ src-tauri/   # Tauri 2 backend (clipboard monitor + commands)
+│  ├─ ui/          # Leptos/WASM frontend (standalone crate, built with Trunk)
+│  └─ legacy-ui/   # Original vanilla UI, kept as reference
+└─ apps/mobile/android/
+   ├─ app/          # companion app + keyboard (IME), Kotlin
+   ├─ storage/      # encrypted SQLite history, Kotlin (moving to Rust)
+   └─ rust-bridge/  # lapacho-core for Android via uniffi
 ```
 
 `lapacho-core` does not depend on Tauri or any UI framework: it is reusable
@@ -91,6 +106,21 @@ plugin:
 > way, and such a PR is welcome.
 
 The graph is a derived artifact: if it ever contradicts the code, the code wins.
+
+## Mobile
+
+On Android, Lapacho is a keyboard (IME) rather than a background monitor:
+Android only lets the active keyboard read the clipboard, so a clip is
+captured when the keyboard opens and pasted by tapping it in the strip above
+the keys. The app has no internet permission, and the history is encrypted
+with a key in the Android Keystore and excluded from backups.
+
+Secrets are never stored there: a clip is a secret if the password manager
+flagged it or if `lapacho-core`'s classifier recognizes it. It can still be
+pasted, from the clipboard itself, through a masked 🔑 chip. In password
+fields and incognito tabs the history is hidden.
+
+Build notes and known gaps: [`apps/mobile/android/README.md`](apps/mobile/android/README.md).
 
 ## Security Model
 
@@ -229,6 +259,10 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
 - [x] Leptos/WASM frontend + rich rendering (Markdown, safe SVG, JSON, Mermaid)
 - [x] Native system tray + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive) + launch-to-tray + dynamic tray indicator icon (shows last image thumbnail)
 - [x] Full image support (capture, tray thumbnails, metadata sanitization)
+- [x] Android spike: paste-strip keyboard, encrypted shared history, desktop
+      classifier via uniffi, secrets never stored (see [Mobile](#mobile))
+- [ ] Android: storage, keyed ids and persistence levels in Rust
+      ([`docs/MIGRACION_MOBILE_RUST.md`](docs/MIGRACION_MOBILE_RUST.md))
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
 
 Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md). What was
