@@ -2,13 +2,22 @@ package digital.quebracho.lapacho.ime
 
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.inputmethodservice.InputMethodService
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HistoryRepo
 import digital.quebracho.lapacho.storage.PersistLevel
@@ -48,6 +57,7 @@ class LapachoIme : InputMethodService() {
     override fun onCreateInputView(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setBackgroundColor(KEYBOARD_BG)
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -63,6 +73,12 @@ class LapachoIme : InputMethodService() {
         root.addView(buildKeyRow("asdfghjkl"))
         root.addView(buildKeyRow("zxcvbnm"))
         root.addView(buildActionRow())
+        // Targeting API 35 draws edge-to-edge: without this the navigation
+        // bar's buttons land on top of the bottom key row.
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            v.setPadding(0, 0, 0, insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom)
+            insets
+        }
 
         val coldStartMs = (System.nanoTime() - createdAtNanos) / 1_000_000
         Log.i(TAG, "cold start to input view: ${coldStartMs}ms")
@@ -160,49 +176,59 @@ class LapachoIme : InputMethodService() {
             setOnClickListener { onClick() }
         }
 
+    /**
+     * A key that stays readable under any display zoom or font scale. Not a
+     * [Button]: each vendor styles those differently (min width, padding,
+     * insets, `ellipsize=end`) and on a phone with display zoom the glyph was
+     * squeezed out and drawn as "…". A plain TextView has none of that; the
+     * label is sized in dp, not sp, so the system font scale doesn't grow it
+     * past the key — the same choice Gboard makes.
+     */
+    private fun keyButton(label: String, weight: Float, onClick: () -> Unit): TextView =
+        TextView(this).apply {
+            text = label
+            gravity = Gravity.CENTER
+            maxLines = 1
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, KEY_TEXT_DP)
+            background = RippleDrawable(
+                ColorStateList.valueOf(Color.GRAY),
+                GradientDrawable().apply { setColor(KEY_COLOR); cornerRadius = dp(6f) },
+                null,
+            )
+            isClickable = true
+            layoutParams = LinearLayout.LayoutParams(0, dp(KEY_HEIGHT_DP).toInt(), weight).apply {
+                val m = dp(2f).toInt()
+                setMargins(m, m, m, m)
+            }
+            setOnClickListener { onClick() }
+        }
+
+    private fun dp(v: Float): Float = v * resources.displayMetrics.density
+
     private fun buildKeyRow(letters: String): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             for (c in letters) {
-                addView(
-                    Button(this@LapachoIme).apply {
-                        text = c.toString()
-                        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                        setOnClickListener { currentInputConnection?.commitText(c.toString(), 1) }
-                    },
-                )
+                addView(keyButton(c.toString(), 1f) { currentInputConnection?.commitText(c.toString(), 1) })
             }
         }
 
     private fun buildActionRow(): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(
-                Button(this@LapachoIme).apply {
-                    text = "⌫"
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    setOnClickListener { currentInputConnection?.deleteSurroundingText(1, 0) }
-                },
-            )
-            addView(
-                Button(this@LapachoIme).apply {
-                    text = "espacio"
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 3f)
-                    setOnClickListener { currentInputConnection?.commitText(" ", 1) }
-                },
-            )
-            addView(
-                Button(this@LapachoIme).apply {
-                    text = "↵"
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    setOnClickListener { currentInputConnection?.commitText("\n", 1) }
-                },
-            )
+            addView(keyButton("⌫", 1f) { currentInputConnection?.deleteSurroundingText(1, 0) })
+            addView(keyButton("espacio", 3f) { currentInputConnection?.commitText(" ", 1) })
+            addView(keyButton("↵", 1f) { currentInputConnection?.commitText("\n", 1) })
         }
 
     companion object {
         private const val TAG = "LapachoIme"
         private const val TOP_N = 20
         private const val LABEL_MAX = 24
+        private const val KEY_TEXT_DP = 20f
+        private const val KEY_HEIGHT_DP = 46f
+        private const val KEY_COLOR = 0xFF3C3C3C.toInt()
+        private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
     }
 }

@@ -32,6 +32,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // Shows which build is installed: APKs are sideloaded from a URL a CDN may cache.
+        title = "Lapacho ${packageManager.getPackageInfo(packageName, 0).versionName}"
 
         repo = HistoryRepo(applicationContext)
 
