@@ -101,12 +101,25 @@ class LapachoIme : InputMethodService() {
         // after a Force Stop of either process, this must still show the
         // last items the companion saved.
         privateField = info != null && isPrivateField(info.inputType, info.imeOptions)
-        if (!privateField) captureClipboard()
-        refreshPasteStrip()
+        val clip = readClip()
+        if (clip != null && !clip.sensitive && !privateField) capture(clip.text)
+        refreshPasteStrip(secretOnClipboard = clip != null && (clip.sensitive || privateField))
+    }
+
+    private class Clip(val text: String, val sensitive: Boolean)
+
+    private fun readClip(): Clip? {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return null
+        val clip = clipboard.primaryClip?.takeIf { it.itemCount > 0 } ?: return null
+        val text = clip.getItemAt(0).coerceToText(this)?.toString().orEmpty()
+        if (text.isBlank()) return null
+        // ClipDescription.EXTRA_IS_SENSITIVE is API 33; the key is a plain
+        // string, so reading it needs no version gate (older apps never set it).
+        return Clip(text, clip.description.extras?.getBoolean(EXTRA_IS_SENSITIVE) == true)
     }
 
     /**
-     * Stores whatever is on the system clipboard, if it is new.
+     * Stores what is on the system clipboard, if it is new.
      *
      * This is the only place Android allows it: since Android 10 the clipboard
      * is off limits to background apps, and the active IME is the one
@@ -114,9 +127,11 @@ class LapachoIme : InputMethodService() {
      * Magikeyboard captures from here. So on mobile, capture is tied to
      * showing the keyboard; there is no always-on monitor like the desktop's.
      *
-     * Clips the source app marks as sensitive are never stored: password
+     * Clips the source app marks as sensitive are never stored — password
      * managers set that flag on what they copy (Android 13+), and a copied
-     * password must not outlive the clipboard in our history.
+     * password must not outlive the clipboard in our history. Neither is
+     * anything read while a private field has focus. Both can still be pasted
+     * from the clipboard itself, see [refreshPasteStrip].
      *
      * ponytail: everything else is stored as [Sensitivity.NONE] /
      * [PersistLevel.ALL] because this side has no classifier — nothing is
@@ -125,23 +140,7 @@ class LapachoIme : InputMethodService() {
      * lapacho-core bridge (docs/MIGRACION_MOBILE_RUST.md), which is also where
      * the TTL and the persistence levels come from.
      */
-    private fun captureClipboard() {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
-        val clip = clipboard.primaryClip ?: return
-        // ClipDescription.EXTRA_IS_SENSITIVE is API 33; the key is a plain
-        // string, so reading it needs no version gate (older apps never set it).
-        if (clip.description.extras?.getBoolean(EXTRA_IS_SENSITIVE) == true) {
-            Log.i(TAG, "skipped clip marked sensitive by its source")
-            return
-        }
-        val raw = clip
-            .takeIf { it.itemCount > 0 }
-            ?.getItemAt(0)
-            ?.coerceToText(this)
-            ?.toString()
-            .orEmpty()
-        if (raw.isBlank()) return
-
+    private fun capture(raw: String) {
         val id = contentId(raw)
         // Seeing the same clip again on every keyboard show is not a re-copy:
         // skipping it keeps the item's timestamp at when it was really copied.
@@ -163,12 +162,22 @@ class LapachoIme : InputMethodService() {
         Log.i(TAG, "captured clipboard item ${id.take(8)}… (${raw.length} chars)")
     }
 
-    private fun refreshPasteStrip() {
+    /**
+     * [secretOnClipboard]: the clipboard holds something we won't store or
+     * show (a sensitive clip, or anything while a private field has focus).
+     * It gets a masked chip that pastes the clipboard as it is at tap time, so
+     * a copied password can still go into a password field without ever
+     * entering the history.
+     */
+    private fun refreshPasteStrip(secretOnClipboard: Boolean) {
         val t0 = System.nanoTime()
         val items = repo.loadTopN(TOP_N)
         Log.i(TAG, "loadTopN(${TOP_N}) took ${(System.nanoTime() - t0) / 1_000_000}ms, ${items.size} items")
 
         pasteStrip.removeAllViews()
+        if (secretOnClipboard) {
+            pasteStrip.addView(pasteButton("🔑 ••••••") { readClip()?.let { commitText(it.text) } })
+        }
         // In a password field or an incognito session the history stays
         // hidden: nothing we show there should be visible over a secret.
         if (privateField) {
@@ -176,6 +185,7 @@ class LapachoIme : InputMethodService() {
             return
         }
         if (items.isEmpty()) {
+            if (secretOnClipboard) return
             pasteStrip.addView(pasteButton("(sin clips)") {})
             return
         }
@@ -188,10 +198,15 @@ class LapachoIme : InputMethodService() {
         // Paste = commit the RAW content, intact — same rule as desktop's
         // copy_item: masking is a display-only concern, never applied to
         // what actually gets typed.
-        currentInputConnection?.commitText(item.rawContent, 1)
+        commitText(item.rawContent)
+    }
+
+    private fun commitText(text: String) {
+        currentInputConnection?.commitText(text, 1)
     }
 
     private fun previewLabel(item: ClipboardItem): String {
+        if (item.sensitivity != Sensitivity.NONE) return "🔑 ••••••"
         val oneLine = item.displayContent.replace('\n', ' ').trim()
         return if (oneLine.length > LABEL_MAX) oneLine.take(LABEL_MAX - 1) + "…" else oneLine.ifEmpty { "(empty)" }
     }
