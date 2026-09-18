@@ -20,9 +20,13 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.classify
+import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.isSecret
+import digital.quebracho.lapacho.matchesQuery
 import digital.quebracho.lapacho.storage.ClipboardItem
+import digital.quebracho.lapacho.storage.HISTORY_MAX
 import digital.quebracho.lapacho.storage.HistoryRepo
 import digital.quebracho.lapacho.storage.PersistLevel
 import digital.quebracho.lapacho.storage.Sensitivity
@@ -54,6 +58,11 @@ class LapachoIme : InputMethodService() {
     private var lastShiftTapMs = 0L
     private var accentPending = false
     private var privateField = false
+    private var secretOnClipboard = false
+    // Search mode: non-null while searching. The keys edit [query] instead of
+    // the field, and the strip shows what in this pool matches it.
+    private var searchPool: List<ClipboardItem>? = null
+    private var query = ""
     private var createdAtNanos: Long = 0
     private var lastCapturedId: String? = null
 
@@ -107,7 +116,16 @@ class LapachoIme : InputMethodService() {
         val clip = readClip()
         val secret = clip != null && clip.sensitivity.isSecret()
         if (clip != null && !secret && !privateField) capture(clip.text, clip.sensitivity)
-        refreshPasteStrip(secretOnClipboard = clip != null && (secret || privateField))
+        secretOnClipboard = clip != null && (secret || privateField)
+        searchPool = null
+        refreshPasteStrip()
+    }
+
+    override fun onFinishInputView(finishingInput: Boolean) {
+        // Don't keep up to HISTORY_MAX decrypted items around once the
+        // keyboard is gone.
+        searchPool = null
+        super.onFinishInputView(finishingInput)
     }
 
     private class Clip(val text: String, val sensitivity: Sensitivity)
@@ -164,6 +182,7 @@ class LapachoIme : InputMethodService() {
             ),
             PersistLevel.ALL,
         )
+        repo.cleanup(sensitiveTtlSecs = null, maxItems = HISTORY_MAX)
         Log.i(TAG, "captured clipboard item ${id.take(8)}… (${raw.length} chars)")
     }
 
@@ -174,12 +193,14 @@ class LapachoIme : InputMethodService() {
      * a copied password can still go into a password field without ever
      * entering the history.
      */
-    private fun refreshPasteStrip(secretOnClipboard: Boolean) {
+    private fun refreshPasteStrip() {
+        pasteStrip.removeAllViews()
+        searchPool?.let { showSearch(it); return }
+
         val t0 = System.nanoTime()
         val items = repo.loadTopN(TOP_N)
         Log.i(TAG, "loadTopN(${TOP_N}) took ${(System.nanoTime() - t0) / 1_000_000}ms, ${items.size} items")
 
-        pasteStrip.removeAllViews()
         if (secretOnClipboard) {
             pasteStrip.addView(pasteButton("🔑 ••••••") { readClip()?.let { commitText(it.text) } })
         }
@@ -194,9 +215,63 @@ class LapachoIme : InputMethodService() {
             pasteStrip.addView(pasteButton("(sin clips)") {})
             return
         }
+        pasteStrip.addView(pasteButton("🔍") { startSearch() })
         for (item in items) {
             pasteStrip.addView(pasteButton(previewLabel(item)) { commitRaw(item) })
         }
+    }
+
+    // Masked items are left out of the pool: matching against them would let
+    // typing part of an old password reveal that it is stored.
+    private fun startSearch() {
+        searchPool = repo.loadTopN(HISTORY_MAX).filterNot { it.isMasked() }
+        query = ""
+        refreshPasteStrip()
+    }
+
+    private fun stopSearch() {
+        searchPool = null
+        query = ""
+        refreshPasteStrip()
+    }
+
+    private fun searchHits(pool: List<ClipboardItem>): List<ClipboardItem> =
+        pool.filter { matchesQuery(it.displayContent, query) }.take(TOP_N)
+
+    private fun showSearch(pool: List<ClipboardItem>) {
+        pasteStrip.addView(pasteButton("✕") { stopSearch() })
+        pasteStrip.addView(pasteButton("🔍 $query▏") {})
+        val hits = searchHits(pool)
+        if (hits.isEmpty()) pasteStrip.addView(pasteButton("(sin resultados)") {})
+        for (item in hits) {
+            pasteStrip.addView(pasteButton(previewLabel(item)) { commitRaw(item); stopSearch() })
+        }
+    }
+
+    /** Where every key's text goes: the search query while searching, else the field. */
+    private fun output(text: String) {
+        if (searchPool == null) {
+            commitText(text)
+            return
+        }
+        query += text
+        refreshPasteStrip()
+    }
+
+    private fun backspace() {
+        if (searchPool == null) {
+            currentInputConnection?.deleteSurroundingText(1, 0)
+            return
+        }
+        query = query.dropLast(1)
+        refreshPasteStrip()
+    }
+
+    /** Enter: a new line, or while searching, paste the first match. */
+    private fun enter() {
+        val pool = searchPool ?: return commitText("\n")
+        searchHits(pool).firstOrNull()?.let { commitRaw(it) }
+        stopSearch()
     }
 
     private fun commitRaw(item: ClipboardItem) {
@@ -211,8 +286,7 @@ class LapachoIme : InputMethodService() {
     }
 
     private fun previewLabel(item: ClipboardItem): String {
-        // Re-classifying covers rows stored before the classifier existed.
-        if (item.sensitivity.isSecret() || classify(item.displayContent).isSecret()) return "🔑 ••••••"
+        if (item.isMasked()) return "🔑 ••••••"
         val oneLine = item.displayContent.replace('\n', ' ').trim()
         return if (oneLine.length > LABEL_MAX) oneLine.take(LABEL_MAX - 1) + "…" else oneLine.ifEmpty { "(empty)" }
     }
@@ -279,7 +353,7 @@ class LapachoIme : InputMethodService() {
     }
 
     private fun type(key: String) {
-        currentInputConnection?.commitText(if (accentPending) withAcute(key) else key, 1)
+        output(if (accentPending) withAcute(key) else key)
         if (shift == Shift.ONCE || accentPending) {
             shift = if (shift == Shift.ONCE) Shift.OFF else shift
             accentPending = false
@@ -306,10 +380,10 @@ class LapachoIme : InputMethodService() {
             }
             addView(toggle)
             addView(keyButton(",", 1f) { type(",") })
-            addView(keyButton("espacio", 3f) { currentInputConnection?.commitText(" ", 1) })
+            addView(keyButton("espacio", 3f) { output(" ") })
             addView(keyButton(".", 1f) { type(".") })
-            addView(keyButton("⌫", 1.2f) { currentInputConnection?.deleteSurroundingText(1, 0) })
-            addView(keyButton("↵", 1.2f) { currentInputConnection?.commitText("\n", 1) })
+            addView(keyButton("⌫", 1.2f) { backspace() })
+            addView(keyButton("↵", 1.2f) { enter() })
         }
 
     companion object {
@@ -351,7 +425,6 @@ class LapachoIme : InputMethodService() {
             }
         }
 
-        private const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
         private const val DOUBLE_TAP_MS = 400
         private const val TAG = "LapachoIme"
         private const val TOP_N = 20

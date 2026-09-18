@@ -7,6 +7,12 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 /**
+ * How many items the history keeps: everything that search can reach. Trimmed
+ * after every write, so nothing sits on the phone out of reach.
+ */
+const val HISTORY_MAX = 100
+
+/**
  * SQLite-backed history store shared by the companion app and the IME —
  * mobile counterpart of `lapacho_core::storage::SqliteRepo`. Same schema
  * shape, same rules: content (`raw`/`display`) encrypted at rest, metadata in

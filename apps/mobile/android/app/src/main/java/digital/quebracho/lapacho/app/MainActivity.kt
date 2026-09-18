@@ -1,6 +1,10 @@
 package digital.quebracho.lapacho.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.os.Build
 import android.os.Bundle
+import android.os.PersistableBundle
 import android.view.View
 import android.view.WindowManager
 import android.widget.ArrayAdapter
@@ -8,12 +12,17 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.widget.doAfterTextChanged
+import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.classify
-import digital.quebracho.lapacho.isSecret
+import digital.quebracho.lapacho.isMasked
+import digital.quebracho.lapacho.matchesQuery
 import digital.quebracho.lapacho.storage.ClipboardItem
+import digital.quebracho.lapacho.storage.HISTORY_MAX
 import digital.quebracho.lapacho.storage.HistoryRepo
 import digital.quebracho.lapacho.storage.PersistLevel
 import digital.quebracho.lapacho.storage.contentId
@@ -34,6 +43,9 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var repo: HistoryRepo
     private lateinit var adapter: ArrayAdapter<String>
+    private lateinit var search: EditText
+    private var all: List<ClipboardItem> = emptyList()
+    private var shown: List<ClipboardItem> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,6 +72,10 @@ class MainActivity : AppCompatActivity() {
         val historyList = findViewById<ListView>(R.id.history_list)
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
         historyList.adapter = adapter
+        historyList.setOnItemClickListener { _, _, position, _ -> copy(shown[position]) }
+
+        search = findViewById(R.id.search)
+        search.doAfterTextChanged { applyFilter() }
 
         findViewById<Button>(R.id.save_button).setOnClickListener {
             val text = input.text.toString()
@@ -89,16 +105,40 @@ class MainActivity : AppCompatActivity() {
             timestamp = System.currentTimeMillis() / 1000,
         )
         repo.save(item, PersistLevel.ALL)
+        repo.cleanup(sensitiveTtlSecs = null, maxItems = HISTORY_MAX)
     }
 
     private fun refresh() {
-        val items = repo.loadTopN(20)
-        adapter.clear()
-        adapter.addAll(items.map { "${label(it)}  ·  id=${it.id.take(8)}…" })
+        all = repo.loadTopN(HISTORY_MAX)
+        applyFilter()
     }
 
-    // Same rule as the keyboard strip; re-classifying covers rows stored
-    // before the classifier existed.
-    private fun label(item: ClipboardItem): String =
-        if (item.sensitivity.isSecret() || classify(item.displayContent).isSecret()) "🔑 ••••••" else item.displayContent
+    // Masked items stay listed with no query, but never match one: typing
+    // part of an old password must not reveal that it is stored.
+    private fun applyFilter() {
+        val query = search.text.toString()
+        shown = if (query.isBlank()) all else all.filter { !it.isMasked() && matchesQuery(it.displayContent, query) }
+        adapter.clear()
+        adapter.addAll(shown.map { "${label(it)}  ·  id=${it.id.take(8)}…" })
+    }
+
+    private fun label(item: ClipboardItem): String = if (item.isMasked()) "🔑 ••••••" else item.displayContent
+
+    /**
+     * Puts the item back on the clipboard, raw. A masked one goes out flagged
+     * as sensitive, so the keyboard treats it as a secret and Android hides
+     * its preview. Single entry point for acting on an item: plugins will hang
+     * off here.
+     */
+    private fun copy(item: ClipboardItem) {
+        val clip = ClipData.newPlainText("lapacho", item.rawContent)
+        if (item.isMasked()) {
+            clip.description.extras = PersistableBundle().apply { putBoolean(EXTRA_IS_SENSITIVE, true) }
+        }
+        (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+        // Android 13+ shows its own confirmation; a toast there would say it twice.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show()
+        }
+    }
 }

@@ -28,8 +28,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingTop="16dp"
-        android:text="Historial (top-20, más nuevo primero):"
+        android:text="Historial (tocá un item para copiarlo):"
         android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/search"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="🔍 Buscar…"
+        android:inputType="text" />
 
     <ListView
         android:id="@+id/history_list"

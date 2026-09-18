@@ -86,7 +86,10 @@ screenshots of the companion) are the usual reasons a check "fails".
 - `contentId()` is a plain SHA-256, not desktop's keyed hash; mobile and
   desktop give the same content different ids until storage moves to Rust.
   Required for sync dedup (P4).
-- No persistence levels, no TTL, no history size limit (`HistoryRepo.cleanup`
-  exists but nothing calls it), no delete from the UI.
+- No persistence levels, no TTL, no delete from the UI. The history is capped
+  at `HISTORY_MAX` (100), trimmed after every write; search covers exactly
+  that, so nothing is kept out of reach.
+- Acting on an item is copy (app) or paste (keyboard) only. `MainActivity.copy`
+  is the single entry point where desktop-style plugins will hang.
 - No biometric gate, no image support, no prediction, no sync — non-goals for
   P0–P3 per docs §10.

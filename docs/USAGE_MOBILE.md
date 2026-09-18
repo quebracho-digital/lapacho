@@ -52,6 +52,17 @@ The same text copied twice keeps one entry.
 Tap a clip in the strip: it is typed into the field, exactly as it was copied.
 Scroll the strip sideways for older ones (the 20 most recent are shown).
 
+## Search
+
+Tap **🔍** at the start of the strip. While searching, the keys type into the
+search instead of the field; the strip shows what you typed and the matching
+clips. Tap one to paste it, or press **↵** to paste the first match. **✕**
+leaves search without pasting.
+
+Search covers the whole history (the last 100 clips), ignores case and accents
+("cancion" finds "Canción"), and every word must appear, in any order. Secrets
+never show up in results.
+
 ## Passwords and other secrets
 
 Lapacho never stores a password, and never shows one:
@@ -71,10 +82,11 @@ Lapacho never stores a password, and never shows one:
   before the classifier existed) is shown as 🔑 •••••• in both the strip and
   the app.
 
-What is *not* covered yet: there are no persistence levels as on desktop, no
-expiry (TTL) and no size limit. Everything that is not a secret is kept
-indefinitely, and the app cannot delete items yet — the only way to wipe the
-history is **Settings → Apps → Lapacho → Storage → Clear data**.
+The history keeps the **last 100 clips** — as far as search reaches — and
+trims the oldest on every new one. What is *not* covered yet: there are no
+persistence levels as on desktop, no expiry (TTL), and the app cannot delete
+items — the only way to wipe the history is **Settings → Apps → Lapacho →
+Storage → Clear data**.
 
 ## The keyboard
 
@@ -89,9 +101,11 @@ history is **Settings → Apps → Lapacho → Storage → Clear data**.
 
 ## The app
 
-The app shows the same history as the keyboard (secrets masked) and lets you
-save text by hand with **GUARDAR**. It refreshes every time you come back to
-it. Its screen is protected: screenshots, screen recording and the recent-apps
+The app shows the same history as the keyboard (secrets masked), with a
+search box on top. **Tap an item to copy it** back to the clipboard, ready to
+paste anywhere; a masked one is copied flagged as sensitive, so it stays
+masked. **GUARDAR** saves text by hand. The list refreshes every time you come
+back to the app. Its screen is protected: screenshots, screen recording and the recent-apps
 thumbnail come out black.
 
 ## Privacy, in short
