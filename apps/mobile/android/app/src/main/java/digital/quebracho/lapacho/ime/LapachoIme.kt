@@ -31,7 +31,7 @@ import digital.quebracho.lapacho.storage.contentId
  * primary feature is the **paste strip** (tap a history item, it commits),
  * modeled on KeePassDX's Magikeyboard. The row of letter keys below exists
  * only to satisfy the P0 spike's literal requirement ("empty IME that types
- * characters") — no shift/symbols/autocorrect. Full typing (or dropping the
+ * characters"), plus a numbers/symbols layer — no shift/autocorrect. Full typing (or dropping the
  * key rows entirely) is a P2+ decision once adoption data exists.
  *
  * Cáscara Kotlin fina: no classification, no encryption logic here — both
@@ -43,6 +43,8 @@ class LapachoIme : InputMethodService() {
 
     private lateinit var repo: HistoryRepo
     private lateinit var pasteStrip: LinearLayout
+    private lateinit var keyRows: LinearLayout
+    private var symbols = false
     private var createdAtNanos: Long = 0
     private var lastCapturedId: String? = null
 
@@ -69,10 +71,10 @@ class LapachoIme : InputMethodService() {
             HorizontalScrollView(this).apply { addView(pasteStrip) },
         )
 
-        root.addView(buildKeyRow("qwertyuiop"))
-        root.addView(buildKeyRow("asdfghjkl"))
-        root.addView(buildKeyRow("zxcvbnm"))
+        keyRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(keyRows)
         root.addView(buildActionRow())
+        showLayer()
         // Targeting API 35 draws edge-to-edge: without this the navigation
         // bar's buttons land on top of the bottom key row.
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
@@ -214,9 +216,21 @@ class LapachoIme : InputMethodService() {
             }
         }
 
+    private fun showLayer() {
+        keyRows.removeAllViews()
+        for (row in if (symbols) SYMBOL_ROWS else LETTER_ROWS) keyRows.addView(buildKeyRow(row))
+    }
+
     private fun buildActionRow(): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            lateinit var toggle: TextView
+            toggle = keyButton(if (symbols) "abc" else "?123", 1f) {
+                symbols = !symbols
+                toggle.text = if (symbols) "abc" else "?123"
+                showLayer()
+            }
+            addView(toggle)
             addView(keyButton("⌫", 1f) { currentInputConnection?.deleteSurroundingText(1, 0) })
             addView(keyButton("espacio", 3f) { currentInputConnection?.commitText(" ", 1) })
             addView(keyButton("↵", 1f) { currentInputConnection?.commitText("\n", 1) })
@@ -230,5 +244,7 @@ class LapachoIme : InputMethodService() {
         private const val KEY_HEIGHT_DP = 46f
         private const val KEY_COLOR = 0xFF3C3C3C.toInt()
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
+        private val LETTER_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+        private val SYMBOL_ROWS = listOf("1234567890", "@#\$%&-+()/", "*\"':;!?,.")
     }
 }
