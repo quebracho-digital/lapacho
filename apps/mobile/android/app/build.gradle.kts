@@ -11,8 +11,8 @@ android {
         applicationId = "digital.quebracho.lapacho"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.1.3-mayus"
+        versionCode = 5
+        versionName = "0.1.4-privado"
     }
 
     compileOptions {
@@ -28,4 +28,5 @@ dependencies {
     implementation(project(":storage"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    testImplementation("junit:junit:4.13.2")
 }

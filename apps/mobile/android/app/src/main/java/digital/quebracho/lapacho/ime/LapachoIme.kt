@@ -7,11 +7,13 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.inputmethodservice.InputMethodService
+import android.text.InputType
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -31,8 +33,8 @@ import digital.quebracho.lapacho.storage.contentId
  * primary feature is the **paste strip** (tap a history item, it commits),
  * modeled on KeePassDX's Magikeyboard. The row of letter keys below exists
  * only to satisfy the P0 spike's literal requirement ("empty IME that types
- * characters"), plus a numbers/symbols layer and a one-shot shift — no caps
- * lock/autocorrect. Full typing (or dropping the
+ * characters"), plus a numbers/symbols layer and shift/caps lock — no
+ * autocorrect. Full typing (or dropping the
  * key rows entirely) is a P2+ decision once adoption data exists.
  *
  * Cáscara Kotlin fina: no classification, no encryption logic here — both
@@ -46,7 +48,9 @@ class LapachoIme : InputMethodService() {
     private lateinit var pasteStrip: LinearLayout
     private lateinit var keyRows: LinearLayout
     private var symbols = false
-    private var shift = false
+    private var shift = Shift.OFF
+    private var lastShiftTapMs = 0L
+    private var privateField = false
     private var createdAtNanos: Long = 0
     private var lastCapturedId: String? = null
 
@@ -89,14 +93,15 @@ class LapachoIme : InputMethodService() {
         return root
     }
 
-    override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
+    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         // Re-read top-N every time the keyboard becomes visible (docs §4.4:
         // "load from storage when the IME/app becomes active", not on every
         // keystroke). This is also the read half of the P0 exit criterion:
         // after a Force Stop of either process, this must still show the
         // last items the companion saved.
-        captureClipboard()
+        privateField = info != null && isPrivateField(info.inputType, info.imeOptions)
+        if (!privateField) captureClipboard()
         refreshPasteStrip()
     }
 
@@ -109,16 +114,28 @@ class LapachoIme : InputMethodService() {
      * Magikeyboard captures from here. So on mobile, capture is tied to
      * showing the keyboard; there is no always-on monitor like the desktop's.
      *
-     * ponytail: stored as [Sensitivity.NONE] / [PersistLevel.ALL] because this
-     * side has no classifier — nothing is masked, nothing expires by TTL, and a
-     * copied password is kept like ordinary text. That arrives with the
+     * Clips the source app marks as sensitive are never stored: password
+     * managers set that flag on what they copy (Android 13+), and a copied
+     * password must not outlive the clipboard in our history.
+     *
+     * ponytail: everything else is stored as [Sensitivity.NONE] /
+     * [PersistLevel.ALL] because this side has no classifier — nothing is
+     * masked, nothing expires by TTL, and a password copied from an app that
+     * doesn't set the flag is kept like ordinary text. That arrives with the
      * lapacho-core bridge (docs/MIGRACION_MOBILE_RUST.md), which is also where
      * the TTL and the persistence levels come from.
      */
     private fun captureClipboard() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
-        val raw = clipboard.primaryClip
-            ?.takeIf { it.itemCount > 0 }
+        val clip = clipboard.primaryClip ?: return
+        // ClipDescription.EXTRA_IS_SENSITIVE is API 33; the key is a plain
+        // string, so reading it needs no version gate (older apps never set it).
+        if (clip.description.extras?.getBoolean(EXTRA_IS_SENSITIVE) == true) {
+            Log.i(TAG, "skipped clip marked sensitive by its source")
+            return
+        }
+        val raw = clip
+            .takeIf { it.itemCount > 0 }
             ?.getItemAt(0)
             ?.coerceToText(this)
             ?.toString()
@@ -152,6 +169,12 @@ class LapachoIme : InputMethodService() {
         Log.i(TAG, "loadTopN(${TOP_N}) took ${(System.nanoTime() - t0) / 1_000_000}ms, ${items.size} items")
 
         pasteStrip.removeAllViews()
+        // In a password field or an incognito session the history stays
+        // hidden: nothing we show there should be visible over a secret.
+        if (privateField) {
+            pasteStrip.addView(pasteButton("🔒 campo privado: historial oculto") {})
+            return
+        }
         if (items.isEmpty()) {
             pasteStrip.addView(pasteButton("(sin clips)") {})
             return
@@ -214,22 +237,31 @@ class LapachoIme : InputMethodService() {
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             if (withShift) {
-                addView(keyButton(if (shift) "⬆" else "⇧", 1.5f) { shift = !shift; showLayer() })
+                val label = when (shift) { Shift.LOCKED -> "⇪"; Shift.ONCE -> "⬆"; Shift.OFF -> "⇧" }
+                addView(keyButton(label, 1.5f) { onShift() })
             }
             for (c in letters) {
-                val key = if (shift) c.uppercase() else c.toString()
+                val key = if (shift != Shift.OFF) c.uppercase() else c.toString()
                 addView(keyButton(key, 1f) { type(key) })
             }
         }
 
-    /** One-shot shift: it applies to the next letter only, then drops back. */
+    private fun onShift() {
+        val now = System.currentTimeMillis()
+        shift = nextShift(shift, now - lastShiftTapMs)
+        lastShiftTapMs = now
+        showLayer()
+    }
+
     private fun type(key: String) {
         currentInputConnection?.commitText(key, 1)
-        if (shift) {
-            shift = false
+        if (shift == Shift.ONCE) {
+            shift = Shift.OFF
             showLayer()
         }
     }
+
+    enum class Shift { OFF, ONCE, LOCKED }
 
     private fun showLayer() {
         keyRows.removeAllViews()
@@ -253,6 +285,34 @@ class LapachoIme : InputMethodService() {
         }
 
     companion object {
+        /** Tap: shift for one letter. Double tap: caps lock. Tap again: off. */
+        fun nextShift(current: Shift, msSinceLastTap: Long): Shift = when (current) {
+            Shift.OFF -> Shift.ONCE
+            Shift.ONCE -> if (msSinceLastTap < DOUBLE_TAP_MS) Shift.LOCKED else Shift.OFF
+            Shift.LOCKED -> Shift.OFF
+        }
+
+        /**
+         * A field whose content must not mix with the history: passwords and
+         * PINs, or an app that asked for no learning (incognito tabs, some
+         * banking apps).
+         */
+        fun isPrivateField(inputType: Int, imeOptions: Int): Boolean {
+            if (imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0) return true
+            val variation = inputType and InputType.TYPE_MASK_VARIATION
+            return when (inputType and InputType.TYPE_MASK_CLASS) {
+                InputType.TYPE_CLASS_TEXT -> variation in setOf(
+                    InputType.TYPE_TEXT_VARIATION_PASSWORD,
+                    InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,
+                    InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+                )
+                InputType.TYPE_CLASS_NUMBER -> variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD
+                else -> false
+            }
+        }
+
+        private const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
+        private const val DOUBLE_TAP_MS = 400
         private const val TAG = "LapachoIme"
         private const val TOP_N = 20
         private const val LABEL_MAX = 24
