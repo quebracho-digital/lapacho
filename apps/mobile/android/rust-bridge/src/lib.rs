@@ -52,6 +52,15 @@ impl From<lapacho_core::types::ClipboardItem> for MobileItem {
     }
 }
 
+/// Sensitivity of a clipboard payload — "None", "Personal", "Credential" or
+/// "Secret" — decided by the same ingest pipeline desktop runs, so a password
+/// copied from a note is recognized on both. Stateless: needs no key or DB,
+/// which lets the Kotlin storage use it before the P1 migration lands.
+#[uniffi::export]
+pub fn classify_sensitivity(text: String) -> String {
+    format!("{:?}", core_process_text(&text).sensitivity)
+}
+
 #[derive(uniffi::Object)]
 pub struct MobileCore {
     repo: Arc<SqliteRepo>,
@@ -104,6 +113,14 @@ impl MobileCore {
 mod tests {
     use super::*;
     use lapacho_core::crypto;
+
+    #[test]
+    fn classify_sensitivity_flags_a_password_copied_from_a_note() {
+        // The case that leaked in plain text on a phone: copied from a text
+        // note, so no password manager flagged it as sensitive.
+        assert_eq!(classify_sensitivity("E2DBNVWU5xFfcjV+++!".into()), "Secret");
+        assert_eq!(classify_sensitivity("hola lapacho mobile".into()), "None");
+    }
 
     #[test]
     fn test_mobile_bridge_roundtrip() {

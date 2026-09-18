@@ -20,6 +20,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import digital.quebracho.lapacho.classify
+import digital.quebracho.lapacho.isSecret
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HistoryRepo
 import digital.quebracho.lapacho.storage.PersistLevel
@@ -103,11 +105,12 @@ class LapachoIme : InputMethodService() {
         // last items the companion saved.
         privateField = info != null && isPrivateField(info.inputType, info.imeOptions)
         val clip = readClip()
-        if (clip != null && !clip.sensitive && !privateField) capture(clip.text)
-        refreshPasteStrip(secretOnClipboard = clip != null && (clip.sensitive || privateField))
+        val secret = clip != null && clip.sensitivity.isSecret()
+        if (clip != null && !secret && !privateField) capture(clip.text, clip.sensitivity)
+        refreshPasteStrip(secretOnClipboard = clip != null && (secret || privateField))
     }
 
-    private class Clip(val text: String, val sensitive: Boolean)
+    private class Clip(val text: String, val sensitivity: Sensitivity)
 
     private fun readClip(): Clip? {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return null
@@ -116,7 +119,10 @@ class LapachoIme : InputMethodService() {
         if (text.isBlank()) return null
         // ClipDescription.EXTRA_IS_SENSITIVE is API 33; the key is a plain
         // string, so reading it needs no version gate (older apps never set it).
-        return Clip(text, clip.description.extras?.getBoolean(EXTRA_IS_SENSITIVE) == true)
+        // Password managers set it; a password copied from anywhere else is
+        // caught by lapacho-core's classifier instead.
+        val flagged = clip.description.extras?.getBoolean(EXTRA_IS_SENSITIVE) == true
+        return Clip(text, if (flagged) Sensitivity.SECRET else classify(text))
     }
 
     /**
@@ -128,20 +134,18 @@ class LapachoIme : InputMethodService() {
      * Magikeyboard captures from here. So on mobile, capture is tied to
      * showing the keyboard; there is no always-on monitor like the desktop's.
      *
-     * Clips the source app marks as sensitive are never stored — password
-     * managers set that flag on what they copy (Android 13+), and a copied
-     * password must not outlive the clipboard in our history. Neither is
-     * anything read while a private field has focus. Both can still be pasted
-     * from the clipboard itself, see [refreshPasteStrip].
+     * Credentials and secrets are never stored — whether the source app
+     * flagged the clip (password managers do, Android 13+) or lapacho-core's
+     * classifier recognized it — and a copied password must not outlive the
+     * clipboard in our history. Neither is anything read while a private field
+     * has focus. Both can still be pasted from the clipboard itself, see
+     * [refreshPasteStrip].
      *
-     * ponytail: everything else is stored as [Sensitivity.NONE] /
-     * [PersistLevel.ALL] because this side has no classifier — nothing is
-     * masked, nothing expires by TTL, and a password copied from an app that
-     * doesn't set the flag is kept like ordinary text. That arrives with the
-     * lapacho-core bridge (docs/MIGRACION_MOBILE_RUST.md), which is also where
-     * the TTL and the persistence levels come from.
+     * ponytail: what is stored goes in as [PersistLevel.ALL] with no TTL; the
+     * persistence levels arrive with the rest of the lapacho-core migration
+     * (docs/MIGRACION_MOBILE_RUST.md).
      */
-    private fun capture(raw: String) {
+    private fun capture(raw: String, sensitivity: Sensitivity) {
         val id = contentId(raw)
         // Seeing the same clip again on every keyboard show is not a re-copy:
         // skipping it keeps the item's timestamp at when it was really copied.
@@ -154,7 +158,7 @@ class LapachoIme : InputMethodService() {
                 rawContent = raw,
                 displayContent = raw,
                 contentType = "text",
-                sensitivity = Sensitivity.NONE,
+                sensitivity = sensitivity,
                 detectedType = "Text",
                 timestamp = System.currentTimeMillis() / 1000,
             ),
@@ -207,7 +211,8 @@ class LapachoIme : InputMethodService() {
     }
 
     private fun previewLabel(item: ClipboardItem): String {
-        if (item.sensitivity != Sensitivity.NONE) return "🔑 ••••••"
+        // Re-classifying covers rows stored before the classifier existed.
+        if (item.sensitivity.isSecret() || classify(item.displayContent).isSecret()) return "🔑 ••••••"
         val oneLine = item.displayContent.replace('\n', ' ').trim()
         return if (oneLine.length > LABEL_MAX) oneLine.take(LABEL_MAX - 1) + "…" else oneLine.ifEmpty { "(empty)" }
     }

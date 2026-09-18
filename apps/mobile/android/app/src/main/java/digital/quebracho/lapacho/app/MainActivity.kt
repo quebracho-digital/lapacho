@@ -11,10 +11,11 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import digital.quebracho.lapacho.classify
+import digital.quebracho.lapacho.isSecret
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HistoryRepo
 import digital.quebracho.lapacho.storage.PersistLevel
-import digital.quebracho.lapacho.storage.Sensitivity
 import digital.quebracho.lapacho.storage.contentId
 
 /**
@@ -24,10 +25,10 @@ import digital.quebracho.lapacho.storage.contentId
  * IME's) has been force-stopped. See docs/ARQUITECTURA_MOBILE_ANDROID.md §9
  * P0 exit criteria.
  *
- * No classification, no PersistLevel/TTL settings UI yet — those arrive with
- * the P1 uniffi bridge to `lapacho-core`. Everything here is
- * [Sensitivity.NONE] / [PersistLevel.ALL] so nothing is filtered out while
- * proving multi-process read/write.
+ * Items are classified by `lapacho-core` (through the uniffi bridge) and
+ * credentials/secrets are shown masked, but everything saved here is
+ * [PersistLevel.ALL]: no persistence levels or TTL settings UI yet — those
+ * arrive with the rest of the P1 migration.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -68,7 +69,12 @@ class MainActivity : AppCompatActivity() {
                 refresh()
             }
         }
+    }
 
+    // The keyboard writes to the same DB from its own process, so the list
+    // must be re-read every time the app comes back, not only when created.
+    override fun onResume() {
+        super.onResume()
         refresh()
     }
 
@@ -78,7 +84,7 @@ class MainActivity : AppCompatActivity() {
             rawContent = text,
             displayContent = text,
             contentType = "text",
-            sensitivity = Sensitivity.NONE,
+            sensitivity = classify(text),
             detectedType = "Text",
             timestamp = System.currentTimeMillis() / 1000,
         )
@@ -88,6 +94,11 @@ class MainActivity : AppCompatActivity() {
     private fun refresh() {
         val items = repo.loadTopN(20)
         adapter.clear()
-        adapter.addAll(items.map { "${it.displayContent}  ·  id=${it.id.take(8)}…" })
+        adapter.addAll(items.map { "${label(it)}  ·  id=${it.id.take(8)}…" })
     }
+
+    // Same rule as the keyboard strip; re-classifying covers rows stored
+    // before the classifier existed.
+    private fun label(item: ClipboardItem): String =
+        if (item.sensitivity.isSecret() || classify(item.displayContent).isSecret()) "🔑 ••••••" else item.displayContent
 }
