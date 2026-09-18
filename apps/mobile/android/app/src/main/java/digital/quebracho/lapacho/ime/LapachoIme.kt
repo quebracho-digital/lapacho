@@ -37,7 +37,7 @@ import digital.quebracho.lapacho.storage.contentId
  * autocorrect. Full typing (or dropping the
  * key rows entirely) is a P2+ decision once adoption data exists.
  *
- * Cáscara Kotlin fina: no classification, no encryption logic here — both
+ * Thin Kotlin shell: no classification, no encryption logic here — both
  * live in [digital.quebracho.lapacho.storage] today and move into
  * `lapacho-core` behind uniffi at P1 (docs §"IME: no existe Rust IME —
  * cáscara Kotlin fina").
@@ -50,6 +50,7 @@ class LapachoIme : InputMethodService() {
     private var symbols = false
     private var shift = Shift.OFF
     private var lastShiftTapMs = 0L
+    private var accentPending = false
     private var privateField = false
     private var createdAtNanos: Long = 0
     private var lastCapturedId: String? = null
@@ -256,6 +257,10 @@ class LapachoIme : InputMethodService() {
                 addView(keyButton(label, 1.5f) { onShift() })
             }
             for (c in letters) {
+                if (c == DEAD_ACUTE) {
+                    addView(keyButton(if (accentPending) "[´]" else "´", 1f) { accentPending = !accentPending; showLayer() })
+                    continue
+                }
                 val key = if (shift != Shift.OFF) c.uppercase() else c.toString()
                 addView(keyButton(key, 1f) { type(key) })
             }
@@ -269,9 +274,10 @@ class LapachoIme : InputMethodService() {
     }
 
     private fun type(key: String) {
-        currentInputConnection?.commitText(key, 1)
-        if (shift == Shift.ONCE) {
-            shift = Shift.OFF
+        currentInputConnection?.commitText(if (accentPending) withAcute(key) else key, 1)
+        if (shift == Shift.ONCE || accentPending) {
+            shift = if (shift == Shift.ONCE) Shift.OFF else shift
+            accentPending = false
             showLayer()
         }
     }
@@ -288,18 +294,32 @@ class LapachoIme : InputMethodService() {
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             lateinit var toggle: TextView
-            toggle = keyButton(if (symbols) "abc" else "?123", 1f) {
+            toggle = keyButton(if (symbols) "abc" else "?123", 1.4f) {
                 symbols = !symbols
                 toggle.text = if (symbols) "abc" else "?123"
                 showLayer()
             }
             addView(toggle)
-            addView(keyButton("⌫", 1f) { currentInputConnection?.deleteSurroundingText(1, 0) })
+            addView(keyButton(",", 1f) { type(",") })
             addView(keyButton("espacio", 3f) { currentInputConnection?.commitText(" ", 1) })
-            addView(keyButton("↵", 1f) { currentInputConnection?.commitText("\n", 1) })
+            addView(keyButton(".", 1f) { type(".") })
+            addView(keyButton("⌫", 1.2f) { currentInputConnection?.deleteSurroundingText(1, 0) })
+            addView(keyButton("↵", 1.2f) { currentInputConnection?.commitText("\n", 1) })
         }
 
     companion object {
+        /**
+         * Dead-key acute accent, as on a Spanish physical keyboard: ´ then a
+         * vowel gives the accented vowel; anything else comes out unchanged.
+         */
+        fun withAcute(key: String): String {
+            val i = PLAIN_VOWELS.indexOf(key)
+            return if (key.length == 1 && i >= 0) ACUTE_VOWELS[i].toString() else key
+        }
+
+        private const val PLAIN_VOWELS = "aeiouAEIOU"
+        private const val ACUTE_VOWELS = "áéíóúÁÉÍÓÚ"
+        private const val DEAD_ACUTE = '´'
         /** Tap: shift for one letter. Double tap: caps lock. Tap again: off. */
         fun nextShift(current: Shift, msSinceLastTap: Long): Shift = when (current) {
             Shift.OFF -> Shift.ONCE
@@ -335,7 +355,7 @@ class LapachoIme : InputMethodService() {
         private const val KEY_HEIGHT_DP = 46f
         private const val KEY_COLOR = 0xFF3C3C3C.toInt()
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
-        private val LETTER_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
-        private val SYMBOL_ROWS = listOf("1234567890", "@#\$%&-+()/", "*\"':;!?,.")
+        private val LETTER_ROWS = listOf("qwertyuiop", "asdfghjklñ", "zxcvbnm$DEAD_ACUTE")
+        private val SYMBOL_ROWS = listOf("1234567890", "@#\$%&-+()/", "<>[]{}=_|\\", "*\"':;!¡?¿")
     }
 }
