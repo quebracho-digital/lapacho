@@ -22,7 +22,6 @@ import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.matchesQuery
-import digital.quebracho.lapacho.purgeUnclassifiedSecrets
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HISTORY_MAX
 import digital.quebracho.lapacho.storage.HistoryRepo
@@ -69,7 +68,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         repo = HistoryRepo(applicationContext)
-        repo.purgeUnclassifiedSecrets()
 
         val input = findViewById<EditText>(R.id.input)
         val historyList = findViewById<ListView>(R.id.history_list)
