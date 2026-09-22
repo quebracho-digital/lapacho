@@ -18,6 +18,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -54,7 +55,7 @@ class LapachoIme : InputMethodService() {
     private lateinit var repo: HistoryRepo
     private lateinit var pasteStrip: LinearLayout
     private lateinit var keyRows: LinearLayout
-    private var symbols = false
+    private var layer = Layer.LETTERS
     private var shift = Shift.OFF
     private var lastShiftTapMs = 0L
     private var accentPending = false
@@ -307,7 +308,7 @@ class LapachoIme : InputMethodService() {
      * label is sized in dp, not sp, so the system font scale doesn't grow it
      * past the key — the same choice Gboard makes.
      */
-    private fun keyButton(label: String, weight: Float, onClick: () -> Unit): TextView =
+    private fun keyButton(label: String, weight: Float, alternates: String? = null, onClick: () -> Unit): TextView =
         TextView(this).apply {
             text = label
             gravity = Gravity.CENTER
@@ -325,7 +326,37 @@ class LapachoIme : InputMethodService() {
                 setMargins(m, m, m, m)
             }
             setOnClickListener { keyFeedback(it); onClick() }
+            if (alternates != null) setOnLongClickListener { v ->
+                keyFeedback(v)
+                if (alternates.length == 1) type(if (shift != Shift.OFF) alternates.uppercase() else alternates)
+                else showAlternates(v, alternates)
+                true
+            }
         }
+
+    /**
+     * The alternates of a long-pressed key, as a row floating above it —
+     * what a phone keyboard does for the characters that don't fit on it.
+     * ponytail: one flat row, no repositioning near the screen edge; the
+     * only keys with more than one alternate today sit mid-row.
+     */
+    private fun showAlternates(anchor: View, alternates: String) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(KEYBOARD_BG)
+        }
+        val popup = PopupWindow(row, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        for (c in alternates) {
+            val key = c.toString()
+            row.addView(
+                keyButton(key, 1f) { type(key); popup.dismiss() }.apply {
+                    // Weighted widths collapse to 0 inside a WRAP_CONTENT parent.
+                    layoutParams = LinearLayout.LayoutParams(dp(44f).toInt(), dp(KEY_HEIGHT_DP).toInt())
+                },
+            )
+        }
+        popup.showAsDropDown(anchor, 0, -(anchor.height + dp(KEY_HEIGHT_DP + 8f)).toInt())
+    }
 
     /**
      * Vibration on every key and chip, following the system's own touch /
@@ -339,20 +370,20 @@ class LapachoIme : InputMethodService() {
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
 
-    private fun buildKeyRow(letters: String, withShift: Boolean = false): LinearLayout =
+    private fun buildKeyRow(keys: List<String>, withShift: Boolean = false): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             if (withShift) {
                 val label = when (shift) { Shift.LOCKED -> "⇪"; Shift.ONCE -> "⬆"; Shift.OFF -> "⇧" }
                 addView(keyButton(label, 1.5f) { onShift() })
             }
-            for (c in letters) {
+            for (c in keys) {
                 if (c == DEAD_ACUTE) {
                     addView(keyButton(if (accentPending) "[´]" else "´", 1f) { accentPending = !accentPending; showLayer() })
                     continue
                 }
-                val key = if (shift != Shift.OFF) c.uppercase() else c.toString()
-                addView(keyButton(key, 1f) { type(key) })
+                val key = if (shift != Shift.OFF) c.uppercase() else c
+                addView(keyButton(key, 1f, LONG_PRESS[c]) { type(key) })
             }
         }
 
@@ -374,25 +405,34 @@ class LapachoIme : InputMethodService() {
 
     enum class Shift { OFF, ONCE, LOCKED }
 
+    enum class Layer { LETTERS, SYMBOLS, EMOJI }
+
     private fun showLayer() {
         keyRows.removeAllViews()
-        val rows = if (symbols) SYMBOL_ROWS else LETTER_ROWS
-        rows.forEachIndexed { i, row -> keyRows.addView(buildKeyRow(row, withShift = !symbols && i == rows.lastIndex)) }
+        val rows = when (layer) {
+            Layer.LETTERS -> LETTER_ROWS
+            Layer.SYMBOLS -> SYMBOL_ROWS
+            Layer.EMOJI -> EMOJI_ROWS
+        }
+        val withShift = layer == Layer.LETTERS
+        rows.forEachIndexed { i, row -> keyRows.addView(buildKeyRow(row, withShift && i == rows.lastIndex)) }
     }
 
     private fun buildActionRow(): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             lateinit var toggle: TextView
-            toggle = keyButton(if (symbols) "abc" else "?123", 1.4f) {
-                symbols = !symbols
-                toggle.text = if (symbols) "abc" else "?123"
+            fun go(to: Layer) {
+                layer = if (layer == to) Layer.LETTERS else to
+                toggle.text = if (layer == Layer.LETTERS) "?123" else "abc"
                 showLayer()
             }
+            toggle = keyButton("?123", 1.4f) { go(Layer.SYMBOLS) }
             addView(toggle)
+            addView(keyButton("☺", 1f) { go(Layer.EMOJI) })
             addView(keyButton(",", 1f) { type(",") })
-            addView(keyButton("espacio", 3f) { output(" ") })
-            addView(keyButton(".", 1f) { type(".") })
+            addView(keyButton("espacio", 2.5f) { output(" ") })
+            addView(keyButton(".", 1f, PUNCT_ALTERNATES) { type(".") })
             addView(keyButton("⌫", 1.2f) { backspace() })
             addView(keyButton("↵", 1.2f) { enter() })
         }
@@ -409,7 +449,7 @@ class LapachoIme : InputMethodService() {
 
         private const val PLAIN_VOWELS = "aeiouAEIOU"
         private const val ACUTE_VOWELS = "áéíóúÁÉÍÓÚ"
-        private const val DEAD_ACUTE = '´'
+        private const val DEAD_ACUTE = "´"
         /** Tap: shift for one letter. Double tap: caps lock. Tap again: off. */
         fun nextShift(current: Shift, msSinceLastTap: Long): Shift = when (current) {
             Shift.OFF -> Shift.ONCE
@@ -444,7 +484,21 @@ class LapachoIme : InputMethodService() {
         private const val KEY_HEIGHT_DP = 46f
         private const val KEY_COLOR = 0xFF3C3C3C.toInt()
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
-        private val LETTER_ROWS = listOf("qwertyuiop", "asdfghjklñ", "zxcvbnm$DEAD_ACUTE")
-        private val SYMBOL_ROWS = listOf("1234567890", "@#\$%&-+()/", "<>[]{}=_|\\", "*\"':;!¡?¿")
+        private fun row(keys: String) = keys.map(Char::toString)
+        private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl"), row("zxcvbnm$DEAD_ACUTE"))
+        private val SYMBOL_ROWS = listOf(row("1234567890"), row("@#\$%&-+()/"), row("<>[]{}=_|\\"), row("*\"':;!¡?¿"))
+        /**
+         * Emoji layer: the ones actually used in a chat, not a picker. No
+         * search, no recents, no skin tones — that is a keyboard of its own.
+         */
+        private val EMOJI_ROWS = listOf(
+            listOf("😀", "😂", "🥹", "😍", "😎", "🤔", "😅", "😭", "😡", "🙃"),
+            listOf("👍", "👎", "🙏", "👏", "💪", "🤝", "✌️", "🫶", "👀", "🤷"),
+            listOf("❤️", "🔥", "✨", "🎉", "✅", "❌", "⚠️", "💡", "📌", "🧉"),
+        )
+        /** Characters that don't fit on the layout, reachable by long press. */
+        private val LONG_PRESS = mapOf("n" to "ñ")
+        /** Long press on the period: Spanish needs the opening marks too. */
+        private const val PUNCT_ALTERNATES = "¿?¡!"
     }
 }

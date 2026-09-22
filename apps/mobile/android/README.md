@@ -21,9 +21,10 @@ app and the keyboard (IME), which capture and paste the clipboard.
   migration (storage, keyed ids, persistence levels) is
   [`docs/MIGRACION_MOBILE_RUST.md`](../../../docs/MIGRACION_MOBILE_RUST.md).
 - **"Paste keyboard", not a Gboard replacement.** The IME's real feature is the
-  paste strip. The keys (letters, ñ, dead-key acute, shift/caps lock, a
-  numbers/symbols layer) are enough to type with, nothing more — no
-  autocorrect, no swipe, no emoji.
+  paste strip. The keys (letters, dead-key acute, shift/caps lock, ñ and the
+  Spanish marks on long press, a numbers/symbols layer, a fixed emoji layer)
+  are enough to type with, nothing more — no autocorrect, no swipe, no emoji
+  search.
 
 ## Module layout
 

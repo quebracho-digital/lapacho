@@ -7,7 +7,7 @@ internet permission at all.
 
 > **Status:** early (P0 spike). It works day to day, but it is a debug build
 > installed by hand, and the keyboard is deliberately basic (no autocorrect,
-> no swipe typing, no emoji).
+> no swipe typing, and a fixed set of emoji rather than a picker).
 
 ## Install
 
@@ -93,7 +93,9 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 |-----|--------------|
 | ⇧ | Next letter in uppercase. **Double tap**: caps lock (⇪). Tap again to release. |
 | ´ | Accent for the next vowel: ´ then a → á (with ⇧: Á). Shows **[´]** while waiting. |
-| ñ | End of the middle row. |
+| ñ | **Long press on n** (with ⇧: Ñ). It is no longer a key of its own. |
+| ¿ ? ¡ ! | **Long press on .**: the four appear above the key, tap one. |
+| ☺ | Emoji: 30 common ones, three rows, in place of the letters. Tap it again to come back. |
 | ?123 / abc | Switch between letters and numbers/symbols (`< > [ ] { } = _ \| \` `¡ ¿` and more). |
 | , and . | Next to the space bar, on both layers. |
 | ⌫ / ↵ | Delete / new line. |
