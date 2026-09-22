@@ -125,14 +125,16 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 | ☺ | Emoji: 30 common ones, three rows, in place of the letters. Tap it again to come back. |
 | ?123 / abc | Switch between letters and numbers/symbols (`< > [ ] { } = _ \| \` `¡ ¿` and more). |
 | , and . | Next to the space bar, on both layers. |
-| ⌫ / ↵ | Delete / new line. |
+| ⌫ / ↵ | Delete / new line. **Hold ⌫** and it keeps deleting. |
 
 While you are typing a word, the strip above shows suggestions instead of your
 clips; see [Suggestions while you type](#suggestions-while-you-type).
 
-A long press never types on its own: the alternates appear above the key and
-you tap the one you want. They go away if you touch anywhere else, or by
-themselves after 5 seconds.
+A key that has more characters under it shows one of them small, in the
+corner: `n` shows ñ, `.` shows ¿. Hold the key — a bit under a third of a
+second, shorter than Android's usual long press — and they appear above it;
+tap the one you want. A long press never types on its own. The row goes away
+if you touch anywhere else, or by itself after 5 seconds.
 
 Keys vibrate and click according to the phone's own settings (keyboard
 vibration, touch sounds); Lapacho has no setting of its own for that.

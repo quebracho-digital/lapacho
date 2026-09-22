@@ -8,10 +8,16 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.inputmethodservice.InputMethodService
 import android.text.InputType
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.SuperscriptSpan
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -366,7 +372,7 @@ class LapachoIme : InputMethodService() {
      */
     private fun keyButton(label: String, weight: Float, alternates: String? = null, onClick: () -> Unit): TextView =
         TextView(this).apply {
-            text = label
+            text = if (alternates == null) label else labelWithHint(label, alternates)
             gravity = Gravity.CENTER
             maxLines = 1
             setTextColor(Color.WHITE)
@@ -381,13 +387,54 @@ class LapachoIme : InputMethodService() {
                 val m = dp(2f).toInt()
                 setMargins(m, m, m, m)
             }
-            setOnClickListener { keyFeedback(it); onClick() }
-            if (alternates != null) setOnLongClickListener { v ->
-                keyFeedback(v)
-                showAlternates(v, alternates)
-                true
+            if (alternates == null) {
+                setOnClickListener { keyFeedback(it); onClick() }
+                return@apply
             }
+            // Our own long press instead of setOnLongClickListener: the system's
+            // is 500 ms, which every phone keyboard undercuts — and ñ is not a
+            // rare character in Spanish, it is one a whole conjugation needs.
+            var opened = false
+            val open = Runnable {
+                opened = true
+                keyFeedback(this)
+                showAlternates(this, alternates)
+            }
+            setOnTouchListener { v, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        opened = false
+                        v.postDelayed(open, LONG_PRESS_MS)
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.removeCallbacks(open)
+                }
+                // Never consume: the ripple, the click and accessibility all
+                // stay the View's job.
+                false
+            }
+            // The release that opened the row must not also type the key.
+            setOnClickListener { if (!opened) { keyFeedback(it); onClick() } }
         }
+
+    /**
+     * Repeats [action] while the key is held, after a pause — a backspace that
+     * deletes one character per tap and nothing on a long press is the thing
+     * people notice first about a keyboard that is not finished.
+     */
+    private fun holdToRepeat(key: TextView, action: () -> Unit) {
+        lateinit var again: Runnable
+        again = Runnable {
+            action()
+            key.postDelayed(again, REPEAT_EVERY_MS)
+        }
+        key.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> v.postDelayed(again, REPEAT_AFTER_MS)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.removeCallbacks(again)
+            }
+            false
+        }
+    }
 
     /**
      * The alternates of a long-pressed key, as a row floating above it —
@@ -425,6 +472,23 @@ class LapachoIme : InputMethodService() {
     }
 
     /**
+     * The key's label with its first alternate beside it, small and dim: a
+     * long press nobody can see is a long press nobody uses. One character,
+     * not all four of the period's — the hint says "hold me", the row that
+     * opens says what is in there.
+     */
+    private fun labelWithHint(label: String, alternates: String): CharSequence {
+        val hint = alternates.first().toString()
+        val text = SpannableString("$label$hint")
+        val from = label.length
+        val to = text.length
+        text.setSpan(RelativeSizeSpan(0.5f), from, to, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(SuperscriptSpan(), from, to, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(ForegroundColorSpan(HINT_COLOR), from, to, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return text
+    }
+
+    /**
      * Vibration on every key and chip, following the system's own touch /
      * keyboard vibration setting (no setting of ours). The click sound needs
      * nothing: performClick() already plays it when the system's "touch
@@ -449,7 +513,10 @@ class LapachoIme : InputMethodService() {
                     continue
                 }
                 val key = if (shift != Shift.OFF) c.uppercase() else c
-                addView(keyButton(key, 1f, LONG_PRESS[c]) { type(key) })
+                // Shifted too, so the hint on the key says what the row will
+                // actually give: Ñ over N, not ñ.
+                val alternates = LONG_PRESS[c]?.let { if (shift != Shift.OFF) it.uppercase() else it }
+                addView(keyButton(key, 1f, alternates) { type(key) })
             }
         }
 
@@ -499,7 +566,7 @@ class LapachoIme : InputMethodService() {
             addView(keyButton(",", 1f) { type(",") })
             addView(keyButton("espacio", 2.5f) { output(" ") })
             addView(keyButton(".", 1f, PUNCT_ALTERNATES) { type(".") })
-            addView(keyButton("⌫", 1.2f) { backspace() })
+            addView(keyButton("⌫", 1.2f) { backspace() }.also { holdToRepeat(it) { backspace() } })
             addView(keyButton("↵", 1.2f) { enter() })
         }
 
@@ -543,6 +610,10 @@ class LapachoIme : InputMethodService() {
         }
 
         private const val DOUBLE_TAP_MS = 400
+        /** Under the system's 500 ms: holding ñ is a daily gesture here. */
+        private const val LONG_PRESS_MS = 280L
+        private const val REPEAT_AFTER_MS = 400L
+        private const val REPEAT_EVERY_MS = 55L
         private const val ALTERNATES_TIMEOUT_MS = 5_000L
         private const val TAG = "LapachoIme"
         private const val TOP_N = 20
@@ -554,6 +625,7 @@ class LapachoIme : InputMethodService() {
         private const val KEY_TEXT_DP = 20f
         private const val KEY_HEIGHT_DP = 46f
         private const val KEY_COLOR = 0xFF3C3C3C.toInt()
+        private const val HINT_COLOR = 0xFF9E9E9E.toInt()
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
         private fun row(keys: String) = keys.map(Char::toString)
         private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl"), row("zxcvbnm$DEAD_ACUTE"))
