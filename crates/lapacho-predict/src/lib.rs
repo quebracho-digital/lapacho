@@ -18,6 +18,12 @@ struct Entry {
 
 pub struct Predictor {
     /// Sorted by `key`, which is what [`Predictor::suggest`] binary searches.
+    ///
+    /// ponytail: two heap allocations per word — measured at ~8.5 MB of native
+    /// heap for the 49 525-word Spanish list, against ~1.3 MB of actual text.
+    /// Fine for a keyboard process that Android kills when it is not on
+    /// screen; if it ever is not, the fix is one flat `String` plus `(start,
+    /// end)` offsets, not a smaller dictionary.
     words: Vec<Entry>,
 }
 
