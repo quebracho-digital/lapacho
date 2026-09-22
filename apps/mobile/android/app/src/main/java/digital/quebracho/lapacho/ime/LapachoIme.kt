@@ -294,18 +294,22 @@ class LapachoIme : InputMethodService() {
      * permanent list should take a press nobody makes by accident.
      */
     private fun learnableChip(word: String): Button =
-        pasteButton(word) { commitSuggestion(word) }.apply {
+        pasteButton(word) {}.apply {
             text = labelWithHint(word, LEARN_HINT)
-            setOnLongClickListener { v ->
-                keyFeedback(v)
-                offerToLearn(v, word)
-                true
-            }
+            holdToOpen(
+                this,
+                LEARN_PRESS_MS,
+                onHold = { offerToLearn(this, word) },
+                onTap = { commitSuggestion(word) },
+            )
         }
 
     /** The confirmation: one more deliberate tap, and only then is it stored. */
     private fun offerToLearn(anchor: View, word: String) {
-        popupAbove(anchor) { row, popup ->
+        // Below the chip, over the top key row — inside the keyboard's own
+        // window. Above it would hang over the app, which is a place some
+        // devices refuse to draw an IME's popup.
+        popupNear(anchor, 0) { row, popup ->
             row.addView(
                 pasteButton("aprender «$word»") {
                     repo.learn(word)
@@ -463,30 +467,47 @@ class LapachoIme : InputMethodService() {
                 setOnClickListener { keyFeedback(it); onClick() }
                 return@apply
             }
-            // Our own long press instead of setOnLongClickListener: the system's
-            // is 500 ms, which every phone keyboard undercuts — and ñ is not a
-            // rare character in Spanish, it is one a whole conjugation needs.
-            var opened = false
-            val open = Runnable {
-                opened = true
-                keyFeedback(this)
-                showAlternates(this, alternates)
-            }
-            setOnTouchListener { v, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        opened = false
-                        v.postDelayed(open, LONG_PRESS_MS)
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.removeCallbacks(open)
-                }
-                // Never consume: the ripple, the click and accessibility all
-                // stay the View's job.
-                false
-            }
-            // The release that opened the row must not also type the key.
-            setOnClickListener { if (!opened) { keyFeedback(it); onClick() } }
+            holdToOpen(this, LONG_PRESS_MS, onHold = { showAlternates(this, alternates) }, onTap = onClick)
         }
+
+    /**
+     * A press held for [delayMs] runs [onHold]; a shorter one runs [onTap].
+     *
+     * Deliberately not `setOnLongClickListener`. That one waits for the
+     * system's touch-and-hold delay, which is 500 ms by default but is a
+     * per-device accessibility setting the user can raise — a keyboard whose
+     * ñ needs a press as long as the phone was told to wait is a keyboard
+     * that does not work on that phone. It also loses the gesture to any
+     * scrolling parent the moment a finger drifts, which is what the paste
+     * strip is.
+     *
+     * It vibrates when it fires, so the hold is felt before anything is seen.
+     */
+    private fun holdToOpen(key: TextView, delayMs: Long, onHold: () -> Unit, onTap: () -> Unit) {
+        var opened = false
+        val open = Runnable {
+            opened = true
+            keyFeedback(key)
+            onHold()
+        }
+        key.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    opened = false
+                    // The strip scrolls; a hold on one of its chips is not a
+                    // swipe and the scroll view must keep its hands off it.
+                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                    v.postDelayed(open, delayMs)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.removeCallbacks(open)
+            }
+            // Never consume: the ripple, the click and accessibility all stay
+            // the View's job.
+            false
+        }
+        // The release that opened the row must not also fire the tap.
+        key.setOnClickListener { if (!opened) { keyFeedback(key); onTap() } }
+    }
 
     /**
      * Repeats [action] while the key is held, after a pause — a backspace that
@@ -523,7 +544,7 @@ class LapachoIme : InputMethodService() {
      * with alternates today sit mid-row.
      */
     private fun showAlternates(anchor: View, alternates: String) {
-        popupAbove(anchor) { row, popup ->
+        popupNear(anchor, -(anchor.height + dp(KEY_HEIGHT_DP + 8f)).toInt()) { row, popup ->
             for (c in alternates) {
                 val key = if (shift != Shift.OFF) c.uppercase() else c.toString()
                 row.addView(
@@ -537,17 +558,18 @@ class LapachoIme : InputMethodService() {
     }
 
     /**
-     * A row floating above [anchor], filled by [fill], which gets the row and
-     * the window so whatever it puts in there can close it.
+     * A row floating [yOffset] from the bottom of [anchor], filled by [fill],
+     * which gets the row and the window so whatever it puts in there can
+     * close it.
      */
-    private fun popupAbove(anchor: View, fill: (LinearLayout, PopupWindow) -> Unit) {
+    private fun popupNear(anchor: View, yOffset: Int, fill: (LinearLayout, PopupWindow) -> Unit) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(KEYBOARD_BG)
         }
         val popup = PopupWindow(row, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
         fill(row, popup)
-        popup.showAsDropDown(anchor, 0, -(anchor.height + dp(KEY_HEIGHT_DP + 8f)).toInt())
+        popup.showAsDropDown(anchor, 0, yOffset)
         // Dismissing an already dismissed popup does nothing, so the picked
         // and the outside-touch cases need no cancelling.
         row.postDelayed({ popup.dismiss() }, ALTERNATES_TIMEOUT_MS)
@@ -694,6 +716,8 @@ class LapachoIme : InputMethodService() {
         private const val DOUBLE_TAP_MS = 400
         /** Under the system's 500 ms: holding ñ is a daily gesture here. */
         private const val LONG_PRESS_MS = 280L
+        /** Longer than a key's: this one writes to a list that outlives the session. */
+        private const val LEARN_PRESS_MS = 500L
         private const val REPEAT_AFTER_MS = 400L
         private const val REPEAT_EVERY_MS = 55L
         private const val ALTERNATES_TIMEOUT_MS = 5_000L
