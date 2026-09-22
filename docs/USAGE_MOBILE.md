@@ -139,7 +139,7 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 
 | Key | What it does |
 |-----|--------------|
-| ⇧ | Next letter in uppercase. **Double tap**: caps lock (⇪). Tap again to release. |
+| ⇧ | Next letter in uppercase. **Hold it** for caps lock — or double tap, if you are quick. Tap again to release. The key changes colour: grey for one letter, green while locked. |
 | ´ | Accent for the next vowel: ´ then a → á (with ⇧: Á). Shows **[´]** while waiting. |
 | ñ | **Long press on n** (with ⇧: Ñ). It is no longer a key of its own. |
 | ¿ ? ¡ ! | **Long press on .**: the four appear above the key, tap one. |
@@ -150,6 +150,9 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 
 While you are typing a word, the strip above shows suggestions instead of your
 clips; see [Suggestions while you type](#suggestions-while-you-type).
+
+The keyboard always opens on the letters, with no shift pending, whatever
+layer you left it on in the last app.
 
 A key that has more characters under it shows one of them small, in the
 corner: `n` shows ñ, `.` shows ¿. Hold the key — a bit under a third of a

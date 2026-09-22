@@ -65,6 +65,7 @@ class LapachoIme : InputMethodService() {
     private lateinit var pasteStrip: LinearLayout
     private lateinit var keyRows: LinearLayout
     private var layer = Layer.LETTERS
+    private lateinit var layerToggle: TextView
     private var shift = Shift.OFF
     private var lastShiftTapMs = 0L
     private var accentPending = false
@@ -142,6 +143,13 @@ class LapachoIme : InputMethodService() {
         // after a Force Stop of either process, this must still show the
         // last items the companion saved.
         privateField = info != null && isPrivateField(info.inputType, info.imeOptions)
+        // Every session starts on the letters, with no shift pending. Where
+        // the last app left the keyboard is not a preference: opening on the
+        // symbols layer in a chat is just wrong, and so is a caps lock the
+        // user set somewhere else an hour ago.
+        shift = Shift.OFF
+        accentPending = false
+        if (::layerToggle.isInitialized) setLayer(Layer.LETTERS)
         val clip = readClip()
         val secret = clip != null && clip.sensitivity.isSecret()
         if (clip != null && !secret && !privateField) capture(clip.text, clip.sensitivity)
@@ -446,7 +454,13 @@ class LapachoIme : InputMethodService() {
      * label is sized in dp, not sp, so the system font scale doesn't grow it
      * past the key — the same choice Gboard makes.
      */
-    private fun keyButton(label: String, weight: Float, alternates: String? = null, onClick: () -> Unit): TextView =
+    private fun keyButton(
+        label: String,
+        weight: Float,
+        alternates: String? = null,
+        color: Int = KEY_COLOR,
+        onClick: () -> Unit,
+    ): TextView =
         TextView(this).apply {
             text = if (alternates == null) label else labelWithHint(label, alternates)
             gravity = Gravity.CENTER
@@ -455,7 +469,7 @@ class LapachoIme : InputMethodService() {
             setTextSize(TypedValue.COMPLEX_UNIT_DIP, KEY_TEXT_DP)
             background = RippleDrawable(
                 ColorStateList.valueOf(Color.GRAY),
-                GradientDrawable().apply { setColor(KEY_COLOR); cornerRadius = dp(6f) },
+                GradientDrawable().apply { setColor(color); cornerRadius = dp(6f) },
                 null,
             )
             isClickable = true
@@ -609,7 +623,28 @@ class LapachoIme : InputMethodService() {
             orientation = LinearLayout.HORIZONTAL
             if (withShift) {
                 val label = when (shift) { Shift.LOCKED -> "⇪"; Shift.ONCE -> "⬆"; Shift.OFF -> "⇧" }
-                addView(keyButton(label, 1.5f) { onShift() })
+                // The glyphs differ by a stroke, and not every font draws ⇪ at
+                // all: the colour is what says, at a glance, that the next
+                // letter is capital or every letter is.
+                val tint = when (shift) {
+                    Shift.LOCKED -> SHIFT_LOCKED_COLOR
+                    Shift.ONCE -> SHIFT_ONCE_COLOR
+                    Shift.OFF -> KEY_COLOR
+                }
+                // Click and hold are both wired below, so the key itself takes none.
+                addView(
+                    keyButton(label, 1.5f, color = tint) {}.also { key ->
+                        holdToOpen(
+                            key,
+                            LONG_PRESS_MS,
+                            // Holding locks it outright: a double tap is a
+                            // rhythm the keyboard grades, and it fails the
+                            // people who type slowly.
+                            onHold = { shift = Shift.LOCKED; showLayer() },
+                            onTap = { onShift() },
+                        )
+                    },
+                )
             }
             for (c in keys) {
                 if (c == DEAD_ACUTE) {
@@ -644,6 +679,15 @@ class LapachoIme : InputMethodService() {
 
     enum class Layer { LETTERS, SYMBOLS, EMOJI }
 
+    /** Switches to [to], or back to the letters if it is already showing. */
+    private fun toggleLayer(to: Layer) = setLayer(if (layer == to) Layer.LETTERS else to)
+
+    private fun setLayer(to: Layer) {
+        layer = to
+        layerToggle.text = if (layer == Layer.LETTERS) "?123" else "abc"
+        showLayer()
+    }
+
     private fun showLayer() {
         keyRows.removeAllViews()
         val rows = when (layer) {
@@ -658,15 +702,9 @@ class LapachoIme : InputMethodService() {
     private fun buildActionRow(): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            lateinit var toggle: TextView
-            fun go(to: Layer) {
-                layer = if (layer == to) Layer.LETTERS else to
-                toggle.text = if (layer == Layer.LETTERS) "?123" else "abc"
-                showLayer()
-            }
-            toggle = keyButton("?123", 1.4f) { go(Layer.SYMBOLS) }
-            addView(toggle)
-            addView(keyButton("☺", 1f) { go(Layer.EMOJI) })
+            layerToggle = keyButton("?123", 1.4f) { toggleLayer(Layer.SYMBOLS) }
+            addView(layerToggle)
+            addView(keyButton("☺", 1f) { toggleLayer(Layer.EMOJI) })
             addView(keyButton(",", 1f) { type(",") })
             addView(keyButton("espacio", 2.5f) { output(" ") })
             addView(keyButton(".", 1f, PUNCT_ALTERNATES) { type(".") })
@@ -735,6 +773,8 @@ class LapachoIme : InputMethodService() {
         private const val KEY_TEXT_DP = 20f
         private const val KEY_HEIGHT_DP = 46f
         private const val KEY_COLOR = 0xFF3C3C3C.toInt()
+        private const val SHIFT_ONCE_COLOR = 0xFF5A5A5A.toInt()
+        private const val SHIFT_LOCKED_COLOR = 0xFF2E7D32.toInt()
         private const val HINT_COLOR = 0xFF9E9E9E.toInt()
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
         private fun row(keys: String) = keys.map(Char::toString)
