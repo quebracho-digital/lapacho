@@ -6,8 +6,9 @@ in. Your history is encrypted on the phone and never leaves it — the app has n
 internet permission at all.
 
 > **Status:** early (P0 spike). It works day to day, but it is a debug build
-> installed by hand, and the keyboard is deliberately basic (no autocorrect,
-> no swipe typing, and a fixed set of emoji rather than a picker).
+> installed by hand, and the keyboard is deliberately basic (word suggestions
+> but no autocorrect, no swipe typing, and a fixed set of emoji rather than a
+> picker).
 
 ## Install
 
@@ -63,6 +64,32 @@ Search covers the whole history (the last 100 clips), ignores case and accents
 ("cancion" finds "Canción"), and every word must appear, in any order. Secrets
 never show up in results.
 
+## Suggestions while you type
+
+From the second letter of a word, the strip above the keys stops showing your
+clips and offers up to three words that start with what you typed. Tap one and
+it replaces the word, with a space after it. Finish the word — space,
+punctuation, or delete — and your clips come back. It is the same single row
+doing both jobs, so the keyboard does not grow taller.
+
+Accents are optional while typing: `cancion` offers **canción**, `porq` offers
+**porque** and **porqué**. If you start the word with a capital, the
+suggestion comes capitalized.
+
+**It does not learn.** The dictionary is the one that came with the app —
+49 525 Spanish words ordered by how common they are — and it is the same for
+everybody. Nothing you type is recorded, counted or kept, here or anywhere
+else: suggestions are looked up and forgotten. Teaching it your own words
+(names, jargon) is planned as a separate, explicit gesture, one word at a
+time; see [`DECISIONS.md`](DECISIONS.md).
+
+Spanish is the only language for now, and it ships inside the APK. Others will
+be files you download with your browser and hand to Lapacho — the keyboard
+will never download anything itself, because it has no way to.
+
+There are no suggestions in password fields or incognito tabs, the same rule
+the history follows.
+
 ## Passwords and other secrets
 
 Lapacho never stores a password, and never shows one:
@@ -100,6 +127,9 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 | , and . | Next to the space bar, on both layers. |
 | ⌫ / ↵ | Delete / new line. |
 
+While you are typing a word, the strip above shows suggestions instead of your
+clips; see [Suggestions while you type](#suggestions-while-you-type).
+
 A long press never types on its own: the alternates appear above the key and
 you tap the one you want. They go away if you touch anywhere else, or by
 themselves after 5 seconds.
@@ -127,7 +157,8 @@ thumbnail come out black.
 - No internet permission: nothing can leave the phone.
 - History encrypted at rest (AES-256-GCM, key in the Android Keystore).
 - Excluded from Google backup.
-- Keystrokes are never recorded; only copied clips are.
+- Keystrokes are never recorded; only copied clips are. Suggestions are
+  looked up in a fixed dictionary and nothing about them is stored.
 - Secrets are never stored and never displayed.
 
 ## Troubleshooting

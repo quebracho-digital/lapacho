@@ -175,6 +175,23 @@ History search implemented; English translation complete. Sensitivity: long hex 
   system API lives** (IME service, Activity, Keystore), everything else Rust.
   **Plan:** `docs/MIGRACION_MOBILE_RUST.md`. Requiere Android SDK/NDK. **Leo debe
   ejecutar** (no puedo probar sin SDK/NDK).
+- [ ] **Mobile: predictive keyboard** — design in
+  `docs/ARQUITECTURA_MOBILE_ANDROID.md` §6, decisions in `docs/DECISIONS.md`.
+  Done: `lapacho-predict` (prefix completion over a word list, accent- and
+  case-insensitive), exposed as `WordPredictor` through the uniffi bridge,
+  bundled Spanish dictionary (49 525 words, `assets/dict/es.txt`, MIT) and the
+  suggestion strip in the IME, which takes over the paste strip while a word
+  is being typed. Pending, in order:
+  - [ ] **Spell correction** — completion only answers a correct prefix;
+    `maniana` still finds nothing. Needs edit distance (Levenshtein ≤2 over
+    the folded keys), which is also what turns the strip into a corrector.
+  - [ ] **Other languages** — the engine takes any `word frequency` list. What
+    is missing is the import: system file picker + SHA-256 check against the
+    dictionaries published per release, and a language switch in the IME. No
+    network permission, by decision.
+  - [ ] **Explicit learning** — long-press the word you typed → a chip offers
+    to learn it → stored as one word in the encrypted store, listed and
+    deletable in the companion. Never automatic, never from a private field.
 - [ ] **Multi-client sync (optional, E2E, per-item)** — design: `docs/ARQUITECTURA_MOBILE_ANDROID.md` §5
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
   hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;

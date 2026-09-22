@@ -21,6 +21,7 @@ bindgen = ["uniffi/cli"]
 
 [dependencies]
 lapacho-core = { workspace = true }
+lapacho-predict = { workspace = true }
 serde_json = { workspace = true }
 zeroize = { workspace = true }
 uuid = { workspace = true }

@@ -25,6 +25,12 @@ app and the keyboard (IME), which capture and paste the clipboard.
   Spanish marks on long press, a numbers/symbols layer, a fixed emoji layer)
   are enough to type with, nothing more — no autocorrect, no swipe, no emoji
   search.
+- **Suggestions, but no user model.** `crates/lapacho-predict` completes the
+  word being typed out of `app/src/main/assets/dict/es.txt` (49 525 words with
+  frequencies, MIT, see `NOTICE-es.txt` beside it), reached through
+  `WordPredictor` in the uniffi bridge. The dictionary is fixed: nothing typed
+  is stored, counted or learned. Why it works this way, and why learning will
+  be one explicit word at a time: `docs/DECISIONS.md`.
 
 ## Module layout
 

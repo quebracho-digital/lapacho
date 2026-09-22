@@ -109,6 +109,38 @@ impl MobileCore {
     }
 }
 
+/// The bundled dictionary, held for the life of the keyboard process.
+///
+/// Kotlin reads the asset and hands over its text once; nothing here opens a
+/// file or a socket, and suggesting never writes anything down — the same
+/// dictionary gives the same suggestions to everyone who has it.
+#[derive(uniffi::Object)]
+pub struct WordPredictor {
+    inner: lapacho_predict::Predictor,
+}
+
+#[uniffi::export]
+impl WordPredictor {
+    /// `dictionary` is one `word frequency` per line, as shipped in the APK.
+    #[uniffi::constructor]
+    pub fn new(dictionary: String) -> Arc<Self> {
+        Arc::new(Self {
+            inner: lapacho_predict::Predictor::from_text(&dictionary),
+        })
+    }
+
+    /// Words that continue `prefix`, most frequent first.
+    pub fn suggest(&self, prefix: String, limit: u32) -> Vec<String> {
+        self.inner.suggest(&prefix, limit as usize)
+    }
+
+    /// Words in the dictionary — the IME logs it once to tell a truncated
+    /// asset from a missing one.
+    pub fn size(&self) -> u32 {
+        self.inner.len() as u32
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

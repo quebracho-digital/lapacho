@@ -24,8 +24,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.classify
+import digital.quebracho.lapacho.currentWord
 import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.isSecret
+import digital.quebracho.lapacho.loadPredictor
 import digital.quebracho.lapacho.matchesQuery
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HISTORY_MAX
@@ -64,6 +66,17 @@ class LapachoIme : InputMethodService() {
     // Search mode: non-null while searching. The keys edit [query] instead of
     // the field, and the strip shows what in this pool matches it.
     private var searchPool: List<ClipboardItem>? = null
+    // The strip's clips, read when the keyboard opens and not per keystroke
+    // (docs §4.4): with suggestions, the strip redraws on every key.
+    private var clips: List<ClipboardItem> = emptyList()
+    // ~600 KB of dictionary parsed on the first word typed, not on the cold
+    // start path — the keyboard has to be on screen before that matters.
+    private val predictor by lazy {
+        val t0 = System.nanoTime()
+        loadPredictor(this).also {
+            Log.i(TAG, "dictionary: ${it.size()} words in ${(System.nanoTime() - t0) / 1_000_000}ms")
+        }
+    }
     private var query = ""
     private var createdAtNanos: Long = 0
     private var lastCapturedId: String? = null
@@ -120,13 +133,16 @@ class LapachoIme : InputMethodService() {
         if (clip != null && !secret && !privateField) capture(clip.text, clip.sensitivity)
         secretOnClipboard = clip != null && (secret || privateField)
         searchPool = null
-        refreshPasteStrip()
+        val t0 = System.nanoTime()
+        clips = repo.loadTopN(TOP_N)
+        Log.i(TAG, "loadTopN($TOP_N) took ${(System.nanoTime() - t0) / 1_000_000}ms, ${clips.size} items")
+        refreshStrip()
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
-        // Don't keep up to HISTORY_MAX decrypted items around once the
-        // keyboard is gone.
+        // Don't keep decrypted items around once the keyboard is gone.
         searchPool = null
+        clips = emptyList()
         super.onFinishInputView(finishingInput)
     }
 
@@ -195,14 +211,47 @@ class LapachoIme : InputMethodService() {
      * a copied password can still go into a password field without ever
      * entering the history.
      */
-    private fun refreshPasteStrip() {
+    private fun refreshStrip() {
         pasteStrip.removeAllViews()
         searchPool?.let { showSearch(it); return }
+        // While a word is being typed the strip belongs to the suggestions;
+        // finish the word and the clips come back. One row, three jobs — the
+        // alternative is a keyboard one row taller for everyone.
+        if (!privateField) {
+            val hits = suggestions()
+            if (hits.isNotEmpty()) {
+                for (word in hits) pasteStrip.addView(pasteButton(word) { commitSuggestion(word) })
+                return
+            }
+        }
+        showClips()
+    }
 
-        val t0 = System.nanoTime()
-        val items = repo.loadTopN(TOP_N)
-        Log.i(TAG, "loadTopN(${TOP_N}) took ${(System.nanoTime() - t0) / 1_000_000}ms, ${items.size} items")
+    /**
+     * What the dictionary can complete for the word being typed. Nothing is
+     * looked up until [MIN_PREFIX] letters: a single letter matches most of
+     * the dictionary, and hiding the clips on the first keystroke of every
+     * word costs more than the suggestion is worth.
+     */
+    private fun suggestions(): List<String> {
+        val word = currentWord(currentInputConnection?.getTextBeforeCursor(WORD_LOOKBEHIND, 0))
+        if (word.length < MIN_PREFIX) return emptyList()
+        val hits = predictor.suggest(word, SUGGESTIONS.toUInt())
+        // Lengths and counts, never the words themselves: this is a keyboard,
+        // and what gets typed is exactly what must not end up in a log.
+        Log.i(TAG, "suggest: ${word.length}-letter prefix, ${hits.size} hits")
+        return hits
+    }
 
+    /** Replaces the word being typed with [word], plus the space after it. */
+    private fun commitSuggestion(word: String) {
+        val typed = currentWord(currentInputConnection?.getTextBeforeCursor(WORD_LOOKBEHIND, 0))
+        currentInputConnection?.deleteSurroundingText(typed.length, 0)
+        commitText("$word ")
+        refreshStrip()
+    }
+
+    private fun showClips() {
         if (secretOnClipboard) {
             pasteStrip.addView(pasteButton("🔑 ••••••") { readClip()?.let { commitText(it.text) } })
         }
@@ -212,13 +261,13 @@ class LapachoIme : InputMethodService() {
             pasteStrip.addView(pasteButton("🔒 campo privado: historial oculto") {})
             return
         }
-        if (items.isEmpty()) {
+        if (clips.isEmpty()) {
             if (secretOnClipboard) return
             pasteStrip.addView(pasteButton("(sin clips)") {})
             return
         }
         pasteStrip.addView(pasteButton("🔍") { startSearch() })
-        for (item in items) {
+        for (item in clips) {
             pasteStrip.addView(pasteButton(previewLabel(item)) { commitRaw(item) })
         }
     }
@@ -228,13 +277,13 @@ class LapachoIme : InputMethodService() {
     private fun startSearch() {
         searchPool = repo.loadTopN(HISTORY_MAX).filterNot { it.isMasked() }
         query = ""
-        refreshPasteStrip()
+        refreshStrip()
     }
 
     private fun stopSearch() {
         searchPool = null
         query = ""
-        refreshPasteStrip()
+        refreshStrip()
     }
 
     private fun searchHits(pool: List<ClipboardItem>): List<ClipboardItem> =
@@ -254,24 +303,31 @@ class LapachoIme : InputMethodService() {
     private fun output(text: String) {
         if (searchPool == null) {
             commitText(text)
+            refreshStrip()
             return
         }
         query += text
-        refreshPasteStrip()
+        refreshStrip()
     }
 
     private fun backspace() {
         if (searchPool == null) {
             currentInputConnection?.deleteSurroundingText(1, 0)
+            refreshStrip()
             return
         }
         query = query.dropLast(1)
-        refreshPasteStrip()
+        refreshStrip()
     }
 
     /** Enter: a new line, or while searching, paste the first match. */
     private fun enter() {
-        val pool = searchPool ?: return commitText("\n")
+        val pool = searchPool
+        if (pool == null) {
+            commitText("\n")
+            refreshStrip()
+            return
+        }
         searchHits(pool).firstOrNull()?.let { commitRaw(it) }
         stopSearch()
     }
@@ -490,6 +546,10 @@ class LapachoIme : InputMethodService() {
         private const val ALTERNATES_TIMEOUT_MS = 5_000L
         private const val TAG = "LapachoIme"
         private const val TOP_N = 20
+        private const val SUGGESTIONS = 3
+        private const val MIN_PREFIX = 2
+        /** Enough to hold the longest word anyone types before the cursor. */
+        private const val WORD_LOOKBEHIND = 48
         private const val LABEL_MAX = 24
         private const val KEY_TEXT_DP = 20f
         private const val KEY_HEIGHT_DP = 46f
