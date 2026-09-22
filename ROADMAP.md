@@ -189,9 +189,12 @@ History search implemented; English translation complete. Sensitivity: long hex 
     is missing is the import: system file picker + SHA-256 check against the
     dictionaries published per release, and a language switch in the IME. No
     network permission, by decision.
-  - [ ] **Explicit learning** — long-press the word you typed → a chip offers
-    to learn it → stored as one word in the encrypted store, listed and
-    deletable in the companion. Never automatic, never from a private field.
+  - [x] **Explicit learning** — long-press the word you typed → a chip offers
+    to learn it → stored as one word in the encrypted store (`lexicon` table,
+    DB v2), listed and deletable under **PALABRAS** in the companion. Never
+    automatic, never from a private field, never for what the classifier reads
+    as a secret. A learned word outranks the dictionary; the keyboard picks up
+    what the app forgot the next time it opens.
 - [ ] **Multi-client sync (optional, E2E, per-item)** — design: `docs/ARQUITECTURA_MOBILE_ANDROID.md` §5
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
   hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;

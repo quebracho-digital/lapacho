@@ -59,6 +59,19 @@ impl Predictor {
         self.words.is_empty()
     }
 
+    /// Whether the dictionary already has this word, comparing the way
+    /// [`Predictor::suggest`] does — so `cancion` counts as known because
+    /// `canción` is in there. That is deliberate: a missing accent is a typo
+    /// to correct, not a word to learn.
+    pub fn knows(&self, word: &str) -> bool {
+        let key = fold(word);
+        if key.is_empty() {
+            return false;
+        }
+        let start = self.words.partition_point(|e| *e.key < *key);
+        self.words.get(start).is_some_and(|e| *e.key == *key)
+    }
+
     /// The `limit` most frequent words starting with `prefix`, most frequent
     /// first. Case-insensitive and accent-insensitive; a suggestion is
     /// capitalized when the prefix is.
@@ -163,6 +176,25 @@ mod tests {
         let p = Predictor::from_text(DICT);
         assert!(p.suggest("", 3).is_empty());
         assert!(p.suggest("xyz", 3).is_empty());
+    }
+
+    #[test]
+    fn knows_what_is_in_the_dictionary_accents_aside() {
+        let p = Predictor::from_text(DICT);
+        assert!(p.knows("que"));
+        assert!(p.knows("QUE"), "case is not a different word");
+        assert!(p.knows("cancion"), "a missing accent is a typo, not a new word");
+        assert!(!p.knows("quebrachos"));
+        assert!(!p.knows(""));
+    }
+
+    #[test]
+    fn a_learned_word_is_just_another_entry_and_outranks_the_dictionary() {
+        // How learning is wired: the lexicon is appended to the dictionary
+        // text with a frequency nothing can outrank.
+        let p = Predictor::from_text(&format!("{DICT}\nquebrachos {}", u32::MAX));
+        assert!(p.knows("quebrachos"));
+        assert_eq!(p.suggest("que", 1), vec!["quebrachos"]);
     }
 
     #[test]

@@ -34,6 +34,7 @@ import digital.quebracho.lapacho.currentWord
 import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.isSecret
 import digital.quebracho.lapacho.loadPredictor
+import uniffi.lapacho_mobile_bridge.WordPredictor
 import digital.quebracho.lapacho.matchesQuery
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HISTORY_MAX
@@ -77,12 +78,17 @@ class LapachoIme : InputMethodService() {
     private var clips: List<ClipboardItem> = emptyList()
     // ~600 KB of dictionary parsed on the first word typed, not on the cold
     // start path — the keyboard has to be on screen before that matters.
-    private val predictor by lazy {
-        val t0 = System.nanoTime()
-        loadPredictor(this).also {
-            Log.i(TAG, "dictionary: ${it.size()} words in ${(System.nanoTime() - t0) / 1_000_000}ms")
+    // Dropped when a word is learned, so the next lookup picks it up.
+    private var loadedPredictor: WordPredictor? = null
+    private var lexicon: List<String> = emptyList()
+    private val predictor: WordPredictor
+        get() = loadedPredictor ?: run {
+            val t0 = System.nanoTime()
+            loadPredictor(this, lexicon).also {
+                loadedPredictor = it
+                Log.i(TAG, "dictionary: ${it.size()} words in ${(System.nanoTime() - t0) / 1_000_000}ms")
+            }
         }
-    }
     private var query = ""
     private var createdAtNanos: Long = 0
     private var lastCapturedId: String? = null
@@ -139,6 +145,14 @@ class LapachoIme : InputMethodService() {
         if (clip != null && !secret && !privateField) capture(clip.text, clip.sensitivity)
         secretOnClipboard = clip != null && (secret || privateField)
         searchPool = null
+        // The companion can forget a word while the keyboard is not on
+        // screen, and the dictionary in memory would not know. Reading a
+        // handful of rows is cheaper than rebuilding it blindly.
+        val stored = repo.lexicon()
+        if (stored != lexicon) {
+            lexicon = stored
+            loadedPredictor = null
+        }
         val t0 = System.nanoTime()
         clips = repo.loadTopN(TOP_N)
         Log.i(TAG, "loadTopN($TOP_N) took ${(System.nanoTime() - t0) / 1_000_000}ms, ${clips.size} items")
@@ -223,30 +237,76 @@ class LapachoIme : InputMethodService() {
         // While a word is being typed the strip belongs to the suggestions;
         // finish the word and the clips come back. One row, three jobs — the
         // alternative is a keyboard one row taller for everyone.
-        if (!privateField) {
-            val hits = suggestions()
-            if (hits.isNotEmpty()) {
-                for (word in hits) pasteStrip.addView(pasteButton(word) { commitSuggestion(word) })
-                return
-            }
-        }
+        if (!privateField && showSuggestions()) return
         showClips()
     }
 
     /**
-     * What the dictionary can complete for the word being typed. Nothing is
-     * looked up until [MIN_PREFIX] letters: a single letter matches most of
-     * the dictionary, and hiding the clips on the first keystroke of every
-     * word costs more than the suggestion is worth.
+     * The strip while a word is being typed: what the dictionary can complete,
+     * or an offer to learn the word if the dictionary has nothing to say about
+     * it. Returns whether it took the strip over.
+     *
+     * Nothing is looked up until [MIN_PREFIX] letters: a single letter matches
+     * most of the dictionary, and hiding the clips on the first keystroke of
+     * every word costs more than the suggestion is worth.
      */
-    private fun suggestions(): List<String> {
+    private fun showSuggestions(): Boolean {
         val word = currentWord(currentInputConnection?.getTextBeforeCursor(WORD_LOOKBEHIND, 0))
-        if (word.length < MIN_PREFIX) return emptyList()
+        if (word.length < MIN_PREFIX) return false
         val hits = predictor.suggest(word, SUGGESTIONS.toUInt())
         // Lengths and counts, never the words themselves: this is a keyboard,
         // and what gets typed is exactly what must not end up in a log.
         Log.i(TAG, "suggest: ${word.length}-letter prefix, ${hits.size} hits")
-        return hits
+        for (hit in hits) pasteStrip.addView(pasteButton(hit) { commitSuggestion(hit) })
+        if (hits.isEmpty() && isLearnable(word)) {
+            pasteStrip.addView(learnableChip(word))
+            return true
+        }
+        return hits.isNotEmpty()
+    }
+
+    /**
+     * Whether to offer to learn [word]. Only when the dictionary leads
+     * nowhere — while a normal word is being typed there are always
+     * completions, so the offer stays out of the way — and never for
+     * something the classifier reads as a secret: a learned word comes back
+     * as a suggestion, and a password must not.
+     */
+    private fun isLearnable(word: String): Boolean =
+        word.length >= MIN_LEARN && !predictor.knows(word) && !classify(word).isSecret()
+
+    /**
+     * The word as typed, with a mark saying there is something under a long
+     * press. Tapping it just finishes the word; holding it offers to learn it.
+     *
+     * The system's 500 ms here, not the keys' 280: adding a word to a
+     * permanent list should take a press nobody makes by accident.
+     */
+    private fun learnableChip(word: String): Button =
+        pasteButton(word) { commitSuggestion(word) }.apply {
+            text = labelWithHint(word, LEARN_HINT)
+            setOnLongClickListener { v ->
+                keyFeedback(v)
+                offerToLearn(v, word)
+                true
+            }
+        }
+
+    /** The confirmation: one more deliberate tap, and only then is it stored. */
+    private fun offerToLearn(anchor: View, word: String) {
+        popupAbove(anchor) { row, popup ->
+            row.addView(
+                pasteButton("aprender «$word»") {
+                    repo.learn(word)
+                    // Rebuilt on the next lookup, with the new word in it.
+                    lexicon = lexicon + word
+                    loadedPredictor = null
+                    Log.i(TAG, "learned a ${word.length}-letter word")
+                    popup.dismiss()
+                    refreshStrip()
+                },
+            )
+        }
     }
 
     /** Replaces the word being typed with [word], plus the space after it. */
@@ -451,20 +511,30 @@ class LapachoIme : InputMethodService() {
      * with alternates today sit mid-row.
      */
     private fun showAlternates(anchor: View, alternates: String) {
+        popupAbove(anchor) { row, popup ->
+            for (c in alternates) {
+                val key = if (shift != Shift.OFF) c.uppercase() else c.toString()
+                row.addView(
+                    keyButton(key, 1f) { type(key); popup.dismiss() }.apply {
+                        // Weighted widths collapse to 0 inside a WRAP_CONTENT parent.
+                        layoutParams = LinearLayout.LayoutParams(dp(44f).toInt(), dp(KEY_HEIGHT_DP).toInt())
+                    },
+                )
+            }
+        }
+    }
+
+    /**
+     * A row floating above [anchor], filled by [fill], which gets the row and
+     * the window so whatever it puts in there can close it.
+     */
+    private fun popupAbove(anchor: View, fill: (LinearLayout, PopupWindow) -> Unit) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(KEYBOARD_BG)
         }
         val popup = PopupWindow(row, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
-        for (c in alternates) {
-            val key = if (shift != Shift.OFF) c.uppercase() else c.toString()
-            row.addView(
-                keyButton(key, 1f) { type(key); popup.dismiss() }.apply {
-                    // Weighted widths collapse to 0 inside a WRAP_CONTENT parent.
-                    layoutParams = LinearLayout.LayoutParams(dp(44f).toInt(), dp(KEY_HEIGHT_DP).toInt())
-                },
-            )
-        }
+        fill(row, popup)
         popup.showAsDropDown(anchor, 0, -(anchor.height + dp(KEY_HEIGHT_DP + 8f)).toInt())
         // Dismissing an already dismissed popup does nothing, so the picked
         // and the outside-touch cases need no cancelling.
@@ -619,6 +689,10 @@ class LapachoIme : InputMethodService() {
         private const val TOP_N = 20
         private const val SUGGESTIONS = 3
         private const val MIN_PREFIX = 2
+        /** Shorter than this is a fragment of a word, not a word to learn. */
+        private const val MIN_LEARN = 4
+        private const val LEARN_HINT = "＋"
+
         /** Enough to hold the longest word anyone types before the cursor. */
         private const val WORD_LOOKBEHIND = 48
         private const val LABEL_MAX = 24

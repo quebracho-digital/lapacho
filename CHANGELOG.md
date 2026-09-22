@@ -6,7 +6,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ### Android — the keyboard learned to type Spanish, and to suggest without learning
 
-Four builds, `0.1.11` through `0.1.14`, all of them on the IME:
+Six builds, `0.1.11` through `0.1.16`, all of them on the IME:
 
 - **ñ and the Spanish marks on long press.** ñ left the middle row and comes
   back by holding `n` (`Ñ` with shift); holding `.` offers `¿ ? ¡ !`, which
@@ -32,6 +32,20 @@ Four builds, `0.1.11` through `0.1.14`, all of them on the IME:
 - **The strip stopped re-reading the history on every redraw.** It now
   redraws on every keystroke, so the clips are decrypted when the keyboard
   opens — as the design always said — and dropped when it closes.
+- **A keyboard that answers the finger** (`0.1.15`): ⌫ deletes while held
+  (400 ms, then one every 55 ms), the long press is ours at 280 ms instead of
+  the system's 500, and a key with alternates says so — ñ over n, ¿ over the
+  period, following shift.
+- **Learning, one word at a time** (`0.1.16`). When the dictionary runs out of
+  completions, the strip offers the word as typed, marked with a ＋. Hold it —
+  the system's 500 ms here, because it writes to a permanent list — and a chip
+  asks to learn it; one more tap and it is stored, alone, in an encrypted
+  `lexicon` table (DB v2). It then outranks the dictionary for its prefix.
+  **PALABRAS** in the companion lists every learned word and forgets them one
+  by one or all at once, and the keyboard notices on its next open. Nothing is
+  ever learned by itself, nothing is learned in a private field, and a word
+  the classifier reads as a secret is never offered — a learned word comes
+  back as a suggestion.
 
 ### Security — advanced XSS detectors
 

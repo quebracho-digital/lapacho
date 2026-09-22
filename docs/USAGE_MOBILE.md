@@ -76,12 +76,11 @@ Accents are optional while typing: `cancion` offers **canción**, `porq` offers
 **porque** and **porqué**. If you start the word with a capital, the
 suggestion comes capitalized.
 
-**It does not learn.** The dictionary is the one that came with the app —
-49 525 Spanish words ordered by how common they are — and it is the same for
-everybody. Nothing you type is recorded, counted or kept, here or anywhere
-else: suggestions are looked up and forgotten. Teaching it your own words
-(names, jargon) is planned as a separate, explicit gesture, one word at a
-time; see [`DECISIONS.md`](DECISIONS.md).
+**It only learns what you hand it.** The dictionary is the one that came with
+the app — 49 525 Spanish words ordered by how common they are — and it is the
+same for everybody. Nothing you type is recorded, counted or kept: suggestions
+are looked up and forgotten. The one exception is a word you deliberately
+teach it, below.
 
 Spanish is the only language for now, and it ships inside the APK. Others will
 be files you download with your browser and hand to Lapacho — the keyboard
@@ -89,6 +88,28 @@ will never download anything itself, because it has no way to.
 
 There are no suggestions in password fields or incognito tabs, the same rule
 the history follows.
+
+## Teaching it a word
+
+Names, jargon, anything the dictionary has never heard of. Write the word;
+when the dictionary runs out of completions for it, the strip shows **the word
+as you typed it**, with a small **＋**. Hold it — half a second, longer than
+the keys — and a chip appears offering **aprender «tu palabra»**. Tap that
+chip and the word is learned. Tap anywhere else, or wait five seconds, and
+nothing happens.
+
+Nothing is ever learned on its own. Only that word is stored — not the
+sentence it was in, not when, not which app — and from then on it is suggested
+like any other word, first among its kin.
+
+**PALABRAS** in the app lists every word you taught it, in full. Tap one to
+forget it, or **Olvidar todas** to empty the list; the dictionary that came
+with the app is not touched. That list is the whole of what the keyboard has
+learned about you — which is the point of teaching it one word at a time
+instead of letting it watch.
+
+Words the classifier reads as a password or a token are never offered for
+learning: a learned word comes back as a suggestion, and a secret must not.
 
 ## Passwords and other secrets
 
@@ -160,7 +181,8 @@ thumbnail come out black.
 - History encrypted at rest (AES-256-GCM, key in the Android Keystore).
 - Excluded from Google backup.
 - Keystrokes are never recorded; only copied clips are. Suggestions are
-  looked up in a fixed dictionary and nothing about them is stored.
+  looked up in a fixed dictionary and nothing about them is stored — except
+  the words you explicitly teach it, which the app lists and can forget.
 - Secrets are never stored and never displayed.
 
 ## Troubleshooting

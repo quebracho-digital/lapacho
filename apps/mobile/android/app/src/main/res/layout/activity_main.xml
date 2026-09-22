@@ -35,6 +35,13 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:text="Borrar historial" />
+
+        <Button
+            android:id="@+id/words_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Palabras" />
     </LinearLayout>
 
     <TextView

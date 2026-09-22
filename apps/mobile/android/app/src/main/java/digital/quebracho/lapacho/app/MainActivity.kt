@@ -76,6 +76,7 @@ class MainActivity : AppCompatActivity() {
         historyList.setOnItemClickListener { _, _, position, _ -> copy(shown[position]) }
 
         findViewById<Button>(R.id.clear_button).setOnClickListener { confirmClear() }
+        findViewById<Button>(R.id.words_button).setOnClickListener { showLexicon() }
 
         search = findViewById(R.id.search)
         search.doAfterTextChanged { applyFilter() }
@@ -141,6 +142,51 @@ class MainActivity : AppCompatActivity() {
                 }
                 refresh()
             }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    /**
+     * Every word the keyboard was taught, in full, with a way to take each one
+     * back. This screen is the point of learning words one at a time: a
+     * personal lexicon someone can read from end to end is a promise that can
+     * be checked, which is not true of a language model.
+     */
+    private fun showLexicon() {
+        val words = repo.lexicon()
+        if (words.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("Palabras aprendidas")
+                .setMessage(
+                    "Ninguna todavía.\n\nEn el teclado, escribí una palabra que el diccionario no " +
+                        "conozca, mantené apretada la palabra en la tira de arriba y tocá «aprender».",
+                )
+                .setPositiveButton("Entendido", null)
+                .show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Palabras aprendidas (${words.size})")
+            .setItems(words.toTypedArray()) { _, position -> confirmForget(words[position]) }
+            .setNeutralButton("Olvidar todas") { _, _ -> confirmForgetAll(words.size) }
+            .setNegativeButton("Cerrar", null)
+            .show()
+    }
+
+    private fun confirmForget(word: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Olvidar «$word»")
+            .setMessage("El teclado deja de sugerirla. Podés volver a enseñársela cuando quieras.")
+            .setPositiveButton("Olvidar") { _, _ -> repo.forget(word); showLexicon() }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun confirmForgetAll(count: Int) {
+        AlertDialog.Builder(this)
+            .setTitle("Olvidar todas")
+            .setMessage("Se borran las $count palabras aprendidas. El diccionario que vino con la app no se toca.")
+            .setPositiveButton("Olvidar todas") { _, _ -> repo.forgetAll() }
             .setNegativeButton("Cancelar", null)
             .show()
     }

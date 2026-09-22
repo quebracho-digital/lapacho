@@ -515,7 +515,9 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 > case-insensitive), `WordPredictor` in the bridge, a bundled Spanish
 > dictionary (`app/src/main/assets/dict/es.txt`, 49 525 words) and the
 > suggestion strip in the IME, which takes the paste strip over while a word
-> is being typed. Not built yet: spell correction, other languages, learning.
+> is being typed. `0.1.16` adds explicit learning: the `lexicon` table (DB
+> v2), the long press that offers it, and the list in the companion. Not built
+> yet: spell correction and other languages.
 >
 > **Superseded:** "learning off by default, in an app-private model file".
 > A background model of what the user types was rejected outright — see
@@ -611,8 +613,9 @@ Align with desktop: **raw is source of truth inside the vault; UI and logs only 
 2. ✅ Suggestion bar; no network.  
 3. ☐ Spell correction (edit distance) — completion only answers a correct prefix.  
 4. ☐ Other languages: import through the system file picker + SHA-256 check.  
-5. ☐ Explicit per-word learning (replaces "exclude sensitive from learning":
-   nothing is learned unless the user taps to learn it).
+5. ✅ Explicit per-word learning (replaces "exclude sensitive from learning":
+   nothing is learned unless the user taps to learn it — and a word the
+   classifier reads as a secret is never offered).
 
 ### P3 — Hardening & polish (local product)
 

@@ -134,6 +134,12 @@ impl WordPredictor {
         self.inner.suggest(&prefix, limit as usize)
     }
 
+    /// Whether the word is already known, accents aside. What the keyboard
+    /// asks before offering to learn one.
+    pub fn knows(&self, word: String) -> bool {
+        self.inner.knows(&word)
+    }
+
     /// Words in the dictionary — the IME logs it once to tell a truncated
     /// asset from a missing one.
     pub fn size(&self) -> u32 {

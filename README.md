@@ -130,12 +130,15 @@ word the strip offers up to three completions from a bundled dictionary
 (`lapacho-predict` over 49 525 Spanish words, accent- and case-insensitive),
 and gives the clips back when the word ends.
 
-**It does not learn.** The dictionary is fixed and identical for everyone who
-has it; nothing typed is stored, counted or modelled. Teaching it a word is
-planned as an explicit, one-word-at-a-time gesture, and dictionaries for other
-languages will be imported from a file rather than downloaded — the keyboard
-has no network permission and is not getting one. The reasoning for all three
-is in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+**It only learns what it is handed.** The dictionary is fixed and identical
+for everyone who has it; nothing typed is stored, counted or modelled. The one
+exception is deliberate: hold a word the dictionary does not know and a chip
+offers to learn it, one word per press. What is kept is that word and nothing
+around it, in an encrypted list the app shows in full and can forget entry by
+entry. There is no background language model, and dictionaries for other
+languages are imported from a file rather than downloaded — the keyboard has
+no network permission and is not getting one. The reasoning for all three is
+in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 Build notes and known gaps: [`apps/mobile/android/README.md`](apps/mobile/android/README.md).
 
@@ -279,9 +282,10 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
 - [x] Android spike: paste-strip keyboard, encrypted shared history, desktop
       classifier via uniffi, secrets never stored (see [Mobile](#mobile))
 - [x] Android: word suggestions from a bundled dictionary, with no user model
-      (`crates/lapacho-predict`)
-- [ ] Android: spell correction, imported dictionaries for other languages,
-      explicit per-word learning ([`ROADMAP.md`](ROADMAP.md))
+      (`crates/lapacho-predict`), and learning one word at a time by an
+      explicit press, listed and reversible in the app
+- [ ] Android: spell correction, imported dictionaries for other languages
+      ([`ROADMAP.md`](ROADMAP.md))
 - [ ] Android: storage, keyed ids and persistence levels in Rust
       ([`docs/MIGRACION_MOBILE_RUST.md`](docs/MIGRACION_MOBILE_RUST.md))
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)

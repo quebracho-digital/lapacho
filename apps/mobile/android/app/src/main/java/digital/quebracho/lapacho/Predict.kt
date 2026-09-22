@@ -10,9 +10,16 @@ import uniffi.lapacho_mobile_bridge.WordPredictor
  */
 private const val DICT_ASSET = "dict/es.txt"
 
-/** Reads the bundled dictionary into `lapacho-predict`. Costs ~600 KB of asset. */
-fun loadPredictor(context: Context): WordPredictor =
-    WordPredictor(context.assets.open(DICT_ASSET).bufferedReader().use { it.readText() })
+/**
+ * Reads the bundled dictionary into `lapacho-predict`, plus the words the
+ * user taught it. A learned word is just another entry with a frequency
+ * nothing can outrank: it was asked for by name, so it comes first.
+ */
+fun loadPredictor(context: Context, learned: List<String> = emptyList()): WordPredictor {
+    val dictionary = context.assets.open(DICT_ASSET).bufferedReader().use { it.readText() }
+    val lexicon = learned.joinToString("") { "\n$it ${UInt.MAX_VALUE}" }
+    return WordPredictor(dictionary + lexicon)
+}
 
 /**
  * The word being typed: the run of letters that ends at the cursor. Empty

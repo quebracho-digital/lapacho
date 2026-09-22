@@ -51,10 +51,25 @@ class HistoryRepo(context: Context, private val cipher: LapachoCipher = LapachoC
         db.execSQL(
             "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
         )
+        createLexicon(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // P0 spike: no migrations to carry yet.
+        // v2 adds the lexicon. Nothing to move: it starts empty, and a phone
+        // that upgrades keeps its history untouched.
+        if (oldVersion < 2) createLexicon(db)
+    }
+
+    /**
+     * Words the user taught the keyboard, one explicit act each. Keyed by a
+     * hash of the word so the same word cannot be stored twice, with the word
+     * itself encrypted like any other content — a personal lexicon is a list
+     * of what someone writes about.
+     */
+    private fun createLexicon(db: SQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS lexicon (id TEXT PRIMARY KEY, word TEXT NOT NULL, added INTEGER NOT NULL)",
+        )
     }
 
     /**
@@ -146,6 +161,36 @@ class HistoryRepo(context: Context, private val cipher: LapachoCipher = LapachoC
         )
     }
 
+    /** Adds a word to the lexicon; learning the same word twice is a no-op. */
+    fun learn(word: String) {
+        val values = ContentValues().apply {
+            put("id", contentId(word))
+            put("word", cipher.encrypt(word))
+            put("added", System.currentTimeMillis() / 1000)
+        }
+        writableDatabase.insertWithOnConflict("lexicon", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** Every learned word, oldest first. Short by construction: one tap each. */
+    fun lexicon(): List<String> {
+        val words = mutableListOf<String>()
+        readableDatabase.query("lexicon", arrayOf("word"), null, null, null, null, "added ASC").use { cursor ->
+            while (cursor.moveToNext()) {
+                // A row that won't decrypt is skipped, as in the history.
+                runCatching { cipher.decrypt(cursor.getString(0)) }.getOrNull()?.let { words.add(it) }
+            }
+        }
+        return words
+    }
+
+    fun forget(word: String) {
+        writableDatabase.delete("lexicon", "id = ?", arrayOf(contentId(word)))
+    }
+
+    fun forgetAll() {
+        writableDatabase.delete("lexicon", null, null)
+    }
+
     fun setPreference(key: String, value: String) {
         val values = ContentValues().apply {
             put("key", key)
@@ -186,6 +231,6 @@ class HistoryRepo(context: Context, private val cipher: LapachoCipher = LapachoC
 
     companion object {
         private const val DB_NAME = "lapacho_history.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
     }
 }

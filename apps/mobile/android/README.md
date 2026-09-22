@@ -29,8 +29,10 @@ app and the keyboard (IME), which capture and paste the clipboard.
   word being typed out of `app/src/main/assets/dict/es.txt` (49 525 words with
   frequencies, MIT, see `NOTICE-es.txt` beside it), reached through
   `WordPredictor` in the uniffi bridge. The dictionary is fixed: nothing typed
-  is stored, counted or learned. Why it works this way, and why learning will
-  be one explicit word at a time: `docs/DECISIONS.md`.
+  is stored, counted or modelled. Learning is the one exception and it is
+  explicit — a long press on the word offers a chip, one word per press, into
+  the `lexicon` table, listed and reversible in the companion. Why it works
+  this way: `docs/DECISIONS.md`.
 
 ## Module layout
 
