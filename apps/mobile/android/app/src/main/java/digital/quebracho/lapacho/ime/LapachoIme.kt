@@ -81,6 +81,8 @@ class LapachoIme : InputMethodService() {
     // Dropped when a word is learned, so the next lookup picks it up.
     private var loadedPredictor: WordPredictor? = null
     private var lexicon: List<String> = emptyList()
+    // Set when a word is learned, shown once, gone on the next keystroke.
+    private var justLearned: String? = null
     private val predictor: WordPredictor
         get() = loadedPredictor ?: run {
             val t0 = System.nanoTime()
@@ -233,6 +235,15 @@ class LapachoIme : InputMethodService() {
      */
     private fun refreshStrip() {
         pasteStrip.removeAllViews()
+        // Learning is otherwise invisible: the word stays where it was and the
+        // strip goes back to the clips, so the only way to tell it worked was
+        // to type the word's first letters again — and the word itself is
+        // never suggested back, because there is nothing left to complete.
+        justLearned?.let { word ->
+            justLearned = null
+            pasteStrip.addView(pasteButton("✓ «$word» aprendida") {})
+            return
+        }
         searchPool?.let { showSearch(it); return }
         // While a word is being typed the strip belongs to the suggestions;
         // finish the word and the clips come back. One row, three jobs — the
@@ -301,6 +312,7 @@ class LapachoIme : InputMethodService() {
                     // Rebuilt on the next lookup, with the new word in it.
                     lexicon = lexicon + word
                     loadedPredictor = null
+                    justLearned = word
                     Log.i(TAG, "learned a ${word.length}-letter word")
                     popup.dismiss()
                     refreshStrip()
@@ -691,7 +703,7 @@ class LapachoIme : InputMethodService() {
         private const val MIN_PREFIX = 2
         /** Shorter than this is a fragment of a word, not a word to learn. */
         private const val MIN_LEARN = 4
-        private const val LEARN_HINT = "＋"
+        private const val LEARN_HINT = "+"
 
         /** Enough to hold the longest word anyone types before the cursor. */
         private const val WORD_LOOKBEHIND = 48

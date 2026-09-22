@@ -12,6 +12,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
+import android.util.TypedValue
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -21,6 +22,7 @@ import androidx.core.widget.doAfterTextChanged
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.isMasked
+import digital.quebracho.lapacho.loadPredictor
 import digital.quebracho.lapacho.matchesQuery
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HISTORY_MAX
@@ -158,19 +160,48 @@ class MainActivity : AppCompatActivity() {
             AlertDialog.Builder(this)
                 .setTitle("Palabras aprendidas")
                 .setMessage(
-                    "Ninguna todavía.\n\nEn el teclado, escribí una palabra que el diccionario no " +
-                        "conozca, mantené apretada la palabra en la tira de arriba y tocá «aprender».",
+                    "Ninguna todavía.\n\n${dictionaryStatus(words)}\n\nEn el teclado, escribí una palabra " +
+                        "que el diccionario no conozca, mantené apretada la palabra en la tira de arriba " +
+                        "y tocá «aprender».",
                 )
                 .setPositiveButton("Entendido", null)
                 .show()
             return
         }
         AlertDialog.Builder(this)
-            .setTitle("Palabras aprendidas (${words.size})")
+            .setCustomTitle(dialogHeader("Palabras aprendidas (${words.size})\n\n${dictionaryStatus(words)}"))
             .setItems(words.toTypedArray()) { _, position -> confirmForget(words[position]) }
             .setNeutralButton("Olvidar todas") { _, _ -> confirmForgetAll(words.size) }
             .setNegativeButton("Cerrar", null)
             .show()
+    }
+
+    private fun dialogHeader(text: String): TextView = TextView(this).apply {
+        this.text = text
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        setPadding(pad + pad / 2, pad, pad, pad / 2)
+    }
+
+    /**
+     * What the keyboard would have to work with, asked here because the
+     * keyboard cannot be asked: it runs in another process and has no screen
+     * of its own to report on. Loads the dictionary the same way the IME
+     * does and completes a real prefix with it, so "learned but never
+     * suggested" can be told from "the dictionary never loaded".
+     */
+    private fun dictionaryStatus(words: List<String>): String = try {
+        val predictor = loadPredictor(this, words)
+        val bundled = predictor.size().toInt() - words.size
+        val probe = words.firstOrNull()
+        val test = probe?.let {
+            val prefix = it.take(maxOf(2, it.length - 3))
+            val hits = predictor.suggest(prefix, 3u)
+            "Prueba: «$prefix» → ${if (hits.isEmpty()) "(nada)" else hits.joinToString(", ")}"
+        }
+        listOfNotNull("Diccionario: $bundled palabras", test).joinToString("\n")
+    } catch (e: Exception) {
+        "Diccionario: NO CARGA (${e.javaClass.simpleName}: ${e.message})"
     }
 
     private fun confirmForget(word: String) {
