@@ -18,8 +18,9 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > [Diagnostics](#diagnostics) for how to measure it yourself.
 >
 > **Android** is an early spike, usable day to day: a keyboard with a paste
-> strip, encrypted history, and the same sensitivity classifier as desktop
-> (`lapacho-core` compiled for Android). See [Mobile](#mobile).
+> strip, encrypted history, word suggestions from a bundled dictionary, and the
+> same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
+> See [Mobile](#mobile).
 
 ## Usage
 
@@ -61,6 +62,7 @@ Cargo workspace (Rust 2024 edition):
 
 ```
 lapacho/
+├─ crates/lapacho-predict/ # Word completion over a dictionary (lib, no I/O)
 ├─ crates/lapacho-core/    # Pure logic, no UI (lib)
 │  ├─ types        # ClipboardItem, UIClipboardItem (safe projection), enums
 │  ├─ detectors    # content type classification
@@ -74,8 +76,9 @@ lapacho/
 │  └─ legacy-ui/   # Original vanilla UI, kept as reference
 └─ apps/mobile/android/
    ├─ app/          # companion app + keyboard (IME), Kotlin
+   │  └─ assets/dict/   # bundled word lists (es)
    ├─ storage/      # encrypted SQLite history, Kotlin (moving to Rust)
-   └─ rust-bridge/  # lapacho-core for Android via uniffi
+   └─ rust-bridge/  # lapacho-core + lapacho-predict for Android via uniffi
 ```
 
 `lapacho-core` does not depend on Tauri or any UI framework: it is reusable
@@ -119,6 +122,20 @@ Secrets are never stored there: a clip is a secret if the password manager
 flagged it or if `lapacho-core`'s classifier recognizes it. It can still be
 pasted, from the clipboard itself, through a masked 🔑 chip. In password
 fields and incognito tabs the history is hidden.
+
+The keyboard itself is deliberately small: Spanish layout with a dead-key
+acute, ñ and `¿ ? ¡ !` on long press, a numbers/symbols layer and a fixed
+emoji layer — no swipe typing, no autocorrect. From the second letter of a
+word the strip offers up to three completions from a bundled dictionary
+(`lapacho-predict` over 49 525 Spanish words, accent- and case-insensitive),
+and gives the clips back when the word ends.
+
+**It does not learn.** The dictionary is fixed and identical for everyone who
+has it; nothing typed is stored, counted or modelled. Teaching it a word is
+planned as an explicit, one-word-at-a-time gesture, and dictionaries for other
+languages will be imported from a file rather than downloaded — the keyboard
+has no network permission and is not getting one. The reasoning for all three
+is in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 Build notes and known gaps: [`apps/mobile/android/README.md`](apps/mobile/android/README.md).
 
@@ -261,6 +278,10 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
 - [x] Full image support (capture, tray thumbnails, metadata sanitization)
 - [x] Android spike: paste-strip keyboard, encrypted shared history, desktop
       classifier via uniffi, secrets never stored (see [Mobile](#mobile))
+- [x] Android: word suggestions from a bundled dictionary, with no user model
+      (`crates/lapacho-predict`)
+- [ ] Android: spell correction, imported dictionaries for other languages,
+      explicit per-word learning ([`ROADMAP.md`](ROADMAP.md))
 - [ ] Android: storage, keyed ids and persistence levels in Rust
       ([`docs/MIGRACION_MOBILE_RUST.md`](docs/MIGRACION_MOBILE_RUST.md))
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)

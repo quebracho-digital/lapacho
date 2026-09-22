@@ -4,6 +4,35 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — the keyboard learned to type Spanish, and to suggest without learning
+
+Four builds, `0.1.11` through `0.1.14`, all of them on the IME:
+
+- **ñ and the Spanish marks on long press.** ñ left the middle row and comes
+  back by holding `n` (`Ñ` with shift); holding `.` offers `¿ ? ¡ !`, which
+  were buried in the symbols layer. A long press never types by itself: it
+  opens a row of alternates above the key and you tap one. The row closes on
+  an outside touch or by itself after 5 seconds, so it can never swallow the
+  next keystroke.
+- **An emoji layer** — 30 common ones in three rows, in place of the letters.
+  A fixed set, not a picker: no search, no recents, no skin tones.
+- **Word suggestions** (`crates/lapacho-predict`, exposed as `WordPredictor`
+  through the uniffi bridge). From the second letter of a word the strip
+  offers up to three completions, most frequent first, ignoring case and
+  accents — `cancion` finds `canción`. The APK carries 49 525 Spanish words
+  with frequencies (MIT, provenance in `assets/dict/NOTICE-es.txt`) for
+  424 KB. Measured: 0,2–22 µs per lookup, ~8,5 MB of native heap once the
+  dictionary is loaded, and a one-time parse of tens of milliseconds.
+- **Nothing is learned.** The dictionary is fixed and the same for everyone
+  who has it; no keystroke is stored, counted or modelled, and the diagnostic
+  log line counts letters and hits rather than words. Explicit per-word
+  learning, dictionaries for other languages imported from a file (never
+  downloaded — the app has no network permission), and why a second keyboard
+  row was rejected: `docs/DECISIONS.md`.
+- **The strip stopped re-reading the history on every redraw.** It now
+  redraws on every keystroke, so the clips are decrypted when the keyboard
+  opens — as the design always said — and dropped when it closes.
+
 ### Security — advanced XSS detectors
 
 Added three new threat detectors for advanced XSS attack vectors:

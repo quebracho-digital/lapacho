@@ -510,6 +510,19 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 
 ## 6. Predictive keyboard (private by design)
 
+> **Status 2026-09-22 — partly built, and one goal below was superseded.**
+> Shipped in `0.1.14`: `lapacho-predict` (prefix completion, accent- and
+> case-insensitive), `WordPredictor` in the bridge, a bundled Spanish
+> dictionary (`app/src/main/assets/dict/es.txt`, 49 525 words) and the
+> suggestion strip in the IME, which takes the paste strip over while a word
+> is being typed. Not built yet: spell correction, other languages, learning.
+>
+> **Superseded:** "learning off by default, in an app-private model file".
+> A background model of what the user types was rejected outright — see
+> [`DECISIONS.md`](DECISIONS.md) — in favour of explicit per-word learning.
+> Dictionaries for other languages are imported through the system file
+> picker, never downloaded, for the same reason §6.1 gives below.
+
 ### 6.1 Goals
 
 - Suggestions **on-device only** (no cloud API, no analytics of keystrokes).  
@@ -525,6 +538,13 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 - No Android types.  
 - IME calls via uniffi/jni: `suggest(prefix, limit) -> Vec<String>`.  
 - Dictionary assets shipped in APK; user lexicon separate file.
+
+Built as specified. The entries are sorted by an accent-folded key, so the
+binary search answers a prefix typed without accents; the list is sorted at
+load rather than trusted from the asset. Measured on the bundled Spanish
+dictionary: 0,2–22 µs per lookup, ~8,5 MB of native heap, tens of ms to
+parse — once per keyboard process, on the first word typed, not at cold
+start.
 
 ### 6.3 Clipboard × keyboard
 
@@ -587,9 +607,12 @@ Align with desktop: **raw is source of truth inside the vault; UI and logs only 
 
 ### P2 — Prediction
 
-1. `lapacho-predict` + bundled ES/EN dict.  
-2. Suggestion bar; no network.  
-3. Exclude sensitive from learning.
+1. ✅ `lapacho-predict` + bundled ES dict (EN is an import, not a bundle).  
+2. ✅ Suggestion bar; no network.  
+3. ☐ Spell correction (edit distance) — completion only answers a correct prefix.  
+4. ☐ Other languages: import through the system file picker + SHA-256 check.  
+5. ☐ Explicit per-word learning (replaces "exclude sensitive from learning":
+   nothing is learned unless the user taps to learn it).
 
 ### P3 — Hardening & polish (local product)
 
