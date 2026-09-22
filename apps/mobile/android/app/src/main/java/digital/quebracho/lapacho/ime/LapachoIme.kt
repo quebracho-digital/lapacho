@@ -328,8 +328,7 @@ class LapachoIme : InputMethodService() {
             setOnClickListener { keyFeedback(it); onClick() }
             if (alternates != null) setOnLongClickListener { v ->
                 keyFeedback(v)
-                if (alternates.length == 1) type(if (shift != Shift.OFF) alternates.uppercase() else alternates)
-                else showAlternates(v, alternates)
+                showAlternates(v, alternates)
                 true
             }
         }
@@ -337,8 +336,16 @@ class LapachoIme : InputMethodService() {
     /**
      * The alternates of a long-pressed key, as a row floating above it —
      * what a phone keyboard does for the characters that don't fit on it.
-     * ponytail: one flat row, no repositioning near the screen edge; the
-     * only keys with more than one alternate today sit mid-row.
+     * Always a row to choose from, even for a single alternate: a long press
+     * that types straight into the field gives no chance to see what it is
+     * about to type, or to back out.
+     *
+     * It closes when one is picked, when a touch lands outside it, or on its
+     * own after [ALTERNATES_TIMEOUT_MS] — a popup left open over the keys
+     * would swallow the next keystroke.
+     *
+     * ponytail: one flat row, no repositioning near the screen edge; the keys
+     * with alternates today sit mid-row.
      */
     private fun showAlternates(anchor: View, alternates: String) {
         val row = LinearLayout(this).apply {
@@ -347,7 +354,7 @@ class LapachoIme : InputMethodService() {
         }
         val popup = PopupWindow(row, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
         for (c in alternates) {
-            val key = c.toString()
+            val key = if (shift != Shift.OFF) c.uppercase() else c.toString()
             row.addView(
                 keyButton(key, 1f) { type(key); popup.dismiss() }.apply {
                     // Weighted widths collapse to 0 inside a WRAP_CONTENT parent.
@@ -356,6 +363,9 @@ class LapachoIme : InputMethodService() {
             )
         }
         popup.showAsDropDown(anchor, 0, -(anchor.height + dp(KEY_HEIGHT_DP + 8f)).toInt())
+        // Dismissing an already dismissed popup does nothing, so the picked
+        // and the outside-touch cases need no cancelling.
+        row.postDelayed({ popup.dismiss() }, ALTERNATES_TIMEOUT_MS)
     }
 
     /**
@@ -477,6 +487,7 @@ class LapachoIme : InputMethodService() {
         }
 
         private const val DOUBLE_TAP_MS = 400
+        private const val ALTERNATES_TIMEOUT_MS = 5_000L
         private const val TAG = "LapachoIme"
         private const val TOP_N = 20
         private const val LABEL_MAX = 24

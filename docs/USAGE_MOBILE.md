@@ -100,6 +100,10 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 | , and . | Next to the space bar, on both layers. |
 | ⌫ / ↵ | Delete / new line. |
 
+A long press never types on its own: the alternates appear above the key and
+you tap the one you want. They go away if you touch anywhere else, or by
+themselves after 5 seconds.
+
 Keys vibrate and click according to the phone's own settings (keyboard
 vibration, touch sounds); Lapacho has no setting of its own for that.
 
