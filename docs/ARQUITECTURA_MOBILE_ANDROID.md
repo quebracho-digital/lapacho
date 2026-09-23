@@ -516,8 +516,9 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 > dictionary (`app/src/main/assets/dict/es.txt`, 49 525 words) and the
 > suggestion strip in the IME, which takes the paste strip over while a word
 > is being typed. `0.1.16` adds explicit learning: the `lexicon` table (DB
-> v2), the long press that offers it, and the list in the companion. Not built
-> yet: spell correction and other languages.
+> v2), the long press that offers it, and the list in the companion. `0.1.20`
+> adds imported dictionaries, mixed rather than switched
+> ([`DICTIONARIES.md`](DICTIONARIES.md)). Not built yet: spell correction.
 >
 > **Superseded:** "learning off by default, in an app-private model file".
 > A background model of what the user types was rejected outright — see

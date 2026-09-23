@@ -7,6 +7,8 @@ the OpenSubtitles corpus.
 Filtered for Lapacho: entries that are not plain lowercase Spanish letters
 (a-z plus áéíóúüñ) are dropped, as are one-letter words other than a, e, o, u
 and y. Nothing else is changed; the second column is the original count.
+The four `#` lines at the top are Lapacho's dictionary header
+(docs/DICTIONARIES.md), not part of the original list.
 
 ---
 

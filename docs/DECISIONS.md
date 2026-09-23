@@ -42,9 +42,18 @@ a technicality rather than a fact.
 (`assets/dict/es.txt`, ~600 KB, see its `NOTICE-es.txt`). Any other language
 is a file the user downloads **with their browser** and hands to Lapacho
 through the system file picker (`ACTION_OPEN_DOCUMENT`), which needs no
-permission at all — not network, not storage. The APK carries the SHA-256 of
-the dictionaries published with each release and refuses anything that does
-not match, so an imported file is data we published, not an arbitrary blob.
+permission at all — not network, not storage. Built in `0.1.20`; format and
+how to make one in [`DICTIONARIES.md`](DICTIONARIES.md).
+
+The first design had the APK carry the SHA-256 of every dictionary published
+with a release and refuse anything else. It was dropped before it was built,
+the day custom dictionaries (jargon, a field's vocabulary) became a supported
+case: an allow-list of our hashes refuses exactly those. What guards the
+import instead is a strict format — a magic first line, a `#lang` that is safe
+as a file name, UTF-8, 8 MB at most — parsed by code that only ever builds a
+word list. The worst a hostile dictionary can do is suggest words, on screen,
+in a list the user chose and can remove. The app shows each file's SHA-256 so
+a published one can still be checked against the release page.
 
 **When to reopen.** If Lapacho is ever distributed through Play, its
 per-language asset delivery does this natively and without a permission.
@@ -53,6 +62,36 @@ per-language asset delivery does this natively and without a permission.
 50 000 Spanish words with frequencies are 600 KB of text, ~250 KB inside the
 APK. It is *n-gram* models (which word follows which) that cost tens of MB —
 and those are exactly what this keyboard does not build.
+
+---
+
+## One language at a time, with a switch key
+
+|  |  |
+|---|---|
+| **Evaluated** | 2026-09-23, adding imported dictionaries |
+| **Rejected** | Same day |
+| **Replaced by** | Every active dictionary mixed, each normalized to its own corpus |
+
+**The problem it was meant to solve.** With two dictionaries, which one does
+the strip complete from? The usual answer is a 🌐 key that switches between
+them.
+
+**Why it was rejected.** The person this keyboard is for writes Spanish with
+English in it — `deploy`, `commit`, `the`. A switch means switching mid
+sentence, twice, for one word. Mixing costs nothing extra per keystroke (it is
+one sorted list either way); what it needs is normalization, or the language
+with the bigger corpus buries the other in every prefix they share. Each
+file's counts become shares of its own total, so "de" (3.5 % of Spanish) and
+"the" (3.3 % of English) compete on equal terms.
+
+**The price.** Shared prefixes get crowded: with English imported, `co` offers
+`con, como, come` where Spanish alone offered `cómo` third. Capped at two
+imported dictionaries, for memory (~8.5 MB each in the keyboard's process)
+more than for this.
+
+**When to reopen.** If someone writes two languages that never mix, and the
+crowding bothers them more than switching would.
 
 ---
 

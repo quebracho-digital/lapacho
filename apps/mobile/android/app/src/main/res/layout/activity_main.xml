@@ -35,13 +35,27 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:text="Borrar historial" />
+    </LinearLayout>
+
+    <!-- A row of its own: four buttons do not fit across a phone, and the
+         last one was squeezed to a sliver. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
 
         <Button
             android:id="@+id/words_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:text="Palabras" />
+
+        <Button
+            android:id="@+id/languages_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Idiomas" />
     </LinearLayout>
 
     <TextView

@@ -31,6 +31,9 @@ import androidx.core.view.WindowInsetsCompat
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.currentWord
+import digital.quebracho.lapacho.dictionarySignature
+import digital.quebracho.lapacho.installedDictionaries
+import digital.quebracho.lapacho.keyAlternates
 import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.isSecret
 import digital.quebracho.lapacho.loadPredictor
@@ -82,6 +85,12 @@ class LapachoIme : InputMethodService() {
     // Dropped when a word is learned, so the next lookup picks it up.
     private var loadedPredictor: WordPredictor? = null
     private var lexicon: List<String> = emptyList()
+    // Which imported dictionaries the predictor and [longPress] were built
+    // from; null until the first show, so that one always builds them.
+    private var dictSig: String? = null
+    // Long-press alternates: [BASE_LONG_PRESS] plus what every active
+    // dictionary's header adds (ñ comes from Spanish's).
+    private var longPress: Map<String, String> = BASE_LONG_PRESS
     // Set when a word is learned, shown once, gone on the next keystroke.
     private var justLearned: String? = null
     private val predictor: WordPredictor
@@ -143,6 +152,15 @@ class LapachoIme : InputMethodService() {
         // after a Force Stop of either process, this must still show the
         // last items the companion saved.
         privateField = info != null && isPrivateField(info.inputType, info.imeOptions)
+        // A dictionary imported or removed in the companion since the last
+        // show: new words, and possibly new keys to hold. Before the layer
+        // is drawn below, so the hints are the new ones.
+        val sig = dictionarySignature(this)
+        if (sig != dictSig) {
+            dictSig = sig
+            loadedPredictor = null
+            longPress = keyAlternates(installedDictionaries(this).map { it.header }, BASE_LONG_PRESS)
+        }
         // Every session starts on the letters, with no shift pending. Where
         // the last app left the keyboard is not a preference: opening on the
         // symbols layer in a chat is just wrong, and so is a caps lock the
@@ -654,7 +672,7 @@ class LapachoIme : InputMethodService() {
                 val key = if (shift != Shift.OFF) c.uppercase() else c
                 // Shifted too, so the hint on the key says what the row will
                 // actually give: Ñ over N, not ñ.
-                val alternates = LONG_PRESS[c]?.let { if (shift != Shift.OFF) it.uppercase() else it }
+                val alternates = longPress[c]?.let { if (shift != Shift.OFF) it.uppercase() else it }
                 addView(keyButton(key, 1f, alternates) { type(key) })
             }
         }
@@ -789,8 +807,13 @@ class LapachoIme : InputMethodService() {
             listOf("👍", "👎", "🙏", "👏", "💪", "🤝", "✌️", "🫶", "👀", "🤷"),
             listOf("❤️", "🔥", "✨", "🎉", "✅", "❌", "⚠️", "💡", "📌", "🧉"),
         )
-        /** Characters that don't fit on the layout, reachable by long press. */
-        private val LONG_PRESS = mapOf("n" to "ñ")
+        /**
+         * Long-press alternates the keyboard offers in any language; the
+         * ones a language needs (ñ, ç, ß…) come from its dictionary header.
+         * @ on the a: an address is typed in every language, and going to
+         * the symbols layer for it breaks the word in two.
+         */
+        private val BASE_LONG_PRESS = mapOf("a" to "@")
         /** Long press on the period: Spanish needs the opening marks too. */
         private const val PUNCT_ALTERNATES = "¿?¡!"
     }

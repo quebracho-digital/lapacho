@@ -185,10 +185,15 @@ History search implemented; English translation complete. Sensitivity: long hex 
   - [ ] **Spell correction** — completion only answers a correct prefix;
     `maniana` still finds nothing. Needs edit distance (Levenshtein ≤2 over
     the folded keys), which is also what turns the strip into a corrector.
-  - [ ] **Other languages** — the engine takes any `word frequency` list. What
-    is missing is the import: system file picker + SHA-256 check against the
-    dictionaries published per release, and a language switch in the IME. No
+  - [x] **Other languages and custom lists** (`0.1.20`) — imported through the
+    system file picker (**IDIOMAS** in the companion), validated by format
+    (magic header, safe `#lang`, UTF-8, ≤ 8 MB) rather than an allow-list of
+    hashes, so custom dictionaries work. All active dictionaries are mixed,
+    each normalized to its own corpus; up to two imported. A header can add
+    long-press alternates. Format and recipes: `docs/DICTIONARIES.md`. No
     network permission, by decision.
+  - [ ] **Publish official dictionaries** next to the APKs on `/lapacho`
+    (English first), with their SHA-256.
   - [x] **Explicit learning** — long-press the word you typed → a chip offers
     to learn it → stored as one word in the encrypted store (`lexicon` table,
     DB v2), listed and deletable under **PALABRAS** in the companion. Never

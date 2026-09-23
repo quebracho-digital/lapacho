@@ -32,7 +32,10 @@ app and the keyboard (IME), which capture and paste the clipboard.
   is stored, counted or modelled. Learning is the one exception and it is
   explicit — a long press on the word offers a chip, one word per press, into
   the `lexicon` table, listed and reversible in the companion. Why it works
-  this way: `docs/DECISIONS.md`.
+  this way: `docs/DECISIONS.md`. Other dictionaries are imported by the
+  companion (`importDictionary` in `Predict.kt`) into `files/dict/<lang>.txt`
+  and mixed with the bundled one; the IME notices a change by the directory
+  listing on its next show. Format: `docs/DICTIONARIES.md`.
 
 ## Module layout
 

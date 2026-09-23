@@ -14,12 +14,17 @@ import android.widget.ListView
 import android.widget.TextView
 import android.util.TypedValue
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.doAfterTextChanged
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
+import digital.quebracho.lapacho.InstalledDict
+import digital.quebracho.lapacho.MAX_IMPORTED
+import digital.quebracho.lapacho.importDictionary
+import digital.quebracho.lapacho.installedDictionaries
 import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.loadPredictor
@@ -50,6 +55,19 @@ class MainActivity : AppCompatActivity() {
     private var all: List<ClipboardItem> = emptyList()
     private var shown: List<ClipboardItem> = emptyList()
 
+    // The system file picker: the browser did the downloading, Android hands
+    // us the bytes, and no permission is asked for — not network, not storage.
+    private val pickDictionary = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        val message = try {
+            val header = importDictionary(this, uri)
+            "«${header.name}» agregado. El teclado lo usa la próxima vez que se abra."
+        } catch (e: IllegalArgumentException) {
+            e.message ?: "No se pudo importar."
+        }
+        AlertDialog.Builder(this).setMessage(message).setPositiveButton("Entendido") { _, _ -> showLanguages() }.show()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // The history is on screen here: keep it out of screenshots, screen
@@ -79,6 +97,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.clear_button).setOnClickListener { confirmClear() }
         findViewById<Button>(R.id.words_button).setOnClickListener { showLexicon() }
+        findViewById<Button>(R.id.languages_button).setOnClickListener { showLanguages() }
 
         search = findViewById(R.id.search)
         search.doAfterTextChanged { applyFilter() }
@@ -176,6 +195,48 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * The dictionaries the keyboard mixes, with where each came from: the
+     * bundled one, or an imported file and its SHA-256 — so a dictionary
+     * downloaded from the release page can be checked against the hash
+     * published there.
+     */
+    private fun showLanguages() {
+        val dicts = installedDictionaries(this)
+        val labels = dicts.map { d ->
+            val origin = d.sha256?.let { "sha256 ${it.take(16)}…" } ?: "incluido en la app"
+            "${d.header.name} (${d.header.lang})\n$origin"
+        }
+        AlertDialog.Builder(this)
+            .setCustomTitle(
+                dialogHeader(
+                    "Idiomas del teclado\n\nSe usan todos a la vez. Para agregar uno, bajá su archivo con el " +
+                        "navegador y elegilo con «Agregar». Tocá uno importado para quitarlo.",
+                ),
+            )
+            .setItems(labels.toTypedArray()) { _, i -> dicts[i].file?.let { confirmRemove(dicts[i]) } ?: showLanguages() }
+            .setPositiveButton("Agregar") { _, _ ->
+                if (dicts.size - 1 >= MAX_IMPORTED) {
+                    AlertDialog.Builder(this)
+                        .setMessage("Ya hay $MAX_IMPORTED idiomas importados; quitá uno antes de agregar otro.")
+                        .setPositiveButton("Entendido", null).show()
+                } else {
+                    pickDictionary.launch(arrayOf("*/*"))
+                }
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
+    }
+
+    private fun confirmRemove(dict: InstalledDict) {
+        AlertDialog.Builder(this)
+            .setTitle("Quitar «${dict.header.name}»")
+            .setMessage("El teclado deja de sugerir sus palabras. Podés volver a importarlo cuando quieras.")
+            .setPositiveButton("Quitar") { _, _ -> dict.file?.delete(); showLanguages() }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
     private fun dialogHeader(text: String): TextView = TextView(this).apply {
         this.text = text
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
@@ -192,14 +253,14 @@ class MainActivity : AppCompatActivity() {
      */
     private fun dictionaryStatus(words: List<String>): String = try {
         val predictor = loadPredictor(this, words)
-        val bundled = predictor.size().toInt() - words.size
+        val inDictionaries = predictor.size().toInt() - words.size
         val probe = words.firstOrNull()
         val test = probe?.let {
             val prefix = it.take(maxOf(2, it.length - 3))
             val hits = predictor.suggest(prefix, 3u)
             "Prueba: «$prefix» → ${if (hits.isEmpty()) "(nada)" else hits.joinToString(", ")}"
         }
-        listOfNotNull("Diccionario: $bundled palabras", test).joinToString("\n")
+        listOfNotNull("Diccionarios: $inDictionaries palabras (${installedDictionaries(this).size} idiomas)", test).joinToString("\n")
     } catch (e: Exception) {
         "Diccionario: NO CARGA (${e.javaClass.simpleName}: ${e.message})"
     }

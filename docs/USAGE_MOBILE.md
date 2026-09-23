@@ -82,9 +82,22 @@ same for everybody. Nothing you type is recorded, counted or kept: suggestions
 are looked up and forgotten. The one exception is a word you deliberately
 teach it, below.
 
-Spanish is the only language for now, and it ships inside the APK. Others will
-be files you download with your browser and hand to Lapacho — the keyboard
-will never download anything itself, because it has no way to.
+## Other languages, and your own word lists
+
+Spanish ships inside the APK. Another language — or a list of your own
+jargon — is a file you download with your browser and hand to Lapacho: tap
+**IDIOMAS → AGREGAR** in the app and pick it. The keyboard never downloads
+anything itself, because it has no way to.
+
+Every dictionary you add is used **at the same time** as Spanish; there is no
+key to switch. With English imported, `wh` offers *what, who, why* and `con`
+still offers *con, como*. Up to two imported at once. **IDIOMAS** lists them —
+with the start of each file's SHA-256, to check against the one published
+next to the download — and tapping one removes it.
+
+A dictionary can also add long presses: French's could put é è ê on `e`.
+How to make one, from a frequency list or from your own texts:
+[`DICTIONARIES.md`](DICTIONARIES.md).
 
 There are no suggestions in password fields or incognito tabs, the same rule
 the history follows.
@@ -142,6 +155,7 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 | ⇧ | Next letter in uppercase. **Hold it** for caps lock — or double tap, if you are quick. Tap again to release. The key changes colour: grey for one letter, green while locked. |
 | ´ | Accent for the next vowel: ´ then a → á (with ⇧: Á). Shows **[´]** while waiting. |
 | ñ | **Long press on n** (with ⇧: Ñ). It is no longer a key of its own. |
+| @ | **Long press on a**. Also in the symbols layer. |
 | ¿ ? ¡ ! | **Long press on .**: the four appear above the key, tap one. |
 | ☺ | Emoji: 30 common ones, three rows, in place of the letters. Tap it again to come back. |
 | ?123 / abc | Switch between letters and numbers/symbols (`< > [ ] { } = _ \| \` `¡ ¿` and more). |
@@ -155,7 +169,8 @@ The keyboard always opens on the letters, with no shift pending, whatever
 layer you left it on in the last app.
 
 A key that has more characters under it shows one of them small, in the
-corner: `n` shows ñ, `.` shows ¿. Hold the key — a bit under a third of a
+corner: `n` shows ñ, `a` shows @, `.` shows ¿. An imported dictionary can
+add more (see [Other languages](#other-languages-and-your-own-word-lists)). Hold the key — a bit under a third of a
 second, shorter than Android's usual long press — and they appear above it;
 tap the one you want. A long press never types on its own. The row goes away
 if you touch anywhere else, or by itself after 5 seconds.

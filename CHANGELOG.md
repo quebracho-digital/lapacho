@@ -4,6 +4,30 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — other languages, mixed, and word lists of your own (`0.1.20`)
+
+- **Import a dictionary** in **IDIOMAS**: download the file with the browser,
+  tap **AGREGAR**, pick it. The system file picker hands the bytes over, so
+  the app still asks for no permission at all. Refused with a reason if it is
+  not one: missing `#lapacho-dict 1` first line, a `#lang` that is not
+  `[a-z0-9-]`, not UTF-8, over 8 MB, no words. **IDIOMAS** lists what the
+  keyboard uses, with each file's SHA-256; tap one to remove it.
+- **Mixed, not switched.** Every active dictionary suggests at once, each
+  normalized to the total of its own corpus so a bigger one does not bury the
+  other: with English, `wh` → *what*, and `con` is still Spanish's. A word in
+  two lists keeps its higher share. Up to two imported (~8.5 MB of keyboard
+  memory each).
+- **A dictionary header** (`#lang`, `#name`, `#alternates`) — the bundled
+  `es.txt` has one now, and **ñ on `n` comes from it**. A French or
+  Portuguese file can put ç, ã, é on their keys the same way. Entries may be
+  a bare word (frequency 1), which makes hand-written jargon lists easy.
+- **@ on a long press of `a`.**
+- Accent folding also covers ç, ã and õ: `francais` finds *français*.
+- The companion's button row wraps to two lines; the fourth button was being
+  squeezed to a sliver.
+- `docs/DICTIONARIES.md`: the format, how mixing ranks words, and recipes to
+  build one from a frequency list or from your own texts.
+
 ### Android — the keyboard learned to type Spanish, and to suggest without learning
 
 Six builds, `0.1.11` through `0.1.16`, all of them on the IME:

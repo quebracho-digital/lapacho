@@ -109,9 +109,10 @@ impl MobileCore {
     }
 }
 
-/// The bundled dictionary, held for the life of the keyboard process.
+/// The active dictionaries, held for the life of the keyboard process.
 ///
-/// Kotlin reads the asset and hands over its text once; nothing here opens a
+/// Kotlin reads them (the bundled asset plus any the user imported) and
+/// hands over their text once; nothing here opens a
 /// file or a socket, and suggesting never writes anything down — the same
 /// dictionary gives the same suggestions to everyone who has it.
 #[derive(uniffi::Object)]
@@ -121,11 +122,15 @@ pub struct WordPredictor {
 
 #[uniffi::export]
 impl WordPredictor {
-    /// `dictionary` is one `word frequency` per line, as shipped in the APK.
+    /// Each dictionary is one `word frequency` per line (see
+    /// `docs/DICTIONARIES.md`); they are mixed, each normalized to its own
+    /// corpus. `learned` are the words the user taught the keyboard.
     #[uniffi::constructor]
-    pub fn new(dictionary: String) -> Arc<Self> {
+    pub fn new(dictionaries: Vec<String>, learned: Vec<String>) -> Arc<Self> {
+        let dicts: Vec<&str> = dictionaries.iter().map(String::as_str).collect();
+        let learned: Vec<&str> = learned.iter().map(String::as_str).collect();
         Arc::new(Self {
-            inner: lapacho_predict::Predictor::from_text(&dictionary),
+            inner: lapacho_predict::Predictor::new(&dicts, &learned),
         })
     }
 
@@ -140,8 +145,8 @@ impl WordPredictor {
         self.inner.knows(&word)
     }
 
-    /// Words in the dictionary — the IME logs it once to tell a truncated
-    /// asset from a missing one.
+    /// Words across all dictionaries (learned ones included) — the IME logs
+    /// it once to tell a truncated asset from a missing one.
     pub fn size(&self) -> u32 {
         self.inner.len() as u32
     }

@@ -1,25 +1,164 @@
 package digital.quebracho.lapacho
 
 import android.content.Context
+import android.net.Uri
 import uniffi.lapacho_mobile_bridge.WordPredictor
+import java.io.File
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
+import java.security.MessageDigest
 
 /**
- * The dictionary shipped inside the APK. One language for now; the rest are
- * meant to be *loaded* rather than compiled in, so that adding a language
- * never costs the keyboard a network permission (see `docs/DECISIONS.md`).
+ * The dictionary shipped inside the APK. Every other one is *imported* from a
+ * file the user picked, so that adding a language never costs the keyboard a
+ * network permission (see `docs/DECISIONS.md`, format in
+ * `docs/DICTIONARIES.md`).
  */
 private const val DICT_ASSET = "dict/es.txt"
+private const val BUNDLED_LANG = "es"
+/** Where imported dictionaries live: app-private, shared by the IME's process. */
+private const val DICT_DIR = "dict"
+/** First line of every dictionary: what tells one from any other text file. */
+const val DICT_MAGIC = "#lapacho-dict 1"
+/**
+ * ponytail: ~8.5 MB of native heap per 50 000-word list, all of them loaded
+ * in the keyboard's process — hence a cap on how many mix. Raising it is
+ * safe once the predictor stores words in one flat buffer.
+ */
+const val MAX_IMPORTED = 2
+/** Ten times the bundled Spanish list: room for a big language, not for a corpus. */
+const val MAX_DICT_BYTES = 8 * 1024 * 1024
 
 /**
- * Reads the bundled dictionary into `lapacho-predict`, plus the words the
- * user taught it. A learned word is just another entry with a frequency
- * nothing can outrank: it was asked for by name, so it comes first.
+ * A dictionary's header: the `#` lines at the top of the file.
+ * [alternates] maps a key to the characters its long press offers.
  */
-fun loadPredictor(context: Context, learned: List<String> = emptyList()): WordPredictor {
-    val dictionary = context.assets.open(DICT_ASSET).bufferedReader().use { it.readText() }
-    val lexicon = learned.joinToString("") { "\n$it ${UInt.MAX_VALUE}" }
-    return WordPredictor(dictionary + lexicon)
+data class DictHeader(val lang: String, val name: String, val alternates: Map<String, String>)
+
+/** One dictionary the keyboard is using. [file] is null for the bundled one. */
+class InstalledDict(val header: DictHeader, val file: File?, val sha256: String?)
+
+/**
+ * Reads a dictionary's header, or throws with a message meant for the user.
+ * The format is small on purpose; everything outside it is refused rather
+ * than guessed at — this parses a file someone picked, not one we wrote.
+ */
+fun parseHeader(text: String): DictHeader {
+    val lines = text.lineSequence().map(String::trim)
+    require(lines.firstOrNull() == DICT_MAGIC) { "No es un diccionario de Lapacho: falta «$DICT_MAGIC» en la primera línea." }
+    val fields = lines.drop(1).takeWhile { it.startsWith("#") }
+        .mapNotNull { it.removePrefix("#").split(Regex("\\s+"), limit = 2).takeIf { f -> f.size == 2 } }
+        .associate { (k, v) -> k to v.trim() }
+    val lang = fields["lang"].orEmpty()
+    // It becomes a file name: nothing that can climb out of the directory.
+    require(LANG.matches(lang)) { "«#lang» falta o no es válido (minúsculas, dígitos y guiones, como «en» o «es-medicina»)." }
+    val alternates = fields["alternates"].orEmpty().split(Regex("\\s+")).filter(String::isNotEmpty).associate { pair ->
+        val (key, chars) = pair.split(":", limit = 2).takeIf { it.size == 2 }
+            ?: throw IllegalArgumentException("«#alternates»: «$pair» no es «tecla:caracteres».")
+        require(key.length == 1 && key[0] in 'a'..'z' && chars.length in 1..MAX_ALTERNATES) {
+            "«#alternates»: «$pair» — la tecla es una letra a-z y van de 1 a $MAX_ALTERNATES caracteres."
+        }
+        key to chars
+    }
+    return DictHeader(lang, fields["name"] ?: lang, alternates)
 }
+
+private val LANG = Regex("[a-z0-9-]{1,32}")
+private const val MAX_ALTERNATES = 8
+
+private fun importedDir(context: Context) = File(context.filesDir, DICT_DIR)
+
+private fun importedFiles(context: Context): List<File> =
+    importedDir(context).listFiles { f -> f.name.endsWith(".txt") }?.sortedBy { it.name }.orEmpty()
+
+private fun bundledText(context: Context) = context.assets.open(DICT_ASSET).bufferedReader().use { it.readText() }
+
+/** The bundled dictionary first, then the imported ones. */
+fun installedDictionaries(context: Context): List<InstalledDict> =
+    listOf(InstalledDict(parseHeader(bundledText(context)), null, null)) +
+        importedFiles(context).mapNotNull { f ->
+            val bytes = f.readBytes()
+            // A file that no longer parses (edited by hand, half written) is
+            // skipped rather than taking the keyboard down with it.
+            runCatching { InstalledDict(parseHeader(String(bytes)), f, sha256(bytes)) }.getOrNull()
+        }
+
+/**
+ * Changes whenever a dictionary is added, replaced or removed: the IME
+ * compares it on every show to know when to reload, and a directory listing
+ * is cheaper than rebuilding blindly.
+ */
+fun dictionarySignature(context: Context): String =
+    importedFiles(context).joinToString { "${it.name}@${it.lastModified()}" }
+
+/**
+ * All active dictionaries, mixed, plus the words the user taught the keyboard.
+ * The engine normalizes each list to its own corpus, so a bigger language
+ * does not bury a smaller one.
+ */
+fun loadPredictor(context: Context, learned: List<String> = emptyList()): WordPredictor =
+    WordPredictor(listOf(bundledText(context)) + importedFiles(context).map { it.readText() }, learned)
+
+/**
+ * Long-press alternates from every active dictionary's header, on top of
+ * [base] (what the keyboard offers in any language). A key's characters are
+ * merged in order, each once: `n` gets ñ from Spanish however many lists
+ * name it.
+ */
+fun keyAlternates(dicts: List<DictHeader>, base: Map<String, String>): Map<String, String> {
+    val merged = base.toMutableMap()
+    for (d in dicts) for ((key, chars) in d.alternates) {
+        merged[key] = ((merged[key] ?: "") + chars).toList().distinct().joinToString("")
+    }
+    return merged
+}
+
+/**
+ * Copies a picked file into the imported dictionaries after checking it is
+ * one: UTF-8, under [MAX_DICT_BYTES], a valid header, not the bundled
+ * language, within [MAX_IMPORTED]. Importing a language that is already
+ * there replaces it. Throws with a message for the user.
+ *
+ * No list of approved hashes: a custom dictionary is a supported case, and a
+ * dictionary is data the user chose — at worst it suggests words they did
+ * not want, where they can see it. The app shows each file's SHA-256 so a
+ * published one can still be checked against the release page.
+ */
+fun importDictionary(context: Context, uri: Uri): DictHeader {
+    // Capped read: a picked file can be anything, including gigabytes.
+    // (`readNBytes` would do this, but it is API 33.)
+    val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(64 * 1024)
+        while (out.size() <= MAX_DICT_BYTES) {
+            val n = input.read(buf)
+            if (n < 0) break
+            out.write(buf, 0, n)
+        }
+        out.toByteArray()
+    } ?: throw IllegalArgumentException("No se pudo leer el archivo.")
+    require(bytes.size <= MAX_DICT_BYTES) { "El archivo pasa de ${MAX_DICT_BYTES / 1024 / 1024} MB." }
+    val text = try {
+        Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+            .decode(ByteBuffer.wrap(bytes)).toString()
+    } catch (e: java.nio.charset.CharacterCodingException) {
+        throw IllegalArgumentException("El archivo no es texto UTF-8.")
+    }
+    val header = parseHeader(text)
+    require(header.lang != BUNDLED_LANG) { "«$BUNDLED_LANG» ya viene con la app; usá otro «#lang», como «$BUNDLED_LANG-ar»." }
+    require(text.lineSequence().any { it.isNotBlank() && !it.trimStart().startsWith("#") }) { "El diccionario no tiene palabras." }
+    val dir = importedDir(context).apply { mkdirs() }
+    val target = File(dir, "${header.lang}.txt")
+    require(target.exists() || importedFiles(context).size < MAX_IMPORTED) {
+        "Ya hay $MAX_IMPORTED idiomas importados; quitá uno antes de agregar otro."
+    }
+    // Written aside and renamed, so the keyboard never reads half a file.
+    File(dir, "${header.lang}.tmp").apply { writeBytes(bytes); renameTo(target) }
+    return header
+}
+
+private fun sha256(bytes: ByteArray): String =
+    MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
 /**
  * The word being typed: the run of letters that ends at the cursor. Empty

@@ -1,3 +1,7 @@
+#lapacho-dict 1
+#lang es
+#name Español
+#alternates n:ñ
 de 14459520
 que 14421005
 no 12379505

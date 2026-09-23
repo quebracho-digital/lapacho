@@ -124,11 +124,13 @@ pasted, from the clipboard itself, through a masked 🔑 chip. In password
 fields and incognito tabs the history is hidden.
 
 The keyboard itself is deliberately small: Spanish layout with a dead-key
-acute, ñ and `¿ ? ¡ !` on long press, a numbers/symbols layer and a fixed
+acute, ñ, `@` and `¿ ? ¡ !` on long press, a numbers/symbols layer and a fixed
 emoji layer — no swipe typing, no autocorrect. From the second letter of a
 word the strip offers up to three completions from a bundled dictionary
 (`lapacho-predict` over 49 525 Spanish words, accent- and case-insensitive),
-and gives the clips back when the word ends.
+and gives the clips back when the word ends. Other languages and custom word
+lists are imported from a file and **mixed** with Spanish, no switch key
+([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md)).
 
 **It only learns what it is handed.** The dictionary is fixed and identical
 for everyone who has it; nothing typed is stored, counted or modelled. The one
@@ -284,8 +286,9 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
 - [x] Android: word suggestions from a bundled dictionary, with no user model
       (`crates/lapacho-predict`), and learning one word at a time by an
       explicit press, listed and reversible in the app
-- [ ] Android: spell correction, imported dictionaries for other languages
-      ([`ROADMAP.md`](ROADMAP.md))
+- [x] Android: dictionaries for other languages and custom word lists,
+      imported from a file and mixed ([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md))
+- [ ] Android: spell correction ([`ROADMAP.md`](ROADMAP.md))
 - [ ] Android: storage, keyed ids and persistence levels in Rust
       ([`docs/MIGRACION_MOBILE_RUST.md`](docs/MIGRACION_MOBILE_RUST.md))
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
