@@ -91,9 +91,13 @@ anything itself, because it has no way to.
 
 Every dictionary you add is used **at the same time** as Spanish; there is no
 key to switch. With English imported, `wh` offers *what, who, why* and `con`
-still offers *con, como*. Up to two imported at once. **IDIOMAS** lists them —
-with the start of each file's SHA-256, to check against the one published
-next to the download — and tapping one removes it.
+still offers *con, como*. Up to two imported at once.
+
+A dictionary we publish goes straight in and shows as **oficial ✓**. Any other
+file — a list you made, or one from somewhere else — gets a warning with its
+SHA-256 first, and imports only if you tap **Importar como personalizado**.
+**IDIOMAS** lists them all, marked official or custom; tapping one removes
+it.
 
 A dictionary can also add long presses: French's could put é è ê on `e`.
 How to make one, from a frequency list or from your own texts:

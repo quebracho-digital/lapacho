@@ -192,8 +192,10 @@ History search implemented; English translation complete. Sensitivity: long hex 
     each normalized to its own corpus; up to two imported. A header can add
     long-press alternates. Format and recipes: `docs/DICTIONARIES.md`. No
     network permission, by decision.
+  - [x] **Official vs custom** (`0.1.21`) — hashes of published dictionaries
+    in the APK; a match imports silently, anything else asks first, per file.
   - [ ] **Publish official dictionaries** next to the APKs on `/lapacho`
-    (English first), with their SHA-256.
+    (English is committed and listed in the app; not uploaded yet).
   - [x] **Explicit learning** — long-press the word you typed → a chip offers
     to learn it → stored as one word in the encrypted store (`lexicon` table,
     DB v2), listed and deletable under **PALABRAS** in the companion. Never

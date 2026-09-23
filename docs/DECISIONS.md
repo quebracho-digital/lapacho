@@ -46,14 +46,19 @@ permission at all — not network, not storage. Built in `0.1.20`; format and
 how to make one in [`DICTIONARIES.md`](DICTIONARIES.md).
 
 The first design had the APK carry the SHA-256 of every dictionary published
-with a release and refuse anything else. It was dropped before it was built,
-the day custom dictionaries (jargon, a field's vocabulary) became a supported
-case: an allow-list of our hashes refuses exactly those. What guards the
-import instead is a strict format — a magic first line, a `#lang` that is safe
-as a file name, UTF-8, 8 MB at most — parsed by code that only ever builds a
-word list. The worst a hostile dictionary can do is suggest words, on screen,
-in a list the user chose and can remove. The app shows each file's SHA-256 so
-a published one can still be checked against the release page.
+with a release and **refuse** anything else. That refuses exactly the custom
+dictionaries (jargon, a field's vocabulary) that are also a supported case, so
+the hash list stayed but stopped being a gate: since `0.1.21` a file that
+matches imports silently as *official*, and one that does not gets a warning
+with its hash and a per-file choice to import it as *custom*. Not a setting
+that switches the check off: a switch left off is how the next file, the
+altered one, goes in without a word.
+
+What guards the parser is the format, for every file — a magic first line, a
+`#lang` that is safe as a file name, UTF-8, 8 MB at most — read by code that
+only ever builds a word list. The worst a hostile dictionary can do is suggest
+words, on screen, in a list the user chose and can remove. The hash answers a
+different question: who made the list.
 
 **When to reopen.** If Lapacho is ever distributed through Play, its
 per-language asset delivery does this natively and without a permission.

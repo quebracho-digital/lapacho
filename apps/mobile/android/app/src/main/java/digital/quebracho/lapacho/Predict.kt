@@ -35,8 +35,26 @@ const val MAX_DICT_BYTES = 8 * 1024 * 1024
  */
 data class DictHeader(val lang: String, val name: String, val alternates: Map<String, String>)
 
+/**
+ * Dictionaries we publish, by SHA-256. Their files live in
+ * `apps/mobile/android/dictionaries/`, and a test fails if a hash here and
+ * the committed file drift apart. A dictionary published after this APK is
+ * not in the list: it imports as a custom one, with a warning, until the
+ * next release.
+ */
+val OFFICIAL_DICTIONARIES = mapOf(
+    "f324ba733e869d8a7b541cf3892d6833fccb0783a7a06813a3f9d8d2a9b39d16" to "en",
+)
+
 /** One dictionary the keyboard is using. [file] is null for the bundled one. */
-class InstalledDict(val header: DictHeader, val file: File?, val sha256: String?)
+class InstalledDict(val header: DictHeader, val file: File?, val sha256: String?) {
+    val official: Boolean get() = file == null || sha256 in OFFICIAL_DICTIONARIES
+}
+
+/** A picked file that passed validation and is waiting to be installed. */
+class PickedDict(val header: DictHeader, val sha256: String, internal val bytes: ByteArray) {
+    val official: Boolean get() = sha256 in OFFICIAL_DICTIONARIES
+}
 
 /**
  * Reads a dictionary's header, or throws with a message meant for the user.
@@ -114,17 +132,15 @@ fun keyAlternates(dicts: List<DictHeader>, base: Map<String, String>): Map<Strin
 }
 
 /**
- * Copies a picked file into the imported dictionaries after checking it is
- * one: UTF-8, under [MAX_DICT_BYTES], a valid header, not the bundled
- * language, within [MAX_IMPORTED]. Importing a language that is already
- * there replaces it. Throws with a message for the user.
+ * Reads and checks a picked file: UTF-8, under [MAX_DICT_BYTES], a valid
+ * header, not the bundled language, some words. Throws with a message for
+ * the user. Nothing is written — the caller decides whether a file that is
+ * not [PickedDict.official] goes in, see [installDictionary].
  *
- * No list of approved hashes: a custom dictionary is a supported case, and a
- * dictionary is data the user chose — at worst it suggests words they did
- * not want, where they can see it. The app shows each file's SHA-256 so a
- * published one can still be checked against the release page.
+ * The format check applies to every file, official or not: it is what keeps
+ * the parser to building a word list. The hash only says who made the list.
  */
-fun importDictionary(context: Context, uri: Uri): DictHeader {
+fun readDictionary(context: Context, uri: Uri): PickedDict {
     // Capped read: a picked file can be anything, including gigabytes.
     // (`readNBytes` would do this, but it is API 33.)
     val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
@@ -147,14 +163,22 @@ fun importDictionary(context: Context, uri: Uri): DictHeader {
     val header = parseHeader(text)
     require(header.lang != BUNDLED_LANG) { "«$BUNDLED_LANG» ya viene con la app; usá otro «#lang», como «$BUNDLED_LANG-ar»." }
     require(text.lineSequence().any { it.isNotBlank() && !it.trimStart().startsWith("#") }) { "El diccionario no tiene palabras." }
+    return PickedDict(header, sha256(bytes), bytes)
+}
+
+/**
+ * Copies a checked file into the imported dictionaries. Importing a language
+ * that is already there replaces it. Throws if [MAX_IMPORTED] are in use.
+ */
+fun installDictionary(context: Context, picked: PickedDict) {
+    val lang = picked.header.lang
     val dir = importedDir(context).apply { mkdirs() }
-    val target = File(dir, "${header.lang}.txt")
+    val target = File(dir, "$lang.txt")
     require(target.exists() || importedFiles(context).size < MAX_IMPORTED) {
         "Ya hay $MAX_IMPORTED idiomas importados; quitá uno antes de agregar otro."
     }
     // Written aside and renamed, so the keyboard never reads half a file.
-    File(dir, "${header.lang}.tmp").apply { writeBytes(bytes); renameTo(target) }
-    return header
+    File(dir, "$lang.tmp").apply { writeBytes(picked.bytes); renameTo(target) }
 }
 
 private fun sha256(bytes: ByteArray): String =

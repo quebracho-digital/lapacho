@@ -42,4 +42,21 @@ class PredictTest {
         val pt = DictHeader("pt", "Português", mapOf("n" to "ñ", "a" to "ã"))
         assertEquals(mapOf("a" to "@ã", "n" to "ñ"), keyAlternates(listOf(es, pt), mapOf("a" to "@")))
     }
+
+    /**
+     * Every official hash is the hash of a committed file, and every
+     * committed dictionary is official — so the file on the release page and
+     * the list inside the APK cannot drift apart unnoticed.
+     */
+    @Test fun officialHashesMatchTheCommittedDictionaries() {
+        // Unit tests run from the module directory (app/).
+        val dir = java.io.File("../dictionaries")
+        val committed = dir.listFiles { f -> f.name.endsWith(".txt") && !f.name.startsWith("NOTICE") }!!
+            .associate { f ->
+                val sha = java.security.MessageDigest.getInstance("SHA-256").digest(f.readBytes())
+                    .joinToString("") { "%02x".format(it) }
+                sha to parseHeader(f.readText()).lang
+            }
+        assertEquals(committed, OFFICIAL_DICTIONARIES)
+    }
 }

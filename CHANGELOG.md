@@ -4,6 +4,18 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — official dictionaries import silently, custom ones ask first (`0.1.21`)
+
+- The APK carries the SHA-256 of the dictionaries we publish
+  (`OFFICIAL_DICTIONARIES`). A picked file that matches imports straight away
+  and is listed as **oficial ✓**; any other gets a warning with its full hash
+  and a per-file choice: **Importar como personalizado** or cancel. No global
+  switch to turn the check off. The format check still applies to both.
+- The English list is committed (`apps/mobile/android/dictionaries/en.txt`,
+  46 693 words, MIT, with its `NOTICE-en.txt`) and is the first official
+  dictionary. A unit test fails if the committed files and the hash list in
+  the app disagree, in either direction.
+
 ### Android — other languages, mixed, and word lists of your own (`0.1.20`)
 
 - **Import a dictionary** in **IDIOMAS**: download the file with the browser,

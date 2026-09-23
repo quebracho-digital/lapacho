@@ -11,13 +11,24 @@ downloads one; you bring it (why: [`DECISIONS.md`](DECISIONS.md)).
 1. Get the file onto the phone: download it with the browser, or copy it
    over USB.
 2. In the Lapacho app, tap **IDIOMAS → AGREGAR** and pick the file.
-3. The keyboard uses it the next time it opens.
+3. If it is one of ours, it goes straight in. If it is not, the app says so
+   first — see below.
+4. The keyboard uses it the next time it opens.
 
-**IDIOMAS** lists what the keyboard is using: the bundled Spanish, and each
-imported file with the start of its SHA-256. For a dictionary downloaded from
-the release page, compare it with the hash published there. Tap an imported
-one to remove it. Up to **two** imported dictionaries at a time, on top of
-Spanish; importing one whose `#lang` is already there replaces it.
+**Official or custom.** The APK carries the SHA-256 of every dictionary we
+publish. A file that matches imports without a question and is listed as
+**oficial ✓**. One that does not — your own list, one published after your
+version of the app, or one somebody altered — gets a warning with its full
+hash and two buttons: **Importar como personalizado** or **Cancelar**. The app
+cannot tell those three cases apart, so it asks, every time, per file; there
+is no setting that turns the check off for good. Either way the file must pass
+the [format](#format) check.
+
+**IDIOMAS** lists what the keyboard is using — the bundled Spanish, then each
+imported file as *oficial ✓* or *personalizado*, with the start of its
+SHA-256. Tap an imported one to remove it. Up to **two** imported
+dictionaries at a time, on top of Spanish; importing one whose `#lang` is
+already there replaces it.
 
 ## Format
 
@@ -140,6 +151,17 @@ encofrado
 hormigonado
 viga
 ```
+
+## Adding an official dictionary (maintainers)
+
+1. Build it with a recipe above and commit it to
+   `apps/mobile/android/dictionaries/<lang>.txt`, with a `NOTICE-<lang>.txt`
+   saying where the words came from and under what licence.
+2. Add its SHA-256 to `OFFICIAL_DICTIONARIES` in `Predict.kt`.
+   `PredictTest.officialHashesMatchTheCommittedDictionaries` fails until the
+   list and the committed files agree exactly — both ways.
+3. Publish that exact file next to the APK. Users on older builds see it as
+   custom until they update.
 
 ## Checking a file before importing it
 

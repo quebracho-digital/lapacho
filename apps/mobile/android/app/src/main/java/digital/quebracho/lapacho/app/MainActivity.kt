@@ -23,7 +23,9 @@ import androidx.core.widget.doAfterTextChanged
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.InstalledDict
 import digital.quebracho.lapacho.MAX_IMPORTED
-import digital.quebracho.lapacho.importDictionary
+import digital.quebracho.lapacho.PickedDict
+import digital.quebracho.lapacho.installDictionary
+import digital.quebracho.lapacho.readDictionary
 import digital.quebracho.lapacho.installedDictionaries
 import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.isMasked
@@ -59,13 +61,12 @@ class MainActivity : AppCompatActivity() {
     // us the bytes, and no permission is asked for — not network, not storage.
     private val pickDictionary = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@registerForActivityResult
-        val message = try {
-            val header = importDictionary(this, uri)
-            "«${header.name}» agregado. El teclado lo usa la próxima vez que se abra."
+        val picked = try {
+            readDictionary(this, uri)
         } catch (e: IllegalArgumentException) {
-            e.message ?: "No se pudo importar."
+            return@registerForActivityResult tellThenShowLanguages(e.message ?: "No se pudo importar.")
         }
-        AlertDialog.Builder(this).setMessage(message).setPositiveButton("Entendido") { _, _ -> showLanguages() }.show()
+        if (picked.official) install(picked) else confirmCustom(picked)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -204,7 +205,11 @@ class MainActivity : AppCompatActivity() {
     private fun showLanguages() {
         val dicts = installedDictionaries(this)
         val labels = dicts.map { d ->
-            val origin = d.sha256?.let { "sha256 ${it.take(16)}…" } ?: "incluido en la app"
+            val origin = when {
+                d.file == null -> "incluido en la app"
+                d.official -> "oficial ✓ · sha256 ${d.sha256?.take(12)}…"
+                else -> "personalizado · sha256 ${d.sha256?.take(12)}…"
+            }
             "${d.header.name} (${d.header.lang})\n$origin"
         }
         AlertDialog.Builder(this)
@@ -226,6 +231,40 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cerrar", null)
             .show()
+    }
+
+    /**
+     * A file whose hash is not one we published: a custom dictionary, an
+     * official one newer than this APK, or one somebody altered. The app
+     * cannot tell those apart, so it says so and lets the user decide — per
+     * file, never as a setting that stays switched off.
+     */
+    private fun confirmCustom(picked: PickedDict) {
+        AlertDialog.Builder(this)
+            .setTitle("«${picked.header.name}» no es un diccionario oficial")
+            .setMessage(
+                "Su SHA-256 no coincide con ninguno de los publicados con Lapacho:\n\n${picked.sha256}\n\n" +
+                    "Puede ser un diccionario personalizado, uno publicado después de esta versión, o uno " +
+                    "modificado. Lo peor que puede hacer es sugerir palabras que no querés. " +
+                    "Importalo solo si sabés de dónde salió.",
+            )
+            .setPositiveButton("Importar como personalizado") { _, _ -> install(picked) }
+            .setNegativeButton("Cancelar") { _, _ -> showLanguages() }
+            .show()
+    }
+
+    private fun install(picked: PickedDict) {
+        val message = try {
+            installDictionary(this, picked)
+            "«${picked.header.name}» agregado. El teclado lo usa la próxima vez que se abra."
+        } catch (e: IllegalArgumentException) {
+            e.message ?: "No se pudo importar."
+        }
+        tellThenShowLanguages(message)
+    }
+
+    private fun tellThenShowLanguages(message: String) {
+        AlertDialog.Builder(this).setMessage(message).setPositiveButton("Entendido") { _, _ -> showLanguages() }.show()
     }
 
     private fun confirmRemove(dict: InstalledDict) {
