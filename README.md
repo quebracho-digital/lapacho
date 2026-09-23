@@ -18,16 +18,20 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > [Diagnostics](#diagnostics) for how to measure it yourself.
 >
 > **Android** is an early spike, usable day to day: a keyboard with a paste
-> strip, encrypted history, word suggestions from a bundled dictionary, and the
+> strip, encrypted history, word suggestions and spelling corrections from
+> on-device dictionaries (Spanish bundled, others imported and mixed), and the
 > same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
-> See [Mobile](#mobile).
+> Downloads: [web.fishman.work](https://web.fishman.work/) (English) ·
+> [en español](https://web.fishman.work/es). See [Mobile](#mobile).
 
 ## Usage
 
 - **Desktop:** [`docs/USAGE_DESKTOP.md`](docs/USAGE_DESKTOP.md) — shortcuts,
   tray, per-item actions, persistence modes, plugins.
 - **Android:** [`docs/USAGE_MOBILE.md`](docs/USAGE_MOBILE.md) — install,
-  enabling the keyboard, capture and paste, how passwords are handled.
+  enabling the keyboard, capture and paste, how passwords are handled,
+  suggestions and corrections. Dictionaries — format, mixing, making your own:
+  [`docs/DICTIONARIES.md`](docs/DICTIONARIES.md).
 
 ## Features
 

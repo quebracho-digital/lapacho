@@ -12,9 +12,12 @@ internet permission at all.
 
 ## Install
 
-1. Download the APK on the phone. Builds are published as
-   `https://web.fishman.work/sites/default/files/lapacho-<version>.apk`, each
-   with its checksum next to it (`lapacho-<version>.apk.sha256`).
+1. Download the APK on the phone from the download page —
+   [web.fishman.work](https://web.fishman.work/) in English,
+   [web.fishman.work/es](https://web.fishman.work/es) in Spanish — which lists
+   every build with its SHA-256, and the official dictionaries. The files
+   themselves are `https://web.fishman.work/sites/default/files/lapacho-<version>.apk`,
+   each with its checksum next to it (`lapacho-<version>.apk.sha256`).
 2. Optional, recommended: check the download against the `.sha256` file (any
    hash app on the phone, or `sha256sum` on a computer).
 3. Open the APK and allow the install from your browser when Android asks.
