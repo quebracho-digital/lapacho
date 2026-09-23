@@ -2,7 +2,11 @@ package digital.quebracho.lapacho.app
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.DocumentsContract
 import android.os.Bundle
 import android.os.PersistableBundle
 import android.view.View
@@ -41,6 +45,26 @@ import digital.quebracho.lapacho.storage.contentId
 private const val TAG = "LapachoApp"
 
 /**
+ * The system picker, opened on the phone's own Download folder
+ * (`externalstorage`), not on the "Downloads" shortcut. On a Pixel, a file
+ * picked through that shortcut comes from the downloads provider, which
+ * forwards to MediaStore and is refused a file another app (the browser)
+ * saved with a non-media type: `SecurityException: …downloads has no access
+ * to content://media/…`. The same file through the storage root is read
+ * directly. The emulator's downloads provider does not do this.
+ *
+ * The initial folder is a hint: the picker may ignore it, and the user can
+ * still browse anywhere.
+ */
+private class OpenInDownloads : ActivityResultContracts.OpenDocument() {
+    override fun createIntent(context: Context, input: Array<String>): Intent =
+        super.createIntent(context, input).putExtra(
+            DocumentsContract.EXTRA_INITIAL_URI,
+            DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:Download"),
+        )
+}
+
+/**
  * Companion app — P0 spike only. Its whole job here is to prove the storage
  * model: write an item, then let [digital.quebracho.lapacho.ime.LapachoIme]
  * read it back from a *different* process, even after this process (or the
@@ -62,7 +86,7 @@ class MainActivity : AppCompatActivity() {
 
     // The system file picker: the browser did the downloading, Android hands
     // us the bytes, and no permission is asked for — not network, not storage.
-    private val pickDictionary = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    private val pickDictionary = registerForActivityResult(OpenInDownloads()) { uri: Uri? ->
         if (uri == null) return@registerForActivityResult
         // Off the main thread: the picker can hand over a file that is not on
         // the phone yet (Drive, a "recent" entry), and reading it can take as
@@ -87,6 +111,11 @@ class MainActivity : AppCompatActivity() {
     private fun failureMessage(e: Throwable): String {
         if (e is IllegalArgumentException) return e.message ?: "No se pudo importar."
         Log.e(TAG, "dictionary import failed", e)
+        if (e is SecurityException) {
+            return "Android no deja leer el archivo por el acceso «Descargas».\n\n" +
+                "Volvé a Agregar y llegá al mismo archivo por el almacenamiento del teléfono: " +
+                "menú ☰ → el nombre del teléfono → Download.\n\n(${e.message})"
+        }
         return "No se pudo leer el archivo:\n${e.javaClass.simpleName}: ${e.message}"
     }
 
