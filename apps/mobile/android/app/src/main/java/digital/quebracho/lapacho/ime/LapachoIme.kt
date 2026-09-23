@@ -165,9 +165,17 @@ class LapachoIme : InputMethodService() {
         // the last app left the keyboard is not a preference: opening on the
         // symbols layer in a chat is just wrong, and so is a caps lock the
         // user set somewhere else an hour ago.
-        shift = Shift.OFF
-        accentPending = false
-        if (::layerToggle.isInitialized) setLayer(Layer.LETTERS)
+        //
+        // Only a new session, though. Some apps restart the input on every
+        // change to the field (a field that reformats what is typed, a
+        // search box that re-queries), and Android reports that as
+        // `restarting` on the same field: resetting there threw the user
+        // back to the letters after every digit typed on the numbers layer.
+        if (!restarting) {
+            shift = Shift.OFF
+            accentPending = false
+            if (::layerToggle.isInitialized) setLayer(Layer.LETTERS)
+        }
         val clip = readClip()
         val secret = clip != null && clip.sensitivity.isSecret()
         if (clip != null && !secret && !privateField) capture(clip.text, clip.sensitivity)

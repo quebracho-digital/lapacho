@@ -4,6 +4,19 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — the numbers layer no longer jumps back after every digit (`0.1.25`)
+
+- `0.1.19` made every keyboard session start on the letters, and treated
+  every call to `onStartInputView` as a new session. Some apps restart the
+  input on each change to the field — one that reformats what is typed, a
+  search box that re-queries — and Android reports that as `restarting` on
+  the same field. On those, each digit typed on **?123** threw the keyboard
+  back to the letters. The reset (layer, shift, pending accent) now happens
+  only when `restarting` is false: a new field still opens on the letters.
+- Reported from a real phone; neither the Settings search box nor Chrome's
+  address bar restart the input, so the emulator could only confirm that the
+  numbers layer holds and that a new field still resets.
+
 ### Android — spell correction, offered and never imposed (`0.1.24`)
 
 - **`Predictor::correct`** in `lapacho-predict`. Candidates one edit away —

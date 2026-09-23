@@ -184,7 +184,9 @@ While you are typing a word, the strip above shows suggestions instead of your
 clips; see [Suggestions while you type](#suggestions-while-you-type).
 
 The keyboard always opens on the letters, with no shift pending, whatever
-layer you left it on in the last app.
+layer you left it on in the last app. Within a field it stays where you put
+it: on **?123** you can type a whole number without the keyboard jumping back
+to the letters after each digit.
 
 A key that has more characters under it shows one of them small, in the
 corner: `n` shows ñ, `a` shows @, `.` shows ¿. An imported dictionary can
