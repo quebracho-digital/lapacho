@@ -100,6 +100,33 @@ crowding bothers them more than switching would.
 
 ---
 
+## Autocorrect that rewrites the word on space
+
+|  |  |
+|---|---|
+| **Evaluated** | 2026-09-23, adding spell correction |
+| **Rejected** | Same day |
+| **Replaced by** | Corrections offered as chips in the strip, applied only when tapped |
+
+**The problem it was meant to solve.** `graicas` should become `gracias`
+without the user doing anything — the way mainstream keyboards behave.
+
+**Why it was rejected.** It is the keyboard deciding for the user, and it
+decides wrong exactly where this user writes: names, jargon, the other
+language. Every learned word, every custom dictionary exists because the
+dictionary does not know everything; an autocorrect turns each of those gaps
+into a word silently replaced. The rest of this keyboard does nothing unless
+asked — a long press shows a row and waits, learning takes a hold and a
+second tap — and correction follows the same rule.
+
+**The price.** A typo costs one tap instead of zero.
+
+**When to reopen.** If people ask for it — as an opt-in, and only for
+corrections the engine is sure of (one edit, far more frequent), never for a
+word the user taught it or a custom dictionary holds.
+
+---
+
 ## A keyboard that learns while you type
 
 |  |  |

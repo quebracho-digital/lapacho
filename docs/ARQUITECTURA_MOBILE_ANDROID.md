@@ -518,7 +518,8 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 > is being typed. `0.1.16` adds explicit learning: the `lexicon` table (DB
 > v2), the long press that offers it, and the list in the companion. `0.1.20`
 > adds imported dictionaries, mixed rather than switched
-> ([`DICTIONARIES.md`](DICTIONARIES.md)). Not built yet: spell correction.
+> ([`DICTIONARIES.md`](DICTIONARIES.md)). `0.1.24` adds spell correction,
+> offered in the strip, never applied by itself.
 >
 > **Superseded:** "learning off by default, in an app-private model file".
 > A background model of what the user types was rejected outright — see
@@ -612,8 +613,8 @@ Align with desktop: **raw is source of truth inside the vault; UI and logs only 
 
 1. ✅ `lapacho-predict` + bundled ES dict (EN is an import, not a bundle).  
 2. ✅ Suggestion bar; no network.  
-3. ☐ Spell correction (edit distance) — completion only answers a correct prefix.  
-4. ☐ Other languages: import through the system file picker + SHA-256 check.  
+3. ✅ Spell correction (`Predictor::correct`, OSA distance ≤ 2) — offered, never applied.  
+4. ✅ Other languages: import through the system file picker, mixed; SHA-256 marks official ones.  
 5. ✅ Explicit per-word learning (replaces "exclude sensitive from learning":
    nothing is learned unless the user taps to learn it — and a word the
    classifier reads as a secret is never offered).

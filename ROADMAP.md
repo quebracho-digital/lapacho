@@ -182,9 +182,17 @@ History search implemented; English translation complete. Sensitivity: long hex 
   bundled Spanish dictionary (49 525 words, `assets/dict/es.txt`, MIT) and the
   suggestion strip in the IME, which takes over the paste strip while a word
   is being typed. Pending, in order:
-  - [ ] **Spell correction** — completion only answers a correct prefix;
-    `maniana` still finds nothing. Needs edit distance (Levenshtein ≤2 over
-    the folded keys), which is also what turns the strip into a corrector.
+  - [x] **Spell correction** (`0.1.24`) — `Predictor::correct`: optimal
+    string alignment distance (a swap of two letters is one edit), one edit
+    away or two if nothing is one away, ranked by distance then frequency,
+    same first letter only. A known word is corrected only towards one ×1000
+    more frequent (the subtitle lists carry typos like `qeu`). A 32-bit
+    letter-set mask bounds the distance from below and skips most of the
+    scan: 0.03–1.3 ms on the laptop, ≤ 6.3 ms per keystroke on the emulator
+    with completion included. The IME asks only when nothing completes the
+    word, and offers — never applies. 23 real typos in
+    `crates/lapacho-predict/tests/real_typos.rs`. Not done: two words run
+    together (`porfavor`), a mistyped first letter.
   - [x] **Other languages and custom lists** (`0.1.20`) — imported through the
     system file picker (**IDIOMAS** in the companion), validated by format
     (magic header, safe `#lang`, UTF-8, ≤ 8 MB) rather than an allow-list of

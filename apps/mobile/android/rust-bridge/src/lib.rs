@@ -139,6 +139,14 @@ impl WordPredictor {
         self.inner.suggest(&prefix, limit as usize)
     }
 
+    /// Words the user probably meant by a misspelled `word`, best first
+    /// (one edit away, a swap of two letters counting as one; two only if
+    /// nothing is one away). Never applied by itself: the keyboard offers
+    /// them in the strip and the user taps one.
+    pub fn correct(&self, word: String, limit: u32) -> Vec<String> {
+        self.inner.correct(&word, limit as usize)
+    }
+
     /// Whether the word is already known, accents aside. What the keyboard
     /// asks before offering to learn one.
     pub fn knows(&self, word: String) -> bool {

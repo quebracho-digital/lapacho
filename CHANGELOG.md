@@ -4,6 +4,31 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — spell correction, offered and never imposed (`0.1.24`)
+
+- **`Predictor::correct`** in `lapacho-predict`. Candidates one edit away —
+  insertion, deletion, substitution, or two letters swapped, the commonest
+  slip on a phone (optimal string alignment distance) — or two if nothing is
+  one away; nearer first, then more frequent. `graicas` → gracias, `cuadno`
+  → cuando, `thnaks` → thanks, `definately` → definitely.
+- **Words that are words are left alone.** The subtitle-derived lists carry
+  typos (`qeu` is in the Spanish one), so a known word is corrected only
+  towards a neighbour ×1000 more frequent: `qeu` → que, but `perro` (×37 to
+  `pero`), `vaca`, `nadia` stay. Short words (< 3) are never corrected.
+- **Fast enough for every keystroke.** Only words sharing the first letter
+  are scanned, and a 32-bit mask of each word's letters bounds the distance
+  from below — one edit moves at most two bits — so most are skipped without
+  building a table. 0.03–1.3 ms on the laptop against 84 000 words;
+  ≤ 6.3 ms per keystroke on the emulator including completion (it was ~4 ms
+  on the laptop before the mask).
+- **In the IME, only when nothing completes the word**, and as chips: tap
+  one and it replaces the word; keep typing and nothing changes. No
+  rewrite-on-space autocorrect, by decision (`docs/DECISIONS.md`). The learn
+  chip still follows for a word nothing matches.
+- `crates/lapacho-predict/tests/real_typos.rs`: 23 real typos in Spanish and
+  English against the shipped dictionaries, nine real words that must not be
+  corrected, and a time budget.
+
 ### Android — importing a dictionary on a real phone (`0.1.22`, `0.1.23`)
 
 - **The import crashed on a Pixel and passed on the emulator.** The file was

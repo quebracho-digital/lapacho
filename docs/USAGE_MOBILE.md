@@ -6,8 +6,8 @@ in. Your history is encrypted on the phone and never leaves it — the app has n
 internet permission at all.
 
 > **Status:** early (P0 spike). It works day to day, but it is a debug build
-> installed by hand, and the keyboard is deliberately basic (word suggestions
-> but no autocorrect, no swipe typing, and a fixed set of emoji rather than a
+> installed by hand, and the keyboard is deliberately basic (suggestions and
+> corrections you tap, but nothing rewritten by itself, no swipe typing, and a fixed set of emoji rather than a
 > picker).
 
 ## Install
@@ -105,6 +105,14 @@ it.
 A dictionary can also add long presses: French's could put é è ê on `e`.
 How to make one, from a frequency list or from your own texts:
 [`DICTIONARIES.md`](DICTIONARIES.md).
+
+**Corrections.** When nothing completes what you typed, the strip offers what
+you probably meant instead: `graicas` → **gracias**, `cuadno` → **cuando**,
+`thnaks` → **thanks**. Swapped letters, a missing or extra one, one wrong —
+up to two slips. It is only an offer: tap it and it replaces the word, keep
+typing and nothing changes. Lapacho never rewrites a word on its own when you
+press space. A word it does not know and cannot correct still gets the
+**＋** chip to be learned, after the corrections.
 
 There are no suggestions in password fields or incognito tabs, the same rule
 the history follows.

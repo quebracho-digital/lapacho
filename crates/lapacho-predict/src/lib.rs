@@ -14,6 +14,20 @@ struct Entry {
     key: Box<str>,
     word: Box<str>,
     freq: u32,
+    /// `key`'s length in characters, so a correction can skip words of the
+    /// wrong length without decoding them. Sits in the struct's padding.
+    chars: u8,
+    /// Which letters `key` contains, see [`letter_mask`].
+    letters: u32,
+}
+
+impl Entry {
+    fn new(word: &str, freq: u32) -> Self {
+        let key = fold(word);
+        let chars = key.chars().count().min(u8::MAX as usize) as u8;
+        let letters = letter_mask(&key);
+        Entry { key: key.into(), word: word.into(), freq, chars, letters }
+    }
 }
 
 pub struct Predictor {
@@ -50,17 +64,11 @@ impl Predictor {
         for data in dictionaries {
             let parsed: Vec<(&str, u64)> = data.lines().filter_map(parse_line).collect();
             let total = parsed.iter().map(|(_, f)| f).sum::<u64>().max(1) as f64;
-            words.extend(parsed.into_iter().map(|(word, freq)| Entry {
-                key: fold(word).into(),
-                word: word.into(),
-                freq: ((freq as f64 / total * SCALE) as u32).max(1),
+            words.extend(parsed.into_iter().map(|(word, freq)| {
+                Entry::new(word, ((freq as f64 / total * SCALE) as u32).max(1))
             }));
         }
-        words.extend(learned.iter().filter(|w| !w.trim().is_empty()).map(|w| Entry {
-            key: fold(w.trim()).into(),
-            word: w.trim().into(),
-            freq: u32::MAX,
-        }));
+        words.extend(learned.iter().filter(|w| !w.trim().is_empty()).map(|w| Entry::new(w.trim(), u32::MAX)));
         // Highest frequency first within the same word, so dedup keeps it.
         words.sort_unstable_by(|a, b| (&a.key, &a.word, b.freq).cmp(&(&b.key, &b.word, a.freq)));
         words.dedup_by(|later, first| later.word == first.word);
@@ -127,6 +135,161 @@ fn parse_line(line: &str) -> Option<(&str, u64)> {
     match line.split_once(char::is_whitespace) {
         None => Some((line, 1)),
         Some((word, freq)) => Some((word, freq.trim().parse().ok()?)),
+    }
+}
+
+/// A known word is only corrected when a neighbour one edit away is this many
+/// times more frequent. The lists come from subtitles and carry their typos
+/// (`qeu` is in the Spanish one, 74 000 times rarer than `que`), but a real
+/// word next to a common one must be left alone: `perro`/`pero` is ×37,
+/// `vaca`/`vaya` ×18, `nadia`/`nada` ×325.
+const KNOWN_TYPO_RATIO: u64 = 1000;
+
+/// Shorter than this, nearly every word is one edit from dozens of others,
+/// and a correction is a guess.
+const MIN_CORRECT: usize = 3;
+
+impl Predictor {
+    /// Words the user probably meant by `word`, best first — for a word that
+    /// is misspelled, not unfinished (that is [`Predictor::suggest`]).
+    ///
+    /// Candidates are one edit away (insertion, deletion, substitution, or
+    /// two letters swapped — the commonest slip on a phone), or two if
+    /// nothing is one away; ranked by distance, then frequency. Accents are
+    /// ignored the way the rest of the engine ignores them, so the accented
+    /// spelling of a typed word is a completion, not a correction.
+    ///
+    /// A word the dictionary knows is only corrected towards a far more
+    /// frequent neighbour ([`KNOWN_TYPO_RATIO`]), and then at one edit only.
+    ///
+    /// ponytail: only words sharing the first letter are scanned — a first
+    /// letter is rarely the one mistyped, and it cuts the scan ~20×; within
+    /// it, [`letter_mask`] drops most words before any table is built.
+    /// Measured at 0.03–1.3 ms on the laptop against 84 000 words (es + en). Two words run
+    /// together (`porfavor`) are not split. If either matters, a deletion
+    /// index (SymSpell) is the upgrade, at several MB of memory.
+    pub fn correct(&self, word: &str, limit: usize) -> Vec<String> {
+        let key: Vec<char> = fold(word).chars().collect();
+        let Some(&first) = key.first() else { return Vec::new() };
+        if key.len() < MIN_CORRECT || limit == 0 {
+            return Vec::new();
+        }
+        let key_str: String = key.iter().collect();
+        let letters = letter_mask(&key_str);
+        let known = self.freq_of(&key_str);
+
+        // Every key starting with the same letter.
+        let mut start_buf = [0u8; 4];
+        let first_str = first.encode_utf8(&mut start_buf);
+        let start = self.words.partition_point(|e| *e.key < *first_str);
+        let range = self.words[start..].iter().take_while(|e| e.key.starts_with(first));
+
+        let max = if known.is_some() { 1 } else { 2 };
+        let mut hits: Vec<(usize, &Entry)> = Vec::new();
+        let mut cand: Vec<char> = Vec::new();
+        let mut rows = Rows::default();
+        for e in range {
+            if *e.key == *key_str
+                || (e.chars as usize).abs_diff(key.len()) > max
+                || (e.letters ^ letters).count_ones() as usize > 2 * max
+            {
+                continue;
+            }
+            if let Some(typed) = known
+                && (e.freq as u64) < typed as u64 * KNOWN_TYPO_RATIO
+            {
+                continue;
+            }
+            cand.clear();
+            cand.extend(e.key.chars());
+            if let Some(d) = rows.distance(&key, &cand, max) {
+                hits.push((d, e));
+            }
+        }
+        // Nothing one edit away is what earns a look two away.
+        if let Some(best) = hits.iter().map(|h| h.0).min() {
+            hits.retain(|h| h.0 == best);
+        }
+        hits.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.freq.cmp(&a.1.freq)));
+        // One spelling per key: "tambien" and "también" are the same answer.
+        let mut seen: Vec<&str> = Vec::new();
+        hits.into_iter()
+            .filter(|(_, e)| {
+                let fresh = !seen.contains(&&*e.key);
+                seen.push(&e.key);
+                fresh
+            })
+            .take(limit)
+            .map(|(_, e)| apply_case(word, &e.word))
+            .collect()
+    }
+
+    /// The highest frequency among the spellings of a folded key, if any.
+    fn freq_of(&self, key: &str) -> Option<u32> {
+        let start = self.words.partition_point(|e| *e.key < *key);
+        self.words[start..].iter().take_while(|e| *e.key == *key).map(|e| e.freq).max()
+    }
+}
+
+/// The set of letters in `key`, one bit each (`char mod 32`, so every
+/// alphabet folds into the same 32 bits).
+///
+/// It bounds the edit distance from below, which is what makes a correction
+/// cheap: one edit changes at most two bits of the set (a substitution drops
+/// one letter and adds another; a swap changes none), so two words whose
+/// masks differ in more than `2 × max` bits cannot be `max` edits apart and
+/// are skipped without building a table. Two letters sharing a bit only make
+/// masks look closer, never farther, so the bound stays true. Measured: most
+/// of a first-letter range is dropped by this alone.
+fn letter_mask(key: &str) -> u32 {
+    key.chars().fold(0, |m, c| m | 1 << (c as u32 % 32))
+}
+
+/// The three rows of the distance table, kept between candidates: a scan
+/// compares thousands of words, and allocating per word was most of its time.
+#[derive(Default)]
+struct Rows {
+    before: Vec<usize>,
+    prev: Vec<usize>,
+    cur: Vec<usize>,
+}
+
+impl Rows {
+    /// Optimal string alignment distance between `a` and `b` — Levenshtein
+    /// plus a swap of two adjacent letters counted as one edit — or `None` as
+    /// soon as it is certain to exceed `max`.
+    fn distance(&mut self, a: &[char], b: &[char], max: usize) -> Option<usize> {
+        if a.len().abs_diff(b.len()) > max {
+            return None;
+        }
+        let n = b.len() + 1;
+        for row in [&mut self.before, &mut self.prev, &mut self.cur] {
+            row.clear();
+            row.resize(n, 0);
+        }
+        // `before` is the row a swap looks back to.
+        for (j, v) in self.prev.iter_mut().enumerate() {
+            *v = j;
+        }
+        for i in 1..=a.len() {
+            self.cur[0] = i;
+            let mut row_min = i;
+            for j in 1..=b.len() {
+                let cost = usize::from(a[i - 1] != b[j - 1]);
+                let mut d = (self.prev[j - 1] + cost).min(self.prev[j] + 1).min(self.cur[j - 1] + 1);
+                if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                    d = d.min(self.before[j - 2] + 1);
+                }
+                self.cur[j] = d;
+                row_min = row_min.min(d);
+            }
+            if row_min > max {
+                return None;
+            }
+            std::mem::swap(&mut self.before, &mut self.prev);
+            std::mem::swap(&mut self.prev, &mut self.cur);
+        }
+        Some(self.prev[b.len()]).filter(|&d| d <= max)
     }
 }
 
@@ -262,5 +425,61 @@ mod tests {
     fn folds_the_marks_of_the_other_supported_languages() {
         assert_eq!(fold("Français"), "francais");
         assert_eq!(fold("não"), "nao");
+    }
+
+    #[test]
+    fn a_swap_of_two_letters_is_one_edit() {
+        // grasas is two substitutions away; gracias is two as plain
+        // Levenshtein too — and would lose to the more frequent grasas.
+        let p = Predictor::new(&["gracias 90\ngrasas 95"], &[]);
+        assert_eq!(p.correct("graicas", 1), vec!["gracias"]);
+    }
+
+    #[test]
+    fn nearer_beats_more_frequent_and_frequency_breaks_ties() {
+        // cuando (a swap) and cuadro (a substitution) are one edit away;
+        // cuadrado, two, is dropped however common.
+        let p = Predictor::new(&["cuando 1000\ncuadro 10\ncuadrado 5000"], &[]);
+        assert_eq!(p.correct("cuadno", 3), vec!["cuando", "cuadro"]);
+    }
+
+    #[test]
+    fn two_edits_only_when_nothing_is_one_away() {
+        let p = Predictor::new(&["necesito 10\nnecesita 5"], &[]);
+        assert_eq!(p.correct("nesesito", 2), vec!["necesito"]);
+        assert_eq!(p.correct("nescesito", 2), vec!["necesito"], "two edits, nothing at one");
+        assert_eq!(p.correct("nxcxsxto", 2), Vec::<String>::new(), "three edits");
+    }
+
+    #[test]
+    fn a_known_word_is_corrected_only_towards_a_far_more_common_one() {
+        let p = Predictor::new(&["que 1000000\nqeu 1\npero 37\nperro 1"], &[]);
+        assert_eq!(p.correct("qeu", 1), vec!["que"], "a typo the corpus kept");
+        assert!(p.correct("perro", 1).is_empty(), "a real word next to a common one");
+    }
+
+    #[test]
+    fn keeps_the_capital_and_gives_one_spelling_per_word() {
+        let p = Predictor::new(&["también 90\ntambien 10"], &[]);
+        assert_eq!(p.correct("Tambein", 3), vec!["También"]);
+    }
+
+    #[test]
+    fn short_words_and_learned_ones_are_left_alone() {
+        let p = Predictor::new(&["de 100\nte 90\nquebrados 50"], &["quebrachos"]);
+        assert!(p.correct("dr", 3).is_empty());
+        assert!(p.correct("quebrachos", 3).is_empty());
+    }
+
+    #[test]
+    fn the_letter_mask_never_rules_out_a_real_neighbour() {
+        // Each edit moves the mask by at most two bits; a swap by none.
+        for (a, b, max) in [("cuadno", "cuando", 1), ("graicas", "gracias", 1), ("maniana", "manana", 1),
+            ("resivir", "recibir", 2), ("teh", "the", 1), ("ab", "xy", 2)]
+        {
+            let d = Rows::default().distance(&a.chars().collect::<Vec<_>>(), &b.chars().collect::<Vec<_>>(), max);
+            assert!(d.is_some(), "{a}/{b}");
+            assert!((letter_mask(a) ^ letter_mask(b)).count_ones() as usize <= 2 * max, "{a}/{b}");
+        }
     }
 }

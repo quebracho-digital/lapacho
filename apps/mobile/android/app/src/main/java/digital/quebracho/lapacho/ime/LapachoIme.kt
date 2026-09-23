@@ -279,9 +279,22 @@ class LapachoIme : InputMethodService() {
     }
 
     /**
-     * The strip while a word is being typed: what the dictionary can complete,
-     * or an offer to learn the word if the dictionary has nothing to say about
-     * it. Returns whether it took the strip over.
+     * The strip while a word is being typed: corrections if it looks
+     * misspelled, what the dictionary can complete, and an offer to learn the
+     * word if the dictionary has nothing to say about it. Returns whether it
+     * took the strip over.
+     *
+     * A correction is only ever offered, never applied: it goes first in the
+     * strip and the user taps it or types on. An autocorrect that rewrites
+     * the word on space is the keyboard deciding for the user.
+     *
+     * Corrections are looked for only when nothing completes the word. While
+     * completions exist the word may simply be unfinished — `gra` is in the
+     * corpus and one edit from far commoner words, and offering those would
+     * push aside `gracias`. The corpus's own typos (`qeu`) complete to
+     * nothing, so they still get here, and the engine corrects a known word
+     * only towards a far more common one. It also keeps the scan off most
+     * keystrokes.
      *
      * Nothing is looked up until [MIN_PREFIX] letters: a single letter matches
      * most of the dictionary, and hiding the clips on the first keystroke of
@@ -290,16 +303,21 @@ class LapachoIme : InputMethodService() {
     private fun showSuggestions(): Boolean {
         val word = currentWord(currentInputConnection?.getTextBeforeCursor(WORD_LOOKBEHIND, 0))
         if (word.length < MIN_PREFIX) return false
+        val predictor = predictor // the first lookup loads it; keep that out of the timing
+        val t0 = System.nanoTime()
         val hits = predictor.suggest(word, SUGGESTIONS.toUInt())
+        val fixes = if (hits.isEmpty()) predictor.correct(word, SUGGESTIONS.toUInt()) else emptyList()
         // Lengths and counts, never the words themselves: this is a keyboard,
         // and what gets typed is exactly what must not end up in a log.
-        Log.i(TAG, "suggest: ${word.length}-letter prefix, ${hits.size} hits")
-        for (hit in hits) pasteStrip.addView(pasteButton(hit) { commitSuggestion(hit) })
+        Log.i(TAG, "suggest: ${word.length}-letter prefix, ${hits.size} hits, ${fixes.size} fixes in ${(System.nanoTime() - t0) / 1000}µs")
+        for (hit in (fixes + hits).distinct().take(SUGGESTIONS)) {
+            pasteStrip.addView(pasteButton(hit) { commitSuggestion(hit) })
+        }
         if (hits.isEmpty() && isLearnable(word)) {
             pasteStrip.addView(learnableChip(word))
             return true
         }
-        return hits.isNotEmpty()
+        return hits.isNotEmpty() || fixes.isNotEmpty()
     }
 
     /**
