@@ -90,11 +90,14 @@ from any frontend.
 
 ### Codebase map
 
-A generated knowledge graph lives at `.ua/knowledge-graph.json`: 218 nodes and
-361 edges across 7 architectural layers, plus a 15-step guided tour that walks
+A generated knowledge graph lives at `.ua/knowledge-graph.json`: 310 nodes and
+558 edges across 9 architectural layers (security core, word prediction, mobile
+Rust bridge, desktop backend, desktop UI, Android app, tests and payloads,
+documentation, workspace config), plus an 18-step guided tour. The tour walks
 the security flow end to end (capture → type classification → sensitivity
-classification → masking → persistence policy → release on paste). It is meant
-as the fastest way in for anyone new to the project.
+classification → masking → persistence policy → release on paste), then the
+Android keyboard, the uniffi bridge and word prediction. It is meant as the
+fastest way in for anyone new to the project.
 
 Explore it with the [understand-anything](https://github.com/Egonex-AI/Understand-Anything)
 plugin:
@@ -104,13 +107,8 @@ plugin:
 /understand              # refresh after changes (incremental)
 ```
 
-> **A note, and an apology:** the graph's text — summaries, layer names, tour
-> steps — is in **Spanish**, while the rest of this project is in English. That
-> inconsistency is on us, not on you. It was generated in the maintainer's
-> working language and kept rather than discarded, on the grounds that a map in
-> the wrong language still beats no map. Regenerating it in English is a single
-> command (`/understand --full --language en`) if you would rather have it that
-> way, and such a PR is welcome.
+The dictionary word lists are left out of the analysis (`.ua/.understandignore`):
+they are data, 50 000 lines each.
 
 The graph is a derived artifact: if it ever contradicts the code, the code wins.
 

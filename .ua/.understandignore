@@ -71,3 +71,10 @@ apps/desktop/src-tauri/icons/
 # **/spec_helper.rb
 # **/test_helper.rb
 # **/rails_helper.rb
+
+# --- Lapacho: data, not code ---
+# Dictionary word lists (~50 000 lines each); their NOTICE files stay in.
+apps/mobile/android/app/src/main/assets/dict/es.txt
+apps/mobile/android/dictionaries/en.txt
+# The graph's own directory.
+.ua/
