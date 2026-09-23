@@ -4,18 +4,26 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — the numbers layer no longer jumps back after every digit (`0.1.25`)
+### Android — numeric fields open on the numbers, and stay there (`0.1.25`)
 
-- `0.1.19` made every keyboard session start on the letters, and treated
+- **A numeric field opens on the numbers layer.** A field that declares
+  itself a number, a phone or a date (`TYPE_CLASS_NUMBER`, `_PHONE`,
+  `_DATETIME`) — a bank transfer amount, a PIN — no longer makes the user
+  find **?123** first. Checked in the emulator on an `<input type=number>`:
+  the keyboard came up on the digits and `1234` typed straight through.
+
+- **And it no longer jumps back after every digit.** `0.1.19` made every
+  keyboard session start on the letters, and treated
   every call to `onStartInputView` as a new session. Some apps restart the
   input on each change to the field — one that reformats what is typed, a
   search box that re-queries — and Android reports that as `restarting` on
   the same field. On those, each digit typed on **?123** threw the keyboard
   back to the letters. The reset (layer, shift, pending accent) now happens
   only when `restarting` is false: a new field still opens on the letters.
-- Reported from a real phone; neither the Settings search box nor Chrome's
-  address bar restart the input, so the emulator could only confirm that the
-  numbers layer holds and that a new field still resets.
+- Reported from a real phone, on a banking app's transfer amount. Neither the
+  Settings search box nor Chrome's address bar restart the input, so the
+  emulator could only confirm that the numbers layer holds and that a new
+  field still resets; the banking app is the final check.
 
 ### Android — spell correction, offered and never imposed (`0.1.24`)
 

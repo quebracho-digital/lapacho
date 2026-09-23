@@ -161,10 +161,11 @@ class LapachoIme : InputMethodService() {
             loadedPredictor = null
             longPress = keyAlternates(installedDictionaries(this).map { it.header }, BASE_LONG_PRESS)
         }
-        // Every session starts on the letters, with no shift pending. Where
-        // the last app left the keyboard is not a preference: opening on the
-        // symbols layer in a chat is just wrong, and so is a caps lock the
-        // user set somewhere else an hour ago.
+        // Every session starts on the layer the field asks for — numbers for
+        // an amount, a PIN, a phone or a date; letters for everything else —
+        // with no shift pending. Where the last app left the keyboard is not
+        // a preference: opening on the symbols layer in a chat is just wrong,
+        // and so is a caps lock the user set somewhere else an hour ago.
         //
         // Only a new session, though. Some apps restart the input on every
         // change to the field (a field that reformats what is typed, a
@@ -174,7 +175,7 @@ class LapachoIme : InputMethodService() {
         if (!restarting) {
             shift = Shift.OFF
             accentPending = false
-            if (::layerToggle.isInitialized) setLayer(Layer.LETTERS)
+            if (::layerToggle.isInitialized) setLayer(initialLayer(info?.inputType ?: 0))
         }
         val clip = readClip()
         val secret = clip != null && clip.sensitivity.isSecret()
@@ -793,6 +794,17 @@ class LapachoIme : InputMethodService() {
                 InputType.TYPE_CLASS_NUMBER -> variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD
                 else -> false
             }
+        }
+
+        /**
+         * The layer a field opens on. A field that declares itself numeric —
+         * a transfer amount, a PIN, a phone number, a date — opens on the
+         * numbers: making the user hunt for ?123 before every amount is the
+         * keyboard ignoring what the app already told it.
+         */
+        fun initialLayer(inputType: Int): Layer = when (inputType and InputType.TYPE_MASK_CLASS) {
+            InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME -> Layer.SYMBOLS
+            else -> Layer.LETTERS
         }
 
         private const val DOUBLE_TAP_MS = 400

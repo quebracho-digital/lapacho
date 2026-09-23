@@ -126,8 +126,9 @@ pasted, from the clipboard itself, through a masked 🔑 chip. In password
 fields and incognito tabs the history is hidden.
 
 The keyboard itself is deliberately small: Spanish layout with a dead-key
-acute, ñ, `@` and `¿ ? ¡ !` on long press, a numbers/symbols layer that
-stays put while you type in it (and resets to the letters in the next field),
+acute, ñ, `@` and `¿ ? ¡ !` on long press, a numbers/symbols layer —
+opened by itself in numeric fields (amounts, PINs, phone numbers, dates), kept
+while you type in it, back to the letters in the next text field —
 a fixed emoji layer — no swipe typing, and no autocorrect that rewrites a word
 behind your back. From the second letter of a
 word the strip offers up to three completions from a bundled dictionary
