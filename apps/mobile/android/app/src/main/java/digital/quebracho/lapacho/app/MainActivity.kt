@@ -12,6 +12,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
+import android.util.Log
 import android.util.TypedValue
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,6 +38,8 @@ import digital.quebracho.lapacho.storage.HistoryRepo
 import digital.quebracho.lapacho.storage.PersistLevel
 import digital.quebracho.lapacho.storage.contentId
 
+private const val TAG = "LapachoApp"
+
 /**
  * Companion app — P0 spike only. Its whole job here is to prove the storage
  * model: write an item, then let [digital.quebracho.lapacho.ime.LapachoIme]
@@ -61,12 +64,30 @@ class MainActivity : AppCompatActivity() {
     // us the bytes, and no permission is asked for — not network, not storage.
     private val pickDictionary = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@registerForActivityResult
-        val picked = try {
-            readDictionary(this, uri)
-        } catch (e: IllegalArgumentException) {
-            return@registerForActivityResult tellThenShowLanguages(e.message ?: "No se pudo importar.")
-        }
-        if (picked.official) install(picked) else confirmCustom(picked)
+        // Off the main thread: the picker can hand over a file that is not on
+        // the phone yet (Drive, a "recent" entry), and reading it can take as
+        // long as downloading it — long enough for Android to kill the app.
+        val reading = AlertDialog.Builder(this).setMessage("Leyendo el archivo…").setCancelable(false).show()
+        Thread {
+            val result = runCatching { readDictionary(this, uri) }
+            runOnUiThread {
+                reading.dismiss()
+                result.onSuccess { if (it.official) install(it) else confirmCustom(it) }
+                    .onFailure { tellThenShowLanguages(failureMessage(it)) }
+            }
+        }.start()
+    }
+
+    /**
+     * Our own refusals carry a message for the user. Anything else — a
+     * provider that will not open the file, a permission it revoked — is
+     * shown by its type too: a phone we cannot attach a debugger to has to
+     * be able to say what went wrong.
+     */
+    private fun failureMessage(e: Throwable): String {
+        if (e is IllegalArgumentException) return e.message ?: "No se pudo importar."
+        Log.e(TAG, "dictionary import failed", e)
+        return "No se pudo leer el archivo:\n${e.javaClass.simpleName}: ${e.message}"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -257,8 +278,8 @@ class MainActivity : AppCompatActivity() {
         val message = try {
             installDictionary(this, picked)
             "«${picked.header.name}» agregado. El teclado lo usa la próxima vez que se abra."
-        } catch (e: IllegalArgumentException) {
-            e.message ?: "No se pudo importar."
+        } catch (e: Exception) {
+            failureMessage(e)
         }
         tellThenShowLanguages(message)
     }
