@@ -86,7 +86,10 @@ teach it, below.
 
 Spanish ships inside the APK. Another language — or a list of your own
 jargon — is a file you download with your browser and hand to Lapacho: tap
-**IDIOMAS → AGREGAR** in the app and pick it. The keyboard never downloads
+**IDIOMAS → AGREGAR** in the app and pick it from the **Download** folder the
+picker opens on. If Android says it cannot read the file, you came through
+the picker's *Downloads* shortcut: go **☰ → your phone's name → Download**
+instead (details in [`DICTIONARIES.md`](DICTIONARIES.md#installing-one)). The keyboard never downloads
 anything itself, because it has no way to.
 
 Every dictionary you add is used **at the same time** as Spanish; there is no

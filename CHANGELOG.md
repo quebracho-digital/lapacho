@@ -4,6 +4,25 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — importing a dictionary on a real phone (`0.1.22`, `0.1.23`)
+
+- **The import crashed on a Pixel and passed on the emulator.** The file was
+  read on the main thread and only our own validation errors were caught, so
+  anything the storage provider threw closed the app. `0.1.22` reads it on a
+  worker thread behind a "Leyendo el archivo…" dialog and shows any failure
+  with its exception type — which is how the cause was found, with no
+  debugger on the phone.
+- **The cause:** a file picked through the picker's *Downloads* shortcut is
+  served by the downloads provider, which forwards to MediaStore, and
+  MediaStore refuses it a non-media file the browser saved
+  (`SecurityException: …downloads has no access to content://media/…`). The
+  same file through the phone's storage is read directly. `0.1.23` opens the
+  picker there (`EXTRA_INITIAL_URI`, `primary:Download`), and the error, if it
+  still comes, says which path to take. Confirmed on the phone: English
+  imported as official.
+- Official dictionaries are published as `.dict`: served as a download, where
+  a `.txt` opens as a page of text in the phone's browser.
+
 ### Android — official dictionaries import silently, custom ones ask first (`0.1.21`)
 
 - The APK carries the SHA-256 of the dictionaries we publish

@@ -9,11 +9,22 @@ downloads one; you bring it (why: [`DECISIONS.md`](DECISIONS.md)).
 ## Installing one
 
 1. Get the file onto the phone: download it with the browser, or copy it
-   over USB.
-2. In the Lapacho app, tap **IDIOMAS → AGREGAR** and pick the file.
+   over USB. Official ones are on the download page, as
+   `lapacho-dict-<lang>-<hash>.dict` — `.dict` rather than `.txt` so the
+   browser saves the file instead of opening it as a page of text.
+2. In the Lapacho app, tap **IDIOMAS → AGREGAR**. The picker opens on the
+   phone's **Download** folder; pick the file there.
 3. If it is one of ours, it goes straight in. If it is not, the app says so
    first — see below.
 4. The keyboard uses it the next time it opens.
+
+**If it says Android will not let it read the file**
+(`SecurityException: …providers.downloads has no access to content://media/…`),
+the file was reached through the picker's **Downloads** shortcut. On some
+phones (seen on a Pixel) that shortcut hands the request to the media store,
+which refuses a non-media file the browser saved. The same file through the
+phone's storage reads fine: in the picker, **☰ → the phone's name →
+Download**. That is where the picker opens by default since `0.1.23`.
 
 **Official or custom.** The APK carries the SHA-256 of every dictionary we
 publish. A file that matches imports without a question and is listed as
