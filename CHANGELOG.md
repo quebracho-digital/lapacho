@@ -23,7 +23,8 @@ All notable changes to Lapacho are recorded here. Newest first.
 - Reported from a real phone, on a banking app's transfer amount. Neither the
   Settings search box nor Chrome's address bar restart the input, so the
   emulator could only confirm that the numbers layer holds and that a new
-  field still resets; the banking app is the final check.
+  field still resets. Confirmed on the phone, in the banking app, with the
+  published `0.1.25`.
 
 ### Android — spell correction, offered and never imposed (`0.1.24`)
 
