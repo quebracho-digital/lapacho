@@ -93,6 +93,9 @@ class LapachoIme : InputMethodService() {
     private var longPress: Map<String, String> = BASE_LONG_PRESS
     // Set when a word is learned, shown once, gone on the next keystroke.
     private var justLearned: String? = null
+    // True while the space before the cursor is one a suggestion put there,
+    // so a closing mark typed next can take its place: "hola ," -> "hola, ".
+    private var autoSpace = false
     private val predictor: WordPredictor
         get() = loadedPredictor ?: run {
             val t0 = System.nanoTime()
@@ -146,6 +149,7 @@ class LapachoIme : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        autoSpace = false
         // Re-read top-N every time the keyboard becomes visible (docs §4.4:
         // "load from storage when the IME/app becomes active", not on every
         // keystroke). This is also the read half of the P0 exit criterion:
@@ -383,6 +387,7 @@ class LapachoIme : InputMethodService() {
         val typed = currentWord(currentInputConnection?.getTextBeforeCursor(WORD_LOOKBEHIND, 0))
         currentInputConnection?.deleteSurroundingText(typed.length, 0)
         commitText("$word ")
+        autoSpace = true
         refreshStrip()
     }
 
@@ -437,7 +442,12 @@ class LapachoIme : InputMethodService() {
     /** Where every key's text goes: the search query while searching, else the field. */
     private fun output(text: String) {
         if (searchPool == null) {
-            commitText(text)
+            val swap = autoSpace && text in CLOSING_MARKS &&
+                currentInputConnection?.getTextBeforeCursor(1, 0) == " "
+            if (swap) currentInputConnection?.deleteSurroundingText(1, 0)
+            commitText(if (swap) "$text " else text)
+            // Kept after a swap, so "?" then "!" still lands as "hola?! ".
+            autoSpace = swap
             refreshStrip()
             return
         }
@@ -447,6 +457,7 @@ class LapachoIme : InputMethodService() {
 
     private fun backspace() {
         if (searchPool == null) {
+            autoSpace = false
             currentInputConnection?.deleteSurroundingText(1, 0)
             refreshStrip()
             return
@@ -459,6 +470,7 @@ class LapachoIme : InputMethodService() {
     private fun enter() {
         val pool = searchPool
         if (pool == null) {
+            autoSpace = false
             commitText("\n")
             refreshStrip()
             return
@@ -854,5 +866,7 @@ class LapachoIme : InputMethodService() {
         private val BASE_LONG_PRESS = mapOf("a" to "@")
         /** Long press on the period: Spanish needs the opening marks too. */
         private const val PUNCT_ALTERNATES = "¿?¡!"
+        /** Marks that close a word: they sit on it, the space goes after. */
+        private val CLOSING_MARKS = setOf(",", ".", "?", "!", ":", ";")
     }
 }

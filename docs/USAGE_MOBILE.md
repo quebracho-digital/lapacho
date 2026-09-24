@@ -71,7 +71,9 @@ never show up in results.
 
 From the second letter of a word, the strip above the keys stops showing your
 clips and offers up to three words that start with what you typed. Tap one and
-it replaces the word, with a space after it. Finish the word — space,
+it replaces the word, with a space after it. A `, . ? ! : ;` typed right after
+takes that space's place and puts it back after itself — `hola,` rather than
+`hola ,`; a space you typed yourself is left alone. Finish the word — space,
 punctuation, or delete — and your clips come back. It is the same single row
 doing both jobs, so the keyboard does not grow taller.
 

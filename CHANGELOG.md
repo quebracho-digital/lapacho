@@ -4,6 +4,17 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — punctuation sits on the word after a suggestion (`0.1.26`)
+
+- **A suggestion's space no longer strands the punctuation.** Tapping a
+  suggestion commits the word plus a space, so a comma typed next came out
+  as `hola ,`. Now a closing mark (`, . ? ! : ;`) typed right after a
+  suggestion replaces that space and puts it back after itself: `hola, `.
+  Marks in a row stay together — `hola?! `.
+- Only the space the keyboard added moves. One typed by hand, a delete, an
+  enter or a new field clears it, and the character before the cursor must
+  still be a space, so a moved cursor never loses anything else.
+
 ### Android — numeric fields open on the numbers, and stay there (`0.1.25`)
 
 - **A numeric field opens on the numbers layer.** A field that declares
