@@ -21,6 +21,16 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
+    // Every published APK is signed with one debug key (certificate SHA-256
+    // in the README): Android installs an update only over the same key.
+    // CI points here explicitly instead of trusting where the Android
+    // tooling looks for ~/.android/debug.keystore on a runner.
+    signingConfigs {
+        getByName("debug") {
+            System.getenv("LAPACHO_DEBUG_KEYSTORE")?.let { storeFile = file(it) }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -93,7 +93,15 @@ commit it was built from, with the APK, the official dictionaries and a
   `gh`. The tag's workflow run then finds the release and does nothing.
 
 Both sign with the same debug key: the workflow reads it from the secret
-`ANDROID_DEBUG_KEYSTORE` (base64 of `~/.android/debug.keystore`). An APK signed
+`ANDROID_DEBUG_KEYSTORE` (base64 of `~/.android/debug.keystore`), hands it to
+Gradle through `LAPACHO_DEBUG_KEYSTORE`, and refuses to publish an APK whose
+certificate is not this one (SHA-256):
+
+```
+beeb0d4c61e5b8d94f717ce9bf78eeb273af41c8c6b06dbeb44de80d6309d266
+```
+
+Check a downloaded APK with `apksigner verify --print-certs lapacho-….apk`. An APK signed
 with any other key does not install over an existing one, and uninstalling
 first wipes the history and the learned words.
 

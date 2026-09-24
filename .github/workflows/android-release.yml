@@ -18,6 +18,8 @@ permissions:
 
 env:
   GH_TOKEN: ${{ github.token }}
+  # Also read by cargo-ndk; the runner's own points at a different NDK.
+  ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.2.12479018
 
 jobs:
   gate:
@@ -69,11 +71,22 @@ jobs:
           KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
         run: |
           [ -n "$KEYSTORE" ] || { echo "::error::secret ANDROID_DEBUG_KEYSTORE is not set"; exit 1; }
-          mkdir -p ~/.android
-          echo "$KEYSTORE" | base64 -d > ~/.android/debug.keystore
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/debug.keystore"
+          echo "LAPACHO_DEBUG_KEYSTORE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+          # Public: which key the secret holds, to tell a wrong secret from a wrong path.
+          keytool -list -v -keystore "$RUNNER_TEMP/debug.keystore" -storepass android | grep -m1 SHA256
 
       - name: Build and test
         run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
+
+      # The certificate every published APK carries. A mismatch means an APK
+      # that would not install over the previous ones: stop before publishing.
+      - name: Check signing certificate
+        run: |
+          apksigner="$(ls "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)"
+          got="$("$apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | sed -n 's/.*certificate SHA-256 digest: //p')"
+          want=beeb0d4c61e5b8d94f717ce9bf78eeb273af41c8c6b06dbeb44de80d6309d266
+          [ "$got" = "$want" ] || { echo "::error::APK signed with $got, expected $want"; exit 1; }
 
       - name: Package
         run: |
