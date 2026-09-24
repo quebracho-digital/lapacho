@@ -1,3 +1,75 @@
 <resources>
-    <string name="app_name">Lapacho</string>
+    <string name="app_name" translatable="false">Lapacho</string>
+
+    <!-- Main screen -->
+    <string name="header_version" translatable="false">Lapacho %1$s — companion (P0 spike)</string>
+    <string name="input_hint">Type something to save in the encrypted history…</string>
+    <string name="save">Save</string>
+    <string name="clear_history">Clear history</string>
+    <string name="words">Words</string>
+    <string name="languages">Languages</string>
+    <string name="history_title">History (tap an item to copy it):</string>
+    <string name="search_hint">🔍 Search…</string>
+    <string name="copied">Copied</string>
+
+    <!-- Shared buttons -->
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="got_it">Got it</string>
+
+    <string name="clear_message">Every saved item is deleted and the clipboard is emptied. This cannot be undone.</string>
+    <string name="clear_confirm">Clear</string>
+
+    <!-- Learned words -->
+    <string name="learned_words">Learned words</string>
+    <string name="learned_words_count">Learned words (%1$d)\n\n%2$s</string>
+    <string name="no_words">None yet.\n\n%1$s\n\nOn the keyboard, type a word the dictionary does not know, hold the word in the strip above and tap «learn».</string>
+    <string name="forget_all">Forget all</string>
+    <string name="forget_all_message">The %1$d learned words are deleted. The dictionary that came with the app is not touched.</string>
+    <string name="forget_title">Forget «%1$s»</string>
+    <string name="forget_message">The keyboard stops suggesting it. You can teach it again whenever you like.</string>
+    <string name="forget">Forget</string>
+    <string name="probe">Test: «%1$s» → %2$s</string>
+    <string name="probe_nothing">(nothing)</string>
+    <string name="dict_summary">Dictionaries: %1$d words (%2$d languages)</string>
+    <string name="dict_not_loading">Dictionary: NOT LOADING (%1$s: %2$s)</string>
+
+    <!-- Keyboard languages -->
+    <string name="languages_header">Keyboard languages\n\nAll of them are used at once. To add one, download its file with the browser and pick it with «Add». Tap an imported one to remove it.</string>
+    <string name="dict_bundled">bundled with the app</string>
+    <string name="dict_official">official ✓ · sha256 %1$s…</string>
+    <string name="dict_custom">custom · sha256 %1$s…</string>
+    <string name="add">Add</string>
+    <string name="too_many_imported">There are already %1$d imported languages; remove one before adding another.</string>
+    <string name="reading_file">Reading the file…</string>
+    <string name="not_official_title">«%1$s» is not an official dictionary</string>
+    <string name="not_official_message">Its SHA-256 matches none of those published with Lapacho:\n\n%1$s\n\nIt may be a custom dictionary, one published after this version, or a modified one. The worst it can do is suggest words you do not want. Import it only if you know where it came from.</string>
+    <string name="import_as_custom">Import as custom</string>
+    <string name="dict_added">«%1$s» added. The keyboard uses it the next time it opens.</string>
+    <string name="remove_title">Remove «%1$s»</string>
+    <string name="remove_message">The keyboard stops suggesting its words. You can import it again whenever you like.</string>
+    <string name="remove">Remove</string>
+
+    <!-- Dictionary import errors -->
+    <string name="import_failed">Could not import.</string>
+    <string name="downloads_refused">Android will not read the file through the «Downloads» shortcut.\n\nTap Add again and reach the same file through the phone\'s storage: menu ☰ → the phone\'s name → Download.\n\n(%1$s)</string>
+    <string name="read_failed">Could not read the file:\n%1$s: %2$s</string>
+    <string name="err_not_dict">Not a Lapacho dictionary: «%1$s» is missing from the first line.</string>
+    <string name="err_lang">«#lang» is missing or invalid (lowercase letters, digits and dashes, like «en» or «es-medicina»).</string>
+    <string name="err_alternates_format">«#alternates»: «%1$s» is not «key:characters».</string>
+    <string name="err_alternates_rule">«#alternates»: «%1$s» — the key is a letter a-z, followed by 1 to %2$d characters.</string>
+    <string name="err_cant_read">Could not read the file.</string>
+    <string name="err_too_big">The file is over %1$d MB.</string>
+    <string name="err_not_utf8">The file is not UTF-8 text.</string>
+    <string name="err_bundled_lang">«%1$s» already comes with the app; use another «#lang», like «%1$s-ar».</string>
+    <string name="err_no_words">The dictionary has no words.</string>
+
+    <!-- Keyboard -->
+    <string name="key_space">space</string>
+    <string name="learned_chip">✓ «%1$s» learned</string>
+    <string name="learn_chip">learn «%1$s»</string>
+    <string name="private_field">🔒 private field: history hidden</string>
+    <string name="no_clips">(no clips)</string>
+    <string name="no_results">(no results)</string>
+    <string name="empty_clip">(empty)</string>
 </resources>

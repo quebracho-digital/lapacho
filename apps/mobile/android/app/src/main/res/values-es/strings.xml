@@ -1,0 +1,72 @@
+<resources>
+    <!-- Main screen -->
+    <string name="input_hint">Escribí algo para guardar en el historial cifrado…</string>
+    <string name="save">Guardar</string>
+    <string name="clear_history">Borrar historial</string>
+    <string name="words">Palabras</string>
+    <string name="languages">Idiomas</string>
+    <string name="history_title">Historial (tocá un item para copiarlo):</string>
+    <string name="search_hint">🔍 Buscar…</string>
+    <string name="copied">Copiado</string>
+
+    <!-- Shared buttons -->
+    <string name="cancel">Cancelar</string>
+    <string name="close">Cerrar</string>
+    <string name="got_it">Entendido</string>
+
+    <string name="clear_message">Se borran todos los items guardados y se vacía el portapapeles. No se puede deshacer.</string>
+    <string name="clear_confirm">Borrar</string>
+
+    <!-- Learned words -->
+    <string name="learned_words">Palabras aprendidas</string>
+    <string name="learned_words_count">Palabras aprendidas (%1$d)\n\n%2$s</string>
+    <string name="no_words">Ninguna todavía.\n\n%1$s\n\nEn el teclado, escribí una palabra que el diccionario no conozca, mantené apretada la palabra en la tira de arriba y tocá «aprender».</string>
+    <string name="forget_all">Olvidar todas</string>
+    <string name="forget_all_message">Se borran las %1$d palabras aprendidas. El diccionario que vino con la app no se toca.</string>
+    <string name="forget_title">Olvidar «%1$s»</string>
+    <string name="forget_message">El teclado deja de sugerirla. Podés volver a enseñársela cuando quieras.</string>
+    <string name="forget">Olvidar</string>
+    <string name="probe">Prueba: «%1$s» → %2$s</string>
+    <string name="probe_nothing">(nada)</string>
+    <string name="dict_summary">Diccionarios: %1$d palabras (%2$d idiomas)</string>
+    <string name="dict_not_loading">Diccionario: NO CARGA (%1$s: %2$s)</string>
+
+    <!-- Keyboard languages -->
+    <string name="languages_header">Idiomas del teclado\n\nSe usan todos a la vez. Para agregar uno, bajá su archivo con el navegador y elegilo con «Agregar». Tocá uno importado para quitarlo.</string>
+    <string name="dict_bundled">incluido en la app</string>
+    <string name="dict_official">oficial ✓ · sha256 %1$s…</string>
+    <string name="dict_custom">personalizado · sha256 %1$s…</string>
+    <string name="add">Agregar</string>
+    <string name="too_many_imported">Ya hay %1$d idiomas importados; quitá uno antes de agregar otro.</string>
+    <string name="reading_file">Leyendo el archivo…</string>
+    <string name="not_official_title">«%1$s» no es un diccionario oficial</string>
+    <string name="not_official_message">Su SHA-256 no coincide con ninguno de los publicados con Lapacho:\n\n%1$s\n\nPuede ser un diccionario personalizado, uno publicado después de esta versión, o uno modificado. Lo peor que puede hacer es sugerir palabras que no querés. Importalo solo si sabés de dónde salió.</string>
+    <string name="import_as_custom">Importar como personalizado</string>
+    <string name="dict_added">«%1$s» agregado. El teclado lo usa la próxima vez que se abra.</string>
+    <string name="remove_title">Quitar «%1$s»</string>
+    <string name="remove_message">El teclado deja de sugerir sus palabras. Podés volver a importarlo cuando quieras.</string>
+    <string name="remove">Quitar</string>
+
+    <!-- Dictionary import errors -->
+    <string name="import_failed">No se pudo importar.</string>
+    <string name="downloads_refused">Android no deja leer el archivo por el acceso «Descargas».\n\nVolvé a Agregar y llegá al mismo archivo por el almacenamiento del teléfono: menú ☰ → el nombre del teléfono → Download.\n\n(%1$s)</string>
+    <string name="read_failed">No se pudo leer el archivo:\n%1$s: %2$s</string>
+    <string name="err_not_dict">No es un diccionario de Lapacho: falta «%1$s» en la primera línea.</string>
+    <string name="err_lang">«#lang» falta o no es válido (minúsculas, dígitos y guiones, como «en» o «es-medicina»).</string>
+    <string name="err_alternates_format">«#alternates»: «%1$s» no es «tecla:caracteres».</string>
+    <string name="err_alternates_rule">«#alternates»: «%1$s» — la tecla es una letra a-z y van de 1 a %2$d caracteres.</string>
+    <string name="err_cant_read">No se pudo leer el archivo.</string>
+    <string name="err_too_big">El archivo pasa de %1$d MB.</string>
+    <string name="err_not_utf8">El archivo no es texto UTF-8.</string>
+    <string name="err_bundled_lang">«%1$s» ya viene con la app; usá otro «#lang», como «%1$s-ar».</string>
+    <string name="err_no_words">El diccionario no tiene palabras.</string>
+
+    <!-- Keyboard -->
+    <string name="key_space">espacio</string>
+    <string name="learned_chip">✓ «%1$s» aprendida</string>
+    <string name="learn_chip">aprender «%1$s»</string>
+    <string name="private_field">🔒 campo privado: historial oculto</string>
+    <string name="no_clips">(sin clips)</string>
+    <string name="no_results">(sin resultados)</string>
+    <string name="empty_clip">(vacío)</string>
+</resources>

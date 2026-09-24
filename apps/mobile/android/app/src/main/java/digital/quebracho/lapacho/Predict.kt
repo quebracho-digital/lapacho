@@ -2,6 +2,8 @@ package digital.quebracho.lapacho
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.StringRes
+import digital.quebracho.lapacho.app.R
 import uniffi.lapacho_mobile_bridge.WordPredictor
 import java.io.File
 import java.nio.ByteBuffer
@@ -63,19 +65,20 @@ class PickedDict(val header: DictHeader, val sha256: String, internal val bytes:
  */
 fun parseHeader(text: String): DictHeader {
     val lines = text.lineSequence().map(String::trim)
-    require(lines.firstOrNull() == DICT_MAGIC) { "No es un diccionario de Lapacho: falta «$DICT_MAGIC» en la primera línea." }
+    refuseUnless(lines.firstOrNull() == DICT_MAGIC, R.string.err_not_dict, DICT_MAGIC)
     val fields = lines.drop(1).takeWhile { it.startsWith("#") }
         .mapNotNull { it.removePrefix("#").split(Regex("\\s+"), limit = 2).takeIf { f -> f.size == 2 } }
         .associate { (k, v) -> k to v.trim() }
     val lang = fields["lang"].orEmpty()
     // It becomes a file name: nothing that can climb out of the directory.
-    require(LANG.matches(lang)) { "«#lang» falta o no es válido (minúsculas, dígitos y guiones, como «en» o «es-medicina»)." }
+    refuseUnless(LANG.matches(lang), R.string.err_lang)
     val alternates = fields["alternates"].orEmpty().split(Regex("\\s+")).filter(String::isNotEmpty).associate { pair ->
         val (key, chars) = pair.split(":", limit = 2).takeIf { it.size == 2 }
-            ?: throw IllegalArgumentException("«#alternates»: «$pair» no es «tecla:caracteres».")
-        require(key.length == 1 && key[0] in 'a'..'z' && chars.length in 1..MAX_ALTERNATES) {
-            "«#alternates»: «$pair» — la tecla es una letra a-z y van de 1 a $MAX_ALTERNATES caracteres."
-        }
+            ?: throw UserError(R.string.err_alternates_format, pair)
+        refuseUnless(
+            key.length == 1 && key[0] in 'a'..'z' && chars.length in 1..MAX_ALTERNATES,
+            R.string.err_alternates_rule, pair, MAX_ALTERNATES,
+        )
         key to chars
     }
     return DictHeader(lang, fields["name"] ?: lang, alternates)
@@ -152,17 +155,17 @@ fun readDictionary(context: Context, uri: Uri): PickedDict {
             out.write(buf, 0, n)
         }
         out.toByteArray()
-    } ?: throw IllegalArgumentException("No se pudo leer el archivo.")
-    require(bytes.size <= MAX_DICT_BYTES) { "El archivo pasa de ${MAX_DICT_BYTES / 1024 / 1024} MB." }
+    } ?: throw UserError(R.string.err_cant_read)
+    refuseUnless(bytes.size <= MAX_DICT_BYTES, R.string.err_too_big, MAX_DICT_BYTES / 1024 / 1024)
     val text = try {
         Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
             .decode(ByteBuffer.wrap(bytes)).toString()
     } catch (e: java.nio.charset.CharacterCodingException) {
-        throw IllegalArgumentException("El archivo no es texto UTF-8.")
+        throw UserError(R.string.err_not_utf8)
     }
     val header = parseHeader(text)
-    require(header.lang != BUNDLED_LANG) { "«$BUNDLED_LANG» ya viene con la app; usá otro «#lang», como «$BUNDLED_LANG-ar»." }
-    require(text.lineSequence().any { it.isNotBlank() && !it.trimStart().startsWith("#") }) { "El diccionario no tiene palabras." }
+    refuseUnless(header.lang != BUNDLED_LANG, R.string.err_bundled_lang, BUNDLED_LANG)
+    refuseUnless(text.lineSequence().any { it.isNotBlank() && !it.trimStart().startsWith("#") }, R.string.err_no_words)
     return PickedDict(header, sha256(bytes), bytes)
 }
 
@@ -174,11 +177,19 @@ fun installDictionary(context: Context, picked: PickedDict) {
     val lang = picked.header.lang
     val dir = importedDir(context).apply { mkdirs() }
     val target = File(dir, "$lang.txt")
-    require(target.exists() || importedFiles(context).size < MAX_IMPORTED) {
-        "Ya hay $MAX_IMPORTED idiomas importados; quitá uno antes de agregar otro."
-    }
+    refuseUnless(target.exists() || importedFiles(context).size < MAX_IMPORTED, R.string.too_many_imported, MAX_IMPORTED)
     // Written aside and renamed, so the keyboard never reads half a file.
     File(dir, "$lang.tmp").apply { writeBytes(picked.bytes); renameTo(target) }
+}
+
+/**
+ * A refusal meant for the user, carried as a string resource so the screen
+ * that shows it picks the language: the parser has no Context to ask.
+ */
+class UserError(@StringRes val id: Int, vararg val args: Any) : IllegalArgumentException()
+
+private fun refuseUnless(ok: Boolean, @StringRes id: Int, vararg args: Any) {
+    if (!ok) throw UserError(id, *args)
 }
 
 private fun sha256(bytes: ByteArray): String =

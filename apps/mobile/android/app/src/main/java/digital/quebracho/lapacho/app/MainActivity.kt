@@ -29,6 +29,7 @@ import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.InstalledDict
 import digital.quebracho.lapacho.MAX_IMPORTED
 import digital.quebracho.lapacho.PickedDict
+import digital.quebracho.lapacho.UserError
 import digital.quebracho.lapacho.installDictionary
 import digital.quebracho.lapacho.readDictionary
 import digital.quebracho.lapacho.installedDictionaries
@@ -91,7 +92,7 @@ class MainActivity : AppCompatActivity() {
         // Off the main thread: the picker can hand over a file that is not on
         // the phone yet (Drive, a "recent" entry), and reading it can take as
         // long as downloading it — long enough for Android to kill the app.
-        val reading = AlertDialog.Builder(this).setMessage("Leyendo el archivo…").setCancelable(false).show()
+        val reading = AlertDialog.Builder(this).setMessage(R.string.reading_file).setCancelable(false).show()
         Thread {
             val result = runCatching { readDictionary(this, uri) }
             runOnUiThread {
@@ -109,14 +110,13 @@ class MainActivity : AppCompatActivity() {
      * be able to say what went wrong.
      */
     private fun failureMessage(e: Throwable): String {
-        if (e is IllegalArgumentException) return e.message ?: "No se pudo importar."
+        if (e is UserError) return getString(e.id, *e.args)
+        if (e is IllegalArgumentException) return e.message ?: getString(R.string.import_failed)
         Log.e(TAG, "dictionary import failed", e)
         if (e is SecurityException) {
-            return "Android no deja leer el archivo por el acceso «Descargas».\n\n" +
-                "Volvé a Agregar y llegá al mismo archivo por el almacenamiento del teléfono: " +
-                "menú ☰ → el nombre del teléfono → Download.\n\n(${e.message})"
+            return getString(R.string.downloads_refused, e.message)
         }
-        return "No se pudo leer el archivo:\n${e.javaClass.simpleName}: ${e.message}"
+        return getString(R.string.read_failed, e.javaClass.simpleName, e.message)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -127,7 +127,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         // Shows which build is installed: APKs are sideloaded from a URL a CDN may cache.
         findViewById<TextView>(R.id.header).text =
-            "Lapacho ${packageManager.getPackageInfo(packageName, 0).versionName} — companion (P0 spike)"
+            getString(R.string.header_version, packageManager.getPackageInfo(packageName, 0).versionName)
         // Targeting API 35 draws edge-to-edge: keep the content clear of the
         // status bar, the navigation bar and the keyboard.
         val root = findViewById<View>(R.id.root)
@@ -205,16 +205,16 @@ class MainActivity : AppCompatActivity() {
      */
     private fun confirmClear() {
         AlertDialog.Builder(this)
-            .setTitle("Borrar historial")
-            .setMessage("Se borran todos los items guardados y se vacía el portapapeles. No se puede deshacer.")
-            .setPositiveButton("Borrar") { _, _ ->
+            .setTitle(R.string.clear_history)
+            .setMessage(R.string.clear_message)
+            .setPositiveButton(R.string.clear_confirm) { _, _ ->
                 repo.clear()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).clearPrimaryClip()
                 }
                 refresh()
             }
-            .setNegativeButton("Cancelar", null)
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
@@ -228,21 +228,17 @@ class MainActivity : AppCompatActivity() {
         val words = repo.lexicon()
         if (words.isEmpty()) {
             AlertDialog.Builder(this)
-                .setTitle("Palabras aprendidas")
-                .setMessage(
-                    "Ninguna todavía.\n\n${dictionaryStatus(words)}\n\nEn el teclado, escribí una palabra " +
-                        "que el diccionario no conozca, mantené apretada la palabra en la tira de arriba " +
-                        "y tocá «aprender».",
-                )
-                .setPositiveButton("Entendido", null)
+                .setTitle(R.string.learned_words)
+                .setMessage(getString(R.string.no_words, dictionaryStatus(words)))
+                .setPositiveButton(R.string.got_it, null)
                 .show()
             return
         }
         AlertDialog.Builder(this)
-            .setCustomTitle(dialogHeader("Palabras aprendidas (${words.size})\n\n${dictionaryStatus(words)}"))
+            .setCustomTitle(dialogHeader(getString(R.string.learned_words_count, words.size, dictionaryStatus(words))))
             .setItems(words.toTypedArray()) { _, position -> confirmForget(words[position]) }
-            .setNeutralButton("Olvidar todas") { _, _ -> confirmForgetAll(words.size) }
-            .setNegativeButton("Cerrar", null)
+            .setNeutralButton(R.string.forget_all) { _, _ -> confirmForgetAll(words.size) }
+            .setNegativeButton(R.string.close, null)
             .show()
     }
 
@@ -256,30 +252,25 @@ class MainActivity : AppCompatActivity() {
         val dicts = installedDictionaries(this)
         val labels = dicts.map { d ->
             val origin = when {
-                d.file == null -> "incluido en la app"
-                d.official -> "oficial ✓ · sha256 ${d.sha256?.take(12)}…"
-                else -> "personalizado · sha256 ${d.sha256?.take(12)}…"
+                d.file == null -> getString(R.string.dict_bundled)
+                d.official -> getString(R.string.dict_official, d.sha256?.take(12))
+                else -> getString(R.string.dict_custom, d.sha256?.take(12))
             }
             "${d.header.name} (${d.header.lang})\n$origin"
         }
         AlertDialog.Builder(this)
-            .setCustomTitle(
-                dialogHeader(
-                    "Idiomas del teclado\n\nSe usan todos a la vez. Para agregar uno, bajá su archivo con el " +
-                        "navegador y elegilo con «Agregar». Tocá uno importado para quitarlo.",
-                ),
-            )
+            .setCustomTitle(dialogHeader(getString(R.string.languages_header)))
             .setItems(labels.toTypedArray()) { _, i -> dicts[i].file?.let { confirmRemove(dicts[i]) } ?: showLanguages() }
-            .setPositiveButton("Agregar") { _, _ ->
+            .setPositiveButton(R.string.add) { _, _ ->
                 if (dicts.size - 1 >= MAX_IMPORTED) {
                     AlertDialog.Builder(this)
-                        .setMessage("Ya hay $MAX_IMPORTED idiomas importados; quitá uno antes de agregar otro.")
-                        .setPositiveButton("Entendido", null).show()
+                        .setMessage(getString(R.string.too_many_imported, MAX_IMPORTED))
+                        .setPositiveButton(R.string.got_it, null).show()
                 } else {
                     pickDictionary.launch(arrayOf("*/*"))
                 }
             }
-            .setNegativeButton("Cerrar", null)
+            .setNegativeButton(R.string.close, null)
             .show()
     }
 
@@ -291,22 +282,17 @@ class MainActivity : AppCompatActivity() {
      */
     private fun confirmCustom(picked: PickedDict) {
         AlertDialog.Builder(this)
-            .setTitle("«${picked.header.name}» no es un diccionario oficial")
-            .setMessage(
-                "Su SHA-256 no coincide con ninguno de los publicados con Lapacho:\n\n${picked.sha256}\n\n" +
-                    "Puede ser un diccionario personalizado, uno publicado después de esta versión, o uno " +
-                    "modificado. Lo peor que puede hacer es sugerir palabras que no querés. " +
-                    "Importalo solo si sabés de dónde salió.",
-            )
-            .setPositiveButton("Importar como personalizado") { _, _ -> install(picked) }
-            .setNegativeButton("Cancelar") { _, _ -> showLanguages() }
+            .setTitle(getString(R.string.not_official_title, picked.header.name))
+            .setMessage(getString(R.string.not_official_message, picked.sha256))
+            .setPositiveButton(R.string.import_as_custom) { _, _ -> install(picked) }
+            .setNegativeButton(R.string.cancel) { _, _ -> showLanguages() }
             .show()
     }
 
     private fun install(picked: PickedDict) {
         val message = try {
             installDictionary(this, picked)
-            "«${picked.header.name}» agregado. El teclado lo usa la próxima vez que se abra."
+            getString(R.string.dict_added, picked.header.name)
         } catch (e: Exception) {
             failureMessage(e)
         }
@@ -314,15 +300,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun tellThenShowLanguages(message: String) {
-        AlertDialog.Builder(this).setMessage(message).setPositiveButton("Entendido") { _, _ -> showLanguages() }.show()
+        AlertDialog.Builder(this).setMessage(message).setPositiveButton(R.string.got_it) { _, _ -> showLanguages() }.show()
     }
 
     private fun confirmRemove(dict: InstalledDict) {
         AlertDialog.Builder(this)
-            .setTitle("Quitar «${dict.header.name}»")
-            .setMessage("El teclado deja de sugerir sus palabras. Podés volver a importarlo cuando quieras.")
-            .setPositiveButton("Quitar") { _, _ -> dict.file?.delete(); showLanguages() }
-            .setNegativeButton("Cancelar", null)
+            .setTitle(getString(R.string.remove_title, dict.header.name))
+            .setMessage(R.string.remove_message)
+            .setPositiveButton(R.string.remove) { _, _ -> dict.file?.delete(); showLanguages() }
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
@@ -347,28 +333,28 @@ class MainActivity : AppCompatActivity() {
         val test = probe?.let {
             val prefix = it.take(maxOf(2, it.length - 3))
             val hits = predictor.suggest(prefix, 3u)
-            "Prueba: «$prefix» → ${if (hits.isEmpty()) "(nada)" else hits.joinToString(", ")}"
+            getString(R.string.probe, prefix, if (hits.isEmpty()) getString(R.string.probe_nothing) else hits.joinToString(", "))
         }
-        listOfNotNull("Diccionarios: $inDictionaries palabras (${installedDictionaries(this).size} idiomas)", test).joinToString("\n")
+        listOfNotNull(getString(R.string.dict_summary, inDictionaries, installedDictionaries(this).size), test).joinToString("\n")
     } catch (e: Exception) {
-        "Diccionario: NO CARGA (${e.javaClass.simpleName}: ${e.message})"
+        getString(R.string.dict_not_loading, e.javaClass.simpleName, e.message)
     }
 
     private fun confirmForget(word: String) {
         AlertDialog.Builder(this)
-            .setTitle("Olvidar «$word»")
-            .setMessage("El teclado deja de sugerirla. Podés volver a enseñársela cuando quieras.")
-            .setPositiveButton("Olvidar") { _, _ -> repo.forget(word); showLexicon() }
-            .setNegativeButton("Cancelar", null)
+            .setTitle(getString(R.string.forget_title, word))
+            .setMessage(R.string.forget_message)
+            .setPositiveButton(R.string.forget) { _, _ -> repo.forget(word); showLexicon() }
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
     private fun confirmForgetAll(count: Int) {
         AlertDialog.Builder(this)
-            .setTitle("Olvidar todas")
-            .setMessage("Se borran las $count palabras aprendidas. El diccionario que vino con la app no se toca.")
-            .setPositiveButton("Olvidar todas") { _, _ -> repo.forgetAll() }
-            .setNegativeButton("Cancelar", null)
+            .setTitle(R.string.forget_all)
+            .setMessage(getString(R.string.forget_all_message, count))
+            .setPositiveButton(R.string.forget_all) { _, _ -> repo.forgetAll() }
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
@@ -391,7 +377,7 @@ class MainActivity : AppCompatActivity() {
         (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
         // Android 13+ shows its own confirmation; a toast there would say it twice.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.copied, Toast.LENGTH_SHORT).show()
         }
     }
 }

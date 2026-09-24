@@ -4,6 +4,19 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — the app speaks English too
+
+- **Every text the app and the keyboard show is a string resource**, in
+  English (`values/`) and Spanish (`values-es/`). The app follows the
+  phone's language; on Android 13+ it can also be set for Lapacho alone in
+  Settings → Apps → Lapacho → Language (`locales_config.xml`). Any language
+  other than Spanish falls back to English.
+- Dictionary import errors are thrown as `UserError(stringRes, args)`: the
+  parser has no Context, so the screen showing the error picks the language.
+- Checked on the emulator with `cmd locale set-app-locales`: the main screen
+  in `en` and in `es`. The keyboard's own labels (`space`, the strip chips)
+  were not looked at on screen.
+
 ### Android — punctuation sits on the word after a suggestion (`0.1.26`)
 
 - **A suggestion's space no longer strands the punctuation.** Tapping a

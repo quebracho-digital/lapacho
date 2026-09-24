@@ -16,7 +16,7 @@
         android:id="@+id/input"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Escribí algo para guardar en el historial cifrado…" />
+        android:hint="@string/input_hint" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -27,14 +27,14 @@
             android:id="@+id/save_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Guardar" />
+            android:text="@string/save" />
 
         <Button
             android:id="@+id/clear_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="Borrar historial" />
+            android:text="@string/clear_history" />
     </LinearLayout>
 
     <!-- A row of its own: four buttons do not fit across a phone, and the
@@ -48,28 +48,28 @@
             android:id="@+id/words_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Palabras" />
+            android:text="@string/words" />
 
         <Button
             android:id="@+id/languages_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="Idiomas" />
+            android:text="@string/languages" />
     </LinearLayout>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingTop="16dp"
-        android:text="Historial (tocá un item para copiarlo):"
+        android:text="@string/history_title"
         android:textStyle="bold" />
 
     <EditText
         android:id="@+id/search"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="🔍 Buscar…"
+        android:hint="@string/search_hint"
         android:inputType="text" />
 
     <ListView
