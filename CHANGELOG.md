@@ -4,6 +4,20 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — builds for Windows and macOS in CI
+
+- `.github/workflows/desktop-build.yml` builds and tests the desktop app on
+  Linux, Windows and macOS and keeps the installers (`.deb`, `.rpm`,
+  AppImage, `.msi`, `.exe`, `.dmg`) as workflow artifacts. Unsigned, and not
+  attached to releases until the three build clean.
+- `keyring` was declared as a Linux-only dependency while `keystore.rs` uses
+  it everywhere, so the app could not compile anywhere else. It is now a
+  plain dependency with every platform's backend enabled.
+- `tauri.conf.json` ran trunk through `env -u NO_COLOR …`, which does not
+  exist on Windows. The prefix only mattered for shells that export
+  `NO_COLOR=1` (trunk wants `true`/`false`); `install.sh` and the README
+  already drop it at the call site, so the config runs plain `trunk`.
+
 ### Releases on GitHub
 
 - Every version is now a GitHub release, tagged `v<versionName>`, with the

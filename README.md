@@ -245,7 +245,7 @@ cargo build --workspace
 
 # Run the desktop app
 cd apps/desktop/src-tauri
-# On this environment, trunk is sensitive to color env vars; use the prefix:
+# trunk rejects NO_COLOR=1 (it wants true/false); if your shell exports it, drop it:
 env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always CARGO_TERM_COLOR=never \
   cargo tauri dev
 ```
