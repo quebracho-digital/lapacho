@@ -12,7 +12,7 @@ downloads one; you bring it (why: [`DECISIONS.md`](DECISIONS.md)).
    over USB. Official ones are on the download page, as
    `lapacho-dict-<lang>-<hash>.dict` — `.dict` rather than `.txt` so the
    browser saves the file instead of opening it as a page of text.
-2. In the Lapacho app, tap **IDIOMAS → AGREGAR**. The picker opens on the
+2. In the Lapacho app, tap **LANGUAGES → ADD**. The picker opens on the
    phone's **Download** folder; pick the file there.
 3. If it is one of ours, it goes straight in. If it is not, the app says so
    first — see below.
@@ -30,12 +30,12 @@ Download**. That is where the picker opens by default since `0.1.23`.
 publish. A file that matches imports without a question and is listed as
 **oficial ✓**. One that does not — your own list, one published after your
 version of the app, or one somebody altered — gets a warning with its full
-hash and two buttons: **Importar como personalizado** or **Cancelar**. The app
+hash and two buttons: **Import as custom** or **Cancel**. The app
 cannot tell those three cases apart, so it asks, every time, per file; there
 is no setting that turns the check off for good. Either way the file must pass
 the [format](#format) check.
 
-**IDIOMAS** lists what the keyboard is using — the bundled Spanish, then each
+**LANGUAGES** lists what the keyboard is using — the bundled Spanish, then each
 imported file as *oficial ✓* or *personalizado*, with the start of its
 SHA-256. Tap an imported one to remove it. Up to **two** imported
 dictionaries at a time, on top of Spanish; importing one whose `#lang` is
@@ -62,7 +62,7 @@ kubectl
 |------|----------|---------|
 | `#lapacho-dict 1` | yes, **first line** | Marks the file as a dictionary. Anything else is refused. |
 | `#lang <id>` | yes | Identifies it: lowercase letters, digits and `-`, up to 32 (`en`, `pt-br`, `es-medicina`). Also its file name inside the app, so a second file with the same `id` replaces the first. `es` is taken by the bundled one. |
-| `#name <text>` | no | What **IDIOMAS** shows. Defaults to the `id`. |
+| `#name <text>` | no | What **LANGUAGES** shows. Defaults to the `id`. |
 | `#alternates <key:chars> …` | no | Characters added to a key's long press, space-separated pairs. The key is one letter `a`–`z`, 1 to 8 characters after it. `#alternates e:éèêë c:ç` makes holding `e` offer é è ê ë. |
 
 Alternates from every active dictionary are merged, each character once, after
@@ -97,7 +97,7 @@ turned into **shares of that file's total** before mixing. "de" is about 3.5 %
 of the Spanish list and "the" about 3.3 % of the English one, so they compete
 on equal terms even though the English corpus is bigger.
 A word in two files keeps its higher share. A word you taught the keyboard
-(PALABRAS) always comes first.
+(WORDS) always comes first.
 
 Which has a consequence for small custom lists: **the fewer words in a file,
 the larger each one's share.** A 100-word list with equal frequencies gives

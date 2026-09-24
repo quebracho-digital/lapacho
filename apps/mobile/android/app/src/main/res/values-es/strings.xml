@@ -22,13 +22,27 @@
     <string name="learned_words_count">Palabras aprendidas (%1$d)\n\n%2$s</string>
     <string name="no_words">Ninguna todavía.\n\n%1$s\n\nEn el teclado, escribí una palabra que el diccionario no conozca, mantené apretada la palabra en la tira de arriba y tocá «aprender».</string>
     <string name="forget_all">Olvidar todas</string>
-    <string name="forget_all_message">Se borran las %1$d palabras aprendidas. El diccionario que vino con la app no se toca.</string>
+    <plurals name="forget_all_message">
+        <item quantity="one">Se borra la palabra aprendida. El diccionario que vino con la app no se toca.</item>
+        <item quantity="many">Se borran las %1$d palabras aprendidas. El diccionario que vino con la app no se toca.</item>
+        <item quantity="other">Se borran las %1$d palabras aprendidas. El diccionario que vino con la app no se toca.</item>
+    </plurals>
     <string name="forget_title">Olvidar «%1$s»</string>
     <string name="forget_message">El teclado deja de sugerirla. Podés volver a enseñársela cuando quieras.</string>
     <string name="forget">Olvidar</string>
     <string name="probe">Prueba: «%1$s» → %2$s</string>
     <string name="probe_nothing">(nada)</string>
-    <string name="dict_summary">Diccionarios: %1$d palabras (%2$d idiomas)</string>
+    <string name="dict_summary">Diccionarios: %1$s (%2$s)</string>
+    <plurals name="word_count">
+        <item quantity="one">%1$d palabra</item>
+        <item quantity="many">%1$d palabras</item>
+        <item quantity="other">%1$d palabras</item>
+    </plurals>
+    <plurals name="language_count">
+        <item quantity="one">%1$d idioma</item>
+        <item quantity="many">%1$d idiomas</item>
+        <item quantity="other">%1$d idiomas</item>
+    </plurals>
     <string name="dict_not_loading">Diccionario: NO CARGA (%1$s: %2$s)</string>
 
     <!-- Keyboard languages -->

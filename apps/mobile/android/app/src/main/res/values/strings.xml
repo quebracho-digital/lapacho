@@ -25,13 +25,24 @@
     <string name="learned_words_count">Learned words (%1$d)\n\n%2$s</string>
     <string name="no_words">None yet.\n\n%1$s\n\nOn the keyboard, type a word the dictionary does not know, hold the word in the strip above and tap «learn».</string>
     <string name="forget_all">Forget all</string>
-    <string name="forget_all_message">The %1$d learned words are deleted. The dictionary that came with the app is not touched.</string>
+    <plurals name="forget_all_message">
+        <item quantity="one">The learned word is deleted. The dictionary that came with the app is not touched.</item>
+        <item quantity="other">The %1$d learned words are deleted. The dictionary that came with the app is not touched.</item>
+    </plurals>
     <string name="forget_title">Forget «%1$s»</string>
     <string name="forget_message">The keyboard stops suggesting it. You can teach it again whenever you like.</string>
     <string name="forget">Forget</string>
     <string name="probe">Test: «%1$s» → %2$s</string>
     <string name="probe_nothing">(nothing)</string>
-    <string name="dict_summary">Dictionaries: %1$d words (%2$d languages)</string>
+    <string name="dict_summary">Dictionaries: %1$s (%2$s)</string>
+    <plurals name="word_count">
+        <item quantity="one">%1$d word</item>
+        <item quantity="other">%1$d words</item>
+    </plurals>
+    <plurals name="language_count">
+        <item quantity="one">%1$d language</item>
+        <item quantity="other">%1$d languages</item>
+    </plurals>
     <string name="dict_not_loading">Dictionary: NOT LOADING (%1$s: %2$s)</string>
 
     <!-- Keyboard languages -->

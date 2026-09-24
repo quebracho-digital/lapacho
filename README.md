@@ -21,6 +21,7 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > strip, encrypted history, word suggestions and spelling corrections from
 > on-device dictionaries (Spanish bundled, others imported and mixed), and the
 > same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
+> The app and the keyboard speak English and Spanish.
 > Downloads: [web.fishman.work](https://web.fishman.work/) (English) ·
 > [en español](https://web.fishman.work/es). See [Mobile](#mobile).
 
@@ -135,7 +136,9 @@ word the strip offers up to three completions from a bundled dictionary
 (`lapacho-predict` over 49 525 Spanish words, accent- and case-insensitive),
 and gives the clips back when the word ends. When nothing completes the
 word, it offers **corrections** instead (`graicas` → gracias, `thnaks` →
-thanks) — offered in the strip, applied only if tapped. Other languages and custom word
+thanks) — offered in the strip, applied only if tapped. A suggestion comes
+with its space, and a `, . ? ! : ;` typed right after takes that space's place
+(`hola, ` rather than `hola ,`). Other languages and custom word
 lists are imported from a file and **mixed** with Spanish, no switch key
 ([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md)).
 
@@ -148,6 +151,13 @@ entry. There is no background language model, and dictionaries for other
 languages are imported from a file rather than downloaded — the keyboard has
 no network permission and is not getting one. The reasoning for all three is
 in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+**The interface is in English and Spanish**, separately from the dictionaries:
+the app and the keyboard's labels follow the phone's language (Spanish if it is
+any Spanish, English otherwise), and on Android 13+ Lapacho alone can be set in
+Settings → Apps → Lapacho → Language. The texts live in
+`res/values/strings.xml` and `res/values-es/strings.xml`; another language is
+one more `values-xx/` folder and a line in `res/xml/locales_config.xml`.
 
 Build notes and known gaps: [`apps/mobile/android/README.md`](apps/mobile/android/README.md).
 
@@ -297,6 +307,8 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
       imported from a file and mixed ([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md))
 - [x] Android: spell correction, offered in the strip and never applied by
       itself (`Predictor::correct`)
+- [x] Android: interface in English and Spanish, following the phone or the
+      per-app language setting
 - [ ] Android: storage, keyed ids and persistence levels in Rust
       ([`docs/MIGRACION_MOBILE_RUST.md`](docs/MIGRACION_MOBILE_RUST.md))
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)

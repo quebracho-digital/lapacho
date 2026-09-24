@@ -335,7 +335,13 @@ class MainActivity : AppCompatActivity() {
             val hits = predictor.suggest(prefix, 3u)
             getString(R.string.probe, prefix, if (hits.isEmpty()) getString(R.string.probe_nothing) else hits.joinToString(", "))
         }
-        listOfNotNull(getString(R.string.dict_summary, inDictionaries, installedDictionaries(this).size), test).joinToString("\n")
+        val languages = installedDictionaries(this).size
+        val summary = getString(
+            R.string.dict_summary,
+            resources.getQuantityString(R.plurals.word_count, inDictionaries, inDictionaries),
+            resources.getQuantityString(R.plurals.language_count, languages, languages),
+        )
+        listOfNotNull(summary, test).joinToString("\n")
     } catch (e: Exception) {
         getString(R.string.dict_not_loading, e.javaClass.simpleName, e.message)
     }
@@ -352,7 +358,7 @@ class MainActivity : AppCompatActivity() {
     private fun confirmForgetAll(count: Int) {
         AlertDialog.Builder(this)
             .setTitle(R.string.forget_all)
-            .setMessage(getString(R.string.forget_all_message, count))
+            .setMessage(resources.getQuantityString(R.plurals.forget_all_message, count, count))
             .setPositiveButton(R.string.forget_all) { _, _ -> repo.forgetAll() }
             .setNegativeButton(R.string.cancel, null)
             .show()

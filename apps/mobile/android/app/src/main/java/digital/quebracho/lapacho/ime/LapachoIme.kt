@@ -3,11 +3,15 @@ package digital.quebracho.lapacho.ime
 import digital.quebracho.lapacho.app.R
 import android.content.ClipboardManager
 import android.content.Context
+import android.app.LocaleManager
 import android.content.res.ColorStateList
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.inputmethodservice.InputMethodService
+import android.os.Build
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
@@ -108,6 +112,7 @@ class LapachoIme : InputMethodService() {
     private var query = ""
     private var createdAtNanos: Long = 0
     private var lastCapturedId: String? = null
+    private lateinit var strings: Resources
 
     override fun onCreate() {
         super.onCreate()
@@ -117,7 +122,23 @@ class LapachoIme : InputMethodService() {
         repo = HistoryRepo(applicationContext)
     }
 
+    /**
+     * The keyboard's texts in the language picked for Lapacho in Android 13+'s
+     * per-app setting. Android applies that choice to the app's activities but
+     * not to this service, which kept following the phone's language.
+     * ponytail: read when the keys are built, so a change shows the next time
+     * Android recreates the keyboard's view, not mid-session.
+     */
+    private fun appResources(): Resources {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return resources
+        val locales = getSystemService(LocaleManager::class.java).applicationLocales
+        if (locales.isEmpty) return resources
+        val config = Configuration(resources.configuration).apply { setLocales(locales) }
+        return createConfigurationContext(config).resources
+    }
+
     override fun onCreateInputView(): View {
+        strings = appResources()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(KEYBOARD_BG)
@@ -281,7 +302,7 @@ class LapachoIme : InputMethodService() {
         // never suggested back, because there is nothing left to complete.
         justLearned?.let { word ->
             justLearned = null
-            pasteStrip.addView(pasteButton(getString(R.string.learned_chip, word)) {})
+            pasteStrip.addView(pasteButton(strings.getString(R.string.learned_chip, word)) {})
             return
         }
         searchPool?.let { showSearch(it); return }
@@ -369,7 +390,7 @@ class LapachoIme : InputMethodService() {
         // devices refuse to draw an IME's popup.
         popupNear(anchor, 0) { row, popup ->
             row.addView(
-                pasteButton(getString(R.string.learn_chip, word)) {
+                pasteButton(strings.getString(R.string.learn_chip, word)) {
                     repo.learn(word)
                     // Rebuilt on the next lookup, with the new word in it.
                     lexicon = lexicon + word
@@ -399,12 +420,12 @@ class LapachoIme : InputMethodService() {
         // In a password field or an incognito session the history stays
         // hidden: nothing we show there should be visible over a secret.
         if (privateField) {
-            pasteStrip.addView(pasteButton(getString(R.string.private_field)) {})
+            pasteStrip.addView(pasteButton(strings.getString(R.string.private_field)) {})
             return
         }
         if (clips.isEmpty()) {
             if (secretOnClipboard) return
-            pasteStrip.addView(pasteButton(getString(R.string.no_clips)) {})
+            pasteStrip.addView(pasteButton(strings.getString(R.string.no_clips)) {})
             return
         }
         pasteStrip.addView(pasteButton("🔍") { startSearch() })
@@ -434,7 +455,7 @@ class LapachoIme : InputMethodService() {
         pasteStrip.addView(pasteButton("✕") { stopSearch() })
         pasteStrip.addView(pasteButton("🔍 $query▏") {})
         val hits = searchHits(pool)
-        if (hits.isEmpty()) pasteStrip.addView(pasteButton(getString(R.string.no_results)) {})
+        if (hits.isEmpty()) pasteStrip.addView(pasteButton(strings.getString(R.string.no_results)) {})
         for (item in hits) {
             pasteStrip.addView(pasteButton(previewLabel(item)) { commitRaw(item); stopSearch() })
         }
@@ -494,7 +515,7 @@ class LapachoIme : InputMethodService() {
     private fun previewLabel(item: ClipboardItem): String {
         if (item.isMasked()) return "🔑 ••••••"
         val oneLine = item.displayContent.replace('\n', ' ').trim()
-        return if (oneLine.length > LABEL_MAX) oneLine.take(LABEL_MAX - 1) + "…" else oneLine.ifEmpty { getString(R.string.empty_clip) }
+        return if (oneLine.length > LABEL_MAX) oneLine.take(LABEL_MAX - 1) + "…" else oneLine.ifEmpty { strings.getString(R.string.empty_clip) }
     }
 
     private fun pasteButton(label: String, onClick: () -> Unit): Button =
@@ -764,7 +785,7 @@ class LapachoIme : InputMethodService() {
             addView(layerToggle)
             addView(keyButton("☺", 1f) { toggleLayer(Layer.EMOJI) })
             addView(keyButton(",", 1f) { type(",") })
-            addView(keyButton(getString(R.string.key_space), 2.5f) { output(" ") })
+            addView(keyButton(strings.getString(R.string.key_space), 2.5f) { output(" ") })
             addView(keyButton(".", 1f, PUNCT_ALTERNATES) { type(".") })
             addView(keyButton("⌫", 1.2f) { backspace() }.also { holdToRepeat(it) { backspace() } })
             addView(keyButton("↵", 1.2f) { enter() })

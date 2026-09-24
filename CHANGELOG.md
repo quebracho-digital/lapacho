@@ -13,9 +13,16 @@ All notable changes to Lapacho are recorded here. Newest first.
   other than Spanish falls back to English.
 - Dictionary import errors are thrown as `UserError(stringRes, args)`: the
   parser has no Context, so the screen showing the error picks the language.
+- **The keyboard follows the per-app setting too.** Android applies it to
+  the app's activities but not to the IME service, which kept the phone's
+  language: with the emulator in English and Lapacho set to Spanish, the key
+  still read `space`. The IME now reads `LocaleManager.applicationLocales`
+  when it builds its view and takes its texts from a context in that locale.
+- **Counts are plurals** (`1 palabra`, `2 palabras`; "Se borra la palabra
+  aprendida" for one), in both languages.
 - Checked on the emulator with `cmd locale set-app-locales`: the main screen
-  in `en` and in `es`. The keyboard's own labels (`space`, the strip chips)
-  were not looked at on screen.
+  in `en` and in `es`, and the keyboard's space key (`space` / `espacio`, by
+  screenshot over Settings' search box) with the phone in English.
 
 ### Android — punctuation sits on the word after a suggestion (`0.1.26`)
 

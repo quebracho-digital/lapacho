@@ -91,7 +91,7 @@ teach it, below.
 
 Spanish ships inside the APK. Another language — or a list of your own
 jargon — is a file you download with your browser and hand to Lapacho: tap
-**IDIOMAS → AGREGAR** in the app and pick it from the **Download** folder the
+**LANGUAGES → ADD** in the app and pick it from the **Download** folder the
 picker opens on. If Android says it cannot read the file, you came through
 the picker's *Downloads* shortcut: go **☰ → your phone's name → Download**
 instead (details in [`DICTIONARIES.md`](DICTIONARIES.md#installing-one)). The keyboard never downloads
@@ -103,8 +103,8 @@ still offers *con, como*. Up to two imported at once.
 
 A dictionary we publish goes straight in and shows as **oficial ✓**. Any other
 file — a list you made, or one from somewhere else — gets a warning with its
-SHA-256 first, and imports only if you tap **Importar como personalizado**.
-**IDIOMAS** lists them all, marked official or custom; tapping one removes
+SHA-256 first, and imports only if you tap **Import as custom**.
+**LANGUAGES** lists them all, marked official or custom; tapping one removes
 it.
 
 A dictionary can also add long presses: French's could put é è ê on `e`.
@@ -127,7 +127,7 @@ the history follows.
 Names, jargon, anything the dictionary has never heard of. Write the word;
 when the dictionary runs out of completions for it, the strip shows **the word
 as you typed it**, with a small **＋**. Hold it — half a second, longer than
-the keys — and a chip appears offering **aprender «tu palabra»**. Tap that
+the keys — and a chip appears offering **learn «your word»**. Tap that
 chip and the word is learned. Tap anywhere else, or wait five seconds, and
 nothing happens.
 
@@ -135,8 +135,8 @@ Nothing is ever learned on its own. Only that word is stored — not the
 sentence it was in, not when, not which app — and from then on it is suggested
 like any other word, first among its kin.
 
-**PALABRAS** in the app lists every word you taught it, in full. Tap one to
-forget it, or **Olvidar todas** to empty the list; the dictionary that came
+**WORDS** in the app lists every word you taught it, in full. Tap one to
+forget it, or **Forget all** to empty the list; the dictionary that came
 with the app is not touched. That list is the whole of what the keyboard has
 learned about you — which is the point of teaching it one word at a time
 instead of letting it watch.
@@ -159,9 +159,9 @@ Lapacho never stores a password, and never shows one:
   history ("🔒 campo privado: historial oculto") and nothing is captured. If
   something is on the clipboard, the 🔑 ••••••  chip is still there, so a
   copied password can go into a password field.
-- **A secret stored anyway** — saved on purpose with GUARDAR in the app, or
+- **A secret stored anyway** — saved on purpose with SAVE in the app, or
   captured by a version before 0.1.7, which had no classifier — is shown as
-  🔑 •••••• with a short id. **BORRAR HISTORIAL** removes it.
+  🔑 •••••• with a short id. **CLEAR HISTORY** removes it.
 
 The history keeps the **last 100 clips** — as far as search reaches — and
 trims the oldest on every new one. What is *not* covered yet: there are no
@@ -206,11 +206,17 @@ vibration, touch sounds); Lapacho has no setting of its own for that.
 The app is also the keyboard's settings: Android's keyboard list opens it from
 the settings entry next to Lapacho.
 
+The app and the keyboard are in English or Spanish, following the phone's
+language; on Android 13+ you can pick one for Lapacho alone in Settings → Apps
+→ Lapacho → Language. This guide names the buttons in English: in Spanish,
+LANGUAGES is **IDIOMAS**, WORDS **PALABRAS**, SAVE **GUARDAR**, CLEAR HISTORY
+**BORRAR HISTORIAL**.
+
 It shows the same history as the keyboard, with a search box on top. Secrets
 are masked and carry a short id so two of them can be told apart. **Tap an
 item to copy it** back to the clipboard, ready to paste anywhere; a masked one
-is copied flagged as sensitive, so it stays masked. **GUARDAR** saves text by
-hand. **BORRAR HISTORIAL** deletes every stored item and empties the clipboard
+is copied flagged as sensitive, so it stays masked. **SAVE** saves text by
+hand. **CLEAR HISTORY** deletes every stored item and empties the clipboard
 (otherwise the clip still on it would come back the next time the keyboard
 opens); it asks first. The list refreshes every time you come
 back to the app. Its screen is protected: screenshots, screen recording and the recent-apps
