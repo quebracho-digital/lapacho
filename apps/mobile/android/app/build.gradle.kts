@@ -31,6 +31,16 @@ android {
         }
     }
 
+    // Published APKs are release builds: a debuggable one lets anyone with USB
+    // access `run-as` into the app's data or attach a debugger and read the
+    // clipboard in memory. Still the debug key, so it updates over the older
+    // debug-built APKs without a reinstall.
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

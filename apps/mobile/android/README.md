@@ -92,7 +92,7 @@ commit it was built from, with the APK, the official dictionaries and a
   publishes to the download page, and creates the release at `HEAD` through
   `gh`. The tag's workflow run then finds the release and does nothing.
 
-Both sign with the same debug key: the workflow reads it from the secret
+Both publish the release build (not debuggable), signed with the debug key: the workflow reads it from the secret
 `ANDROID_DEBUG_KEYSTORE` (base64 of `~/.android/debug.keystore`), hands it to
 Gradle through `LAPACHO_DEBUG_KEYSTORE`, and refuses to publish an APK whose
 certificate is not this one (SHA-256):
