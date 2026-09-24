@@ -60,6 +60,15 @@ struct Entry {
     len: usize,
 }
 
+/// Page locks are not reference counted (`munlock`/`VirtualUnlock` act on the
+/// whole page), so a locked region must not share a page with another one:
+/// unlocking either would unlock both — silently on Linux, as a panic inside
+/// `region` on Windows. The slots start on a `PAGE` boundary and the locked
+/// span is rounded up to whole pages, all inside our own allocation.
+// ponytail: 16 KiB covers 4 KiB (x86, Windows) and 16 KiB (Apple Silicon)
+// pages; same ceiling as `crypto::PageOwned`.
+const PAGE: usize = 16384;
+
 /// A fixed-capacity keyed store whose backing memory is locked into RAM.
 ///
 /// Newest-first: [`store`](Self::store) puts an entry at the front, and when
@@ -77,9 +86,12 @@ pub struct LockedRing {
     /// has the same constraint and the same comment.
     #[cfg(feature = "mlock")]
     _lock: Option<region::LockGuard>,
-    /// `capacity * slot_bytes`, allocated once and never resized: a realloc
-    /// would silently move plaintext into unlocked memory.
+    /// Allocated once and never resized: a realloc would silently move
+    /// plaintext into unlocked memory. The slots are the `capacity *
+    /// slot_bytes` starting at `start`; the padding around them makes every
+    /// locked page ours alone (see [`PAGE`]).
     arena: Box<[u8]>,
+    start: usize,
     slot_bytes: usize,
     locked: bool,
     /// Newest first.
@@ -97,10 +109,13 @@ impl LockedRing {
     /// for the key.
     pub fn new(capacity: usize, slot_bytes: usize) -> Self {
         assert!(capacity > 0 && slot_bytes > 0, "empty ring is a bug, not a config");
-        let arena = vec![0u8; capacity * slot_bytes].into_boxed_slice();
+        let len = (capacity * slot_bytes).next_multiple_of(PAGE);
+        let arena = vec![0u8; len + PAGE].into_boxed_slice();
+        let start = arena.as_ptr().align_offset(PAGE);
+        assert!(start < PAGE, "no page boundary in a buffer longer than a page");
 
         #[cfg(feature = "mlock")]
-        let (_lock, locked) = match region::lock(arena.as_ptr(), arena.len()) {
+        let (_lock, locked) = match region::lock(arena[start..].as_ptr(), len) {
             Ok(guard) => (Some(guard), true),
             Err(e) => {
                 eprintln!(
@@ -117,6 +132,7 @@ impl LockedRing {
             #[cfg(feature = "mlock")]
             _lock,
             arena,
+            start,
             slot_bytes,
             locked,
             entries: Vec::with_capacity(capacity),
@@ -177,7 +193,7 @@ impl LockedRing {
     /// Borrows the stored bytes for `id`, if present.
     pub fn get(&self, id: &str) -> Option<&[u8]> {
         let e = self.entries.iter().find(|e| e.id == id)?;
-        Some(&self.arena[e.slot * self.slot_bytes..][..e.len])
+        Some(&self.arena[self.start + e.slot * self.slot_bytes..][..e.len])
     }
 
     /// Removes `id`, scrubbing its slot. No-op when absent.
@@ -205,7 +221,7 @@ impl LockedRing {
     }
 
     fn slot_mut(&mut self, slot: usize) -> &mut [u8] {
-        let start = slot * self.slot_bytes;
+        let start = self.start + slot * self.slot_bytes;
         &mut self.arena[start..start + self.slot_bytes]
     }
 }
@@ -303,6 +319,14 @@ mod tests {
         r.store("a", b"bb");
         assert_eq!(r.get("a"), Some(&b"bb"[..]));
         assert!(!r.arena.windows(3).any(|w| w == b"aaa"));
+    }
+
+    #[test]
+    fn slots_own_their_pages() {
+        // Unlocking one ring must not unlock another's pages (see `PAGE`).
+        let r = ring();
+        assert_eq!(r.arena[r.start..].as_ptr() as usize % PAGE, 0);
+        assert!(r.arena.len() - r.start >= (3 * 16usize).next_multiple_of(PAGE));
     }
 
     #[test]

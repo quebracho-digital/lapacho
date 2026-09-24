@@ -1,7 +1,7 @@
 # Builds the desktop app (Tauri + Leptos/WASM) on Linux, Windows and macOS and
-# keeps the installers as workflow artifacts. Not attached to releases yet:
-# the app has only ever been built on Linux, and this is how the other two
-# get there. Unsigned: macOS asks for right-click → Open, Windows shows
+# keeps the installers as workflow artifacts; on a `v*` tag it also attaches
+# them to that tag's release, which the Android workflow (or release.sh)
+# creates. Unsigned: macOS asks for right-click → Open, Windows shows
 # SmartScreen.
 name: Desktop build
 
@@ -9,6 +9,9 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -59,3 +62,19 @@ jobs:
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*.exe
             target/release/bundle/dmg/*.dmg
+
+      - name: Attach to the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: target/release/bundle
+        run: |
+          # The release is created elsewhere and may not exist yet: wait up to 30 min.
+          for _ in $(seq 60); do gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break; sleep 30; done
+          files="$(ls deb/*.deb rpm/*.rpm appimage/*.AppImage msi/*.msi nsis/*.exe dmg/*.dmg 2>/dev/null)"
+          sums=""
+          for f in $files; do
+            (cd "$(dirname "$f")" && shasum -a 256 "$(basename "$f")" > "$(basename "$f").sha256")
+            sums="$sums $f.sha256"
+          done
+          gh release upload "$GITHUB_REF_NAME" $files $sums --clobber
