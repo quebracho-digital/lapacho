@@ -38,14 +38,15 @@ jobs:
         with:
           tool: trunk
 
-      - name: Tests
-        run: cargo test -p lapacho-core -p lapacho-desktop
-
       # bundle.active is off in tauri.conf.json: install.sh ships the bare
       # binary on Linux. Here the installers are the point.
       - name: Build
         working-directory: apps/desktop/src-tauri
         run: npx --yes @tauri-apps/cli@2 build --config '{"bundle":{"active":true}}'
+
+      # After the build: generate_context! embeds ui/dist, which trunk makes.
+      - name: Tests
+        run: cargo test -p lapacho-core -p lapacho-desktop
 
       - uses: actions/upload-artifact@v4
         with:

@@ -1010,6 +1010,7 @@ fn mitigate_webkit_blank_window() {}
 /// design — nothing runs on `kill -9`.
 /// The signals we take over, in one place so the mask and the wait cannot
 /// disagree about which ones they cover.
+#[cfg(unix)]
 fn shutdown_sigset() -> libc::sigset_t {
     // SAFETY: an all-zero sigset_t is valid, and these only write to our local.
     unsafe {
@@ -1027,6 +1028,7 @@ fn shutdown_sigset() -> libc::sigset_t {
 /// thread that already exists keeps its default disposition and will terminate
 /// the process the moment a signal lands — the exact bug this used to have,
 /// when the call sat after `Builder::build`.
+#[cfg(unix)]
 fn block_shutdown_signals() {
     unsafe {
         let set = shutdown_sigset();
@@ -1058,6 +1060,7 @@ pub(crate) fn shutdown(app: &AppHandle) {
 
 /// Waits for a blocked shutdown signal and routes it through [`shutdown`]
 /// instead of letting the default disposition kill the process outright.
+#[cfg(unix)]
 fn spawn_signal_waiter(app: tauri::AppHandle) {
     std::thread::spawn(move || {
         let mut sig: libc::c_int = 0;
@@ -1071,6 +1074,13 @@ fn spawn_signal_waiter(app: tauri::AppHandle) {
         }
     });
 }
+
+// Windows has no POSIX signals to take over; closing goes through the tray.
+#[cfg(not(unix))]
+fn block_shutdown_signals() {}
+
+#[cfg(not(unix))]
+fn spawn_signal_waiter(_app: tauri::AppHandle) {}
 
 fn main() {
     // First statement on purpose — see `block_shutdown_signals`.

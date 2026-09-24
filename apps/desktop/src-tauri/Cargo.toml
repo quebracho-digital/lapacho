@@ -52,6 +52,7 @@ keyring = { version = "3", features = [
     "crypto-rust",
 ] }
 
-# Linux-only: disable core dumps so a crash can't spill secrets to a core file.
-[target.'cfg(target_os = "linux")'.dependencies]
+# Unix: take over the shutdown signals (sigwait), and on Linux disable core
+# dumps so a crash can't spill secrets to a core file.
+[target.'cfg(unix)'.dependencies]
 libc = "0.2"
