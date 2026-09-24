@@ -79,6 +79,24 @@ lapacho-<versionName>.apk.sha256
 
 Never reuse a file name: the download URL sits behind a CDN that caches APKs.
 
+Every version is also a **GitHub release**, tagged `v<versionName>` at the
+commit it was built from, with the APK, the official dictionaries and a
+`.sha256` for each. Two ways to make one, same files and same signing key:
+
+- **From GitHub:** push the tag (`git tag v0.1.27-idiomas && git push origin
+  v0.1.27-idiomas`). `.github/workflows/android-release.yml` builds, runs the
+  JVM tests, checks that the tag matches `versionName` and creates the
+  release. Started by hand from the Actions tab, it only builds and keeps the
+  APK as a workflow artifact.
+- **From the maintainer's build machine:** a local script builds there,
+  publishes to the download page, and creates the release at `HEAD` through
+  `gh`. The tag's workflow run then finds the release and does nothing.
+
+Both sign with the same debug key: the workflow reads it from the secret
+`ANDROID_DEBUG_KEYSTORE` (base64 of `~/.android/debug.keystore`). An APK signed
+with any other key does not install over an existing one, and uninstalling
+first wipes the history and the learned words.
+
 ## Manual checks
 
 - **Cross-process read.** Save an item in the companion, open the keyboard:

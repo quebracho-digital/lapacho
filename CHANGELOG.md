@@ -4,7 +4,15 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — the app speaks English too
+### Releases on GitHub
+
+- Every version is now a GitHub release, tagged `v<versionName>`, with the
+  APK, the official dictionaries and their SHA-256. A pushed tag builds it in
+  GitHub Actions (`.github/workflows/android-release.yml`); a tag already
+  released from the build machine is skipped. Both sign with the same key, so
+  either APK installs over the other.
+
+### Android — the app speaks English too (`0.1.27`)
 
 - **Every text the app and the keyboard show is a string resource**, in
   English (`values/`) and Spanish (`values-es/`). The app follows the
