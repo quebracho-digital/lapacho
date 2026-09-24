@@ -97,18 +97,31 @@ pub struct Cipher {
     // mlock ANTES de que el Box libere la memoria.
     #[cfg(feature = "mlock")]
     _lock: Option<region::LockGuard>,
-    inner: Box<Aes256Gcm>,
+    inner: Box<PageOwned>,
 }
+
+/// Gives the key schedule pages of its own. Page locks are not reference
+/// counted (`munlock`/`VirtualUnlock` act on the whole page), so two ciphers
+/// sharing a page means dropping one unlocks the other's key — silently on
+/// Linux, and as a panic inside `region` on Windows ("The segment is already
+/// unlocked"). Rust rounds the size up to the alignment, so the box owns
+/// every page it touches.
+// ponytail: 16 KiB covers 4 KiB (x86, Windows) and 16 KiB (Apple Silicon)
+// pages; on a 64 KiB-page kernel, align to `region::page::size()` by hand.
+#[repr(align(16384))]
+struct PageOwned(Aes256Gcm);
 
 impl Cipher {
     /// Construye el motor desde una clave. La clave puede dropearse después.
     pub fn new(key: &SecretKey) -> Self {
-        let inner = Box::new(Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key.expose())));
+        let inner = Box::new(PageOwned(Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(
+            key.expose(),
+        ))));
 
         #[cfg(feature = "mlock")]
         let _lock = {
-            let ptr = inner.as_ref() as *const Aes256Gcm as *const u8;
-            let len = core::mem::size_of::<Aes256Gcm>();
+            let ptr = inner.as_ref() as *const PageOwned as *const u8;
+            let len = core::mem::size_of::<PageOwned>();
             match region::lock(ptr, len) {
                 Ok(guard) => Some(guard),
                 Err(e) => {
@@ -129,13 +142,13 @@ impl Cipher {
 
     /// Cifra `plaintext` y devuelve `base64(nonce || ciphertext)`.
     pub fn encrypt(&self, plaintext: &str) -> Result<String, String> {
-        encrypt_with(&self.inner, plaintext)
+        encrypt_with(&self.inner.0, plaintext)
     }
 
     /// Descifra un blob producido por [`Cipher::encrypt`]. Falla si la clave es
     /// incorrecta o si el contenido fue manipulado.
     pub fn decrypt(&self, blob_b64: &str) -> Result<String, String> {
-        decrypt_with(&self.inner, blob_b64)
+        decrypt_with(&self.inner.0, blob_b64)
     }
 }
 
@@ -317,6 +330,20 @@ mod tests {
         let blob = encrypt("x", &raw).unwrap();
         assert_eq!(cipher.decrypt(&blob).unwrap(), "x");
         assert_eq!(decrypt(&cipher.encrypt("y").unwrap(), &raw).unwrap(), "y");
+    }
+
+    #[test]
+    fn ciphers_never_share_a_page() {
+        // Dropping one cipher must not unlock another's key (see `PageOwned`).
+        let (a, b) = (
+            Cipher::new(&SecretKey::from_bytes(test_key())),
+            Cipher::new(&SecretKey::from_bytes(test_key())),
+        );
+        for c in [&a, &b] {
+            assert_eq!(c.inner.as_ref() as *const PageOwned as usize % 16384, 0);
+        }
+        drop(a);
+        assert_eq!(b.decrypt(&b.encrypt("z").unwrap()).unwrap(), "z");
     }
 
     #[test]
