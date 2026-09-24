@@ -17,6 +17,11 @@ All notable changes to Lapacho are recorded here. Newest first.
   exist on Windows. The prefix only mattered for shells that export
   `NO_COLOR=1` (trunk wants `true`/`false`); `install.sh` and the README
   already drop it at the call site, so the config runs plain `trunk`.
+- The first run failed on all three: the tests ran before trunk had built
+  `ui/dist`, which `generate_context!` embeds (they now run after the build),
+  and the `sigwait` shutdown handling used `libc`, declared for Linux only.
+  `libc` is now a unix dependency (macOS has the same calls); Windows, with no
+  POSIX signals, gets no-ops and closes through the tray. Second run pending.
 
 ### Releases on GitHub
 
@@ -25,6 +30,12 @@ All notable changes to Lapacho are recorded here. Newest first.
   GitHub Actions (`.github/workflows/android-release.yml`); a tag already
   released from the build machine is skipped. Both sign with the same key, so
   either APK installs over the other.
+- The first CI build came out signed with a different key: Gradle ignored the
+  keystore decoded to `~/.android/`. The debug signing config now takes an
+  explicit path (`LAPACHO_DEBUG_KEYSTORE`), and the workflow refuses to
+  publish an APK whose certificate is not `beeb0d4c…` (full SHA-256 in
+  `apps/mobile/android/README.md`). Verified on a test run: right key, check
+  passes. `v0.1.27-idiomas` is not released yet.
 
 ### Android — the app speaks English too (`0.1.27`)
 

@@ -309,6 +309,10 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
       itself (`Predictor::correct`)
 - [x] Android: interface in English and Spanish, following the phone or the
       per-app language setting
+- [x] Android: GitHub releases, from a pushed tag (Actions) or from the build
+      machine, one signing key checked before publishing
+- [ ] Desktop: Windows and macOS builds (`.github/workflows/desktop-build.yml`,
+      unsigned, artifacts only until the three build clean)
 - [ ] Android: storage, keyed ids and persistence levels in Rust
       ([`docs/MIGRACION_MOBILE_RUST.md`](docs/MIGRACION_MOBILE_RUST.md))
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
