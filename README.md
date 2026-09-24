@@ -8,22 +8,28 @@ it back.
 Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 `quebracho-client` and `RustyBoard`.
 
-> **Status:** advanced development. 98 tests across the workspace. The desktop
+> **Status:** advanced development. 100+ tests across the workspace. The desktop
 > app (Tauri 2 + Leptos/WASM) has a complete backend, native tray, global
 > shortcut Ctrl+Shift+Alt+L (Lapacho-exclusive), image support, rich rendering
 > (MD/SVG/Mermaid), and a raw-first security model.
 >
-> Known gap: the tray menu rebuild costs ~290 ms per capture, which is where
-> the end-to-end latency lives (capture and storage together are ~16 ms). See
-> [Diagnostics](#diagnostics) for how to measure it yourself.
+> A copy shows up in ~15 ms, from the clipboard event to the item stored and
+> the tray rebuilt (measured 2026-08-31; see [Diagnostics](#diagnostics) to
+> measure it yourself). Builds for Linux, Windows and macOS (Apple Silicon).
 >
 > **Android** is an early spike, usable day to day: a keyboard with a paste
 > strip, encrypted history, word suggestions and spelling corrections from
 > on-device dictionaries (Spanish bundled, others imported and mixed), and the
 > same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
 > The app and the keyboard speak English and Spanish.
-> Downloads: [web.fishman.work](https://web.fishman.work/) (English) ·
-> [en español](https://web.fishman.work/es). See [Mobile](#mobile).
+> See [Mobile](#mobile).
+>
+> **Downloads:** [GitHub Releases](https://github.com/quebracho-digital/lapacho/releases)
+> — the Android APK and the desktop installers (`.deb`, `.rpm`, `.AppImage`,
+> `.msi`, `.exe`, `.dmg`), each with its `.sha256`. The desktop installers are
+> unsigned: Windows shows SmartScreen, and macOS needs right-click → Open the
+> first time. The APK is also on [web.fishman.work](https://web.fishman.work/)
+> ([en español](https://web.fishman.work/es)).
 
 ## Usage
 
@@ -250,7 +256,8 @@ env -u NO_COLOR -u CARGO_TERM_COLOR TRUNK_COLOR=always CARGO_TERM_COLOR=never \
   cargo tauri dev
 ```
 
-To install it for real (binary, icons and desktop entry under `~/.local`, no root):
+To install it for real on Linux from source (binary, icons and desktop entry
+under `~/.local`, no root) — or use an installer from the releases:
 
 ```bash
 ./install.sh
@@ -292,8 +299,8 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
 - [x] Session buffer plaintext held in page-locked memory (`LockedRing`, 800 KB)
       + scrubbed on eviction across every field that carries the payload
 - [x] Diagnostics that survive autostart (log file + `LAPACHO_TRACE`)
-- [ ] Tray rebuild latency (~290 ms/capture): `get_tray_items` decrypts 100 rows
-      on every rebuild, and the native menu is rebuilt whole
+- [x] Tray rebuild latency: 281–308 ms → 0.9–2.9 ms per capture (the rebuild
+      reads the session buffer instead of decrypting the history)
 - [x] Modular threat scanner + per-item actions (copy/export/plugin)
 - [x] Leptos/WASM frontend + rich rendering (Markdown, safe SVG, JSON, Mermaid)
 - [x] Native system tray + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive) + launch-to-tray + dynamic tray indicator icon (shows last image thumbnail)
@@ -311,8 +318,9 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
       per-app language setting
 - [x] Android: GitHub releases, from a pushed tag (Actions) or from the build
       machine, one signing key checked before publishing
-- [ ] Desktop: Windows and macOS builds (`.github/workflows/desktop-build.yml`,
-      unsigned, artifacts only until the three build clean)
+- [x] Desktop: Linux, Windows and macOS installers attached to each GitHub
+      release (`.github/workflows/desktop-build.yml`, unsigned)
+- [ ] Desktop: signed installers (Windows code signing, Apple notarization)
 - [ ] Android: storage, keyed ids and persistence levels in Rust
       ([`docs/MIGRACION_MOBILE_RUST.md`](docs/MIGRACION_MOBILE_RUST.md))
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
