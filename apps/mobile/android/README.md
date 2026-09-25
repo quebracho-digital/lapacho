@@ -86,7 +86,9 @@ commit it was built from, with the APK, the official dictionaries and a
 Changes go through a pull request: both workflows build and test every PR
 and every push to `main` that touches their part of the tree (Android: the
 mobile app and the shared crates; desktop: the desktop app and the shared
-crates), and only green PRs are merged. Tags are cut from a green `main`.
+crates), and only green PRs are merged: `main` requires the `ci-ok` check
+(`.github/workflows/ci-ok.yml`), which runs on every PR and passes only when
+whatever builds the PR triggered all passed. Tags are cut from a green `main`.
 
 - **From GitHub:** push the tag (`git tag v0.1.27-idiomas && git push origin
   v0.1.27-idiomas`). `.github/workflows/android-release.yml` builds, runs the
