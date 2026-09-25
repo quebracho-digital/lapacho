@@ -180,7 +180,7 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 | ☺ | Emoji: 30 common ones, three rows, in place of the letters. Tap it again to come back. |
 | ?123 / abc | Switch between letters and numbers/symbols (`< > [ ] { } = _ \| \` `¡ ¿` and more). |
 | , and . | Next to the space bar, on both layers. |
-| ⌫ / ↵ | Delete / new line. **Hold ⌫** and it keeps deleting. |
+| ⌫ / ↵ | Delete / new line. **Hold ⌫** and it deletes a word at a time, with a short pause (and a buzz) after each: lift the finger when the right one is gone. |
 
 While you are typing a word, the strip above shows suggestions instead of your
 clips; see [Suggestions while you type](#suggestions-while-you-type).

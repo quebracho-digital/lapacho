@@ -4,6 +4,15 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — holding backspace deletes words, one at a time
+
+Held ⌫ used to delete a character every 55 ms, which overshoots by the time
+the finger lifts. Now, after the same 400 ms, it deletes the word before the
+cursor (with the spaces after it) and then waits 400 ms before the next one,
+vibrating on each: the pause is the chance to stop. A tap still deletes one
+character. Checked on the emulator: held 1.1 s, `uno dos tres cuatro `
+became `uno dos `, nothing more on release.
+
 ### Android — fast typing no longer drops keys (`0.1.28`)
 
 Fast typing rolls: the next finger lands before the last one lifts, so a
