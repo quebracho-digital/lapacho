@@ -1,7 +1,8 @@
-# Builds the Android APK and publishes it as the GitHub release of a pushed
-# `v*` tag. A tag already released from minisforum (release.sh) is left alone.
-# Run by hand (workflow_dispatch), it only builds and keeps the APK as a
-# workflow artifact: a way to check the pipeline without publishing.
+# Builds and tests the Android APK on every pull request and push to main
+# that touches it, keeping the APK as a workflow artifact. On a pushed `v*`
+# tag it also publishes it as that tag's GitHub release; a tag already
+# released from minisforum (release.sh) is left alone. Path filters don't
+# apply to tags: a tag always builds.
 #
 # The APK is signed with the same debug key as the minisforum builds (secret
 # ANDROID_DEBUG_KEYSTORE, base64). A different key would make Android refuse
@@ -10,8 +11,21 @@ name: Android release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
+    paths: &paths
+      - "apps/mobile/**"
+      - "crates/**"
+      - "Cargo.*"
+      - ".github/workflows/android-release.yml"
+  pull_request:
+    paths: *paths
   workflow_dispatch:
+
+# A newer push to the same branch or PR makes the running check moot.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 permissions:
   contents: write
@@ -116,3 +130,4 @@ jobs:
         with:
           name: lapacho-${{ env.VERSION }}
           path: ${{ runner.temp }}/out
+          retention-days: 14
