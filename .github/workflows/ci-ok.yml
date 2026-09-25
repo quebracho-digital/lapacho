@@ -1,0 +1,34 @@
+# The one check branch protection requires. The build workflows are path
+# filtered, so a PR that touches only docs runs none of them, and a required
+# check that never runs blocks the PR forever. This one runs on every PR,
+# waits for whatever other checks the PR's commit got, and passes only if
+# they all passed (or there were none).
+name: CI ok
+
+on:
+  pull_request:
+
+permissions:
+  checks: read
+
+jobs:
+  ci-ok:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Workflows start from the same event; give them time to register.
+          sleep 60
+          while :; do
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs" --paginate \
+              -q '.check_runs[] | select(.name != "ci-ok") | "\(.status) \(.conclusion) \(.name)"')"
+            echo "$runs"
+            grep -qE '^(queued|in_progress|waiting|requested|pending) ' <<<"$runs" || break
+            sleep 30
+          done
+          if grep -E '^completed ' <<<"$runs" | grep -qvE '^completed (success|skipped|neutral) '; then
+            echo "::error::a check failed"; exit 1
+          fi
