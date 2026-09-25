@@ -1,14 +1,26 @@
-# Builds the desktop app (Tauri + Leptos/WASM) on Linux, Windows and macOS and
-# keeps the installers as workflow artifacts; on a `v*` tag it also attaches
-# them to that tag's release, which the Android workflow (or release.sh)
-# creates. Unsigned: macOS asks for right-click → Open, Windows shows
+# Builds and tests the desktop app (Tauri + Leptos/WASM) on Linux, Windows and
+# macOS on every pull request and push to main that touches it, keeping the
+# installers as workflow artifacts. On a `v*` tag it also attaches them to that
+# tag's release, which the Android workflow (or release.sh) creates. Unsigned: macOS asks for right-click → Open, Windows shows
 # SmartScreen.
 name: Desktop build
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
+    paths: &paths
+      - "apps/desktop/**"
+      - "crates/**"
+      - "Cargo.*"
+      - ".github/workflows/desktop-build.yml"
+  pull_request:
+    paths: *paths
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 permissions:
   contents: write
@@ -63,6 +75,20 @@ jobs:
             target/release/bundle/nsis/*.exe
             target/release/bundle/dmg/*.dmg
 
+      # Every run, not only tags: the list the release gets is checked
+      # before a release depends on it.
+      - name: Checksums
+        working-directory: target/release/bundle
+        run: |
+          # Each OS builds only its own formats: the other patterns match nothing.
+          shopt -s nullglob
+          files=(deb/*.deb rpm/*.rpm appimage/*.AppImage msi/*.msi nsis/*.exe dmg/*.dmg)
+          [ ${#files[@]} -gt 0 ] || { echo "::error::no installers found"; exit 1; }
+          for f in "${files[@]}"; do
+            (cd "$(dirname "$f")" && shasum -a 256 "$(basename "$f")" > "$(basename "$f").sha256")
+          done
+          printf '%s\n' "${files[@]}" "${files[@]/%/.sha256}" | tee "$RUNNER_TEMP/assets.txt"
+
       - name: Attach to the release
         if: github.ref_type == 'tag'
         env:
@@ -71,10 +97,5 @@ jobs:
         run: |
           # The release is created elsewhere and may not exist yet: wait up to 30 min.
           for _ in $(seq 60); do gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break; sleep 30; done
-          # Each OS builds only its own formats: the other patterns match nothing.
-          shopt -s nullglob
-          files=(deb/*.deb rpm/*.rpm appimage/*.AppImage msi/*.msi nsis/*.exe dmg/*.dmg)
-          for f in "${files[@]}"; do
-            (cd "$(dirname "$f")" && shasum -a 256 "$(basename "$f")" > "$(basename "$f").sha256")
-          done
-          gh release upload "$GITHUB_REF_NAME" "${files[@]}" "${files[@]/%/.sha256}" --clobber
+          # Names are Tauri's (no spaces), so word splitting is safe.
+          gh release upload "$GITHUB_REF_NAME" $(cat "$RUNNER_TEMP/assets.txt") --clobber
