@@ -23,6 +23,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
+import android.view.SoundEffectConstants
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -110,6 +111,11 @@ class LapachoIme : InputMethodService() {
             }
         }
     private var query = ""
+    // The key under a finger that has not lifted yet; see [pressable].
+    private var pendingTap: (() -> Unit)? = null
+    // Redraws each key of the current layer for the current shift and dead
+    // key, in place; see [relabel].
+    private val relabels = mutableListOf<() -> Unit>()
     private var createdAtNanos: Long = 0
     private var lastCapturedId: String? = null
     private lateinit var strings: Resources
@@ -522,7 +528,7 @@ class LapachoIme : InputMethodService() {
         Button(this).apply {
             text = label
             isAllCaps = false
-            setOnClickListener { keyFeedback(it); onClick() }
+            setOnClickListener { flushPendingTap(); keyFeedback(it); onClick() }
         }
 
     /**
@@ -557,11 +563,55 @@ class LapachoIme : InputMethodService() {
                 setMargins(m, m, m, m)
             }
             if (alternates == null) {
-                setOnClickListener { keyFeedback(it); onClick() }
+                pressable(this, onClick)
                 return@apply
             }
             holdToOpen(this, LONG_PRESS_MS, onHold = { showAlternates(this, alternates) }, onTap = onClick)
         }
+
+    /**
+     * Types [onTap] when the finger lifts — or as soon as another key goes
+     * down, whichever comes first. Fast typing rolls: the next finger lands
+     * before the last one lifts, so "down, up, down, up" is really "down,
+     * down, up, up", one gesture for a whole word. The key a new finger
+     * lands on is never a hold of the previous one, and typing the previous
+     * one there keeps the letters in the order they were pressed.
+     *
+     * Not `setOnClickListener`: a click needs the finger to lift inside the
+     * key and knows nothing of the other keys, which is how a rolled key got
+     * dropped. The click listener stays for TalkBack and switch access,
+     * which never touch.
+     */
+    private fun pressable(key: View, onTap: () -> Unit, onDown: () -> Unit = {}, onUp: () -> Unit = {}) {
+        key.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    flushPendingTap()
+                    v.drawableHotspotChanged(event.x, event.y)
+                    v.isPressed = true
+                    keyFeedback(v)
+                    v.playSoundEffect(SoundEffectConstants.CLICK)
+                    pendingTap = onTap
+                    onDown()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    onUp()
+                    if (pendingTap === onTap) {
+                        if (event.actionMasked == MotionEvent.ACTION_UP) flushPendingTap() else pendingTap = null
+                    }
+                }
+            }
+            true
+        }
+        key.setOnClickListener { onTap() }
+    }
+
+    private fun flushPendingTap() {
+        val tap = pendingTap ?: return
+        pendingTap = null
+        tap()
+    }
 
     /**
      * A press held for [delayMs] runs [onHold]; a shorter one runs [onTap].
@@ -577,29 +627,24 @@ class LapachoIme : InputMethodService() {
      * It vibrates when it fires, so the hold is felt before anything is seen.
      */
     private fun holdToOpen(key: TextView, delayMs: Long, onHold: () -> Unit, onTap: () -> Unit) {
-        var opened = false
         val open = Runnable {
-            opened = true
+            // The hold is the press: the release types nothing.
+            pendingTap = null
             keyFeedback(key)
             onHold()
         }
-        key.setOnTouchListener { v, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    opened = false
-                    // The strip scrolls; a hold on one of its chips is not a
-                    // swipe and the scroll view must keep its hands off it.
-                    v.parent?.requestDisallowInterceptTouchEvent(true)
-                    v.postDelayed(open, delayMs)
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.removeCallbacks(open)
-            }
-            // Never consume: the ripple, the click and accessibility all stay
-            // the View's job.
-            false
-        }
-        // The release that opened the row must not also fire the tap.
-        key.setOnClickListener { if (!opened) { keyFeedback(key); onTap() } }
+        pressable(
+            key,
+            // Also what another key going down runs: a rolled key is a tap.
+            onTap = { key.removeCallbacks(open); onTap() },
+            onDown = {
+                // The strip scrolls; a hold on one of its chips is not a
+                // swipe and the scroll view must keep its hands off it.
+                key.parent?.requestDisallowInterceptTouchEvent(true)
+                key.postDelayed(open, delayMs)
+            },
+            onUp = { key.removeCallbacks(open) },
+        )
     }
 
     /**
@@ -610,16 +655,17 @@ class LapachoIme : InputMethodService() {
     private fun holdToRepeat(key: TextView, action: () -> Unit) {
         lateinit var again: Runnable
         again = Runnable {
+            // Repeating is the press: the release deletes nothing more.
+            pendingTap = null
             action()
             key.postDelayed(again, REPEAT_EVERY_MS)
         }
-        key.setOnTouchListener { v, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> v.postDelayed(again, REPEAT_AFTER_MS)
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.removeCallbacks(again)
-            }
-            false
-        }
+        pressable(
+            key,
+            onTap = { key.removeCallbacks(again); action() },
+            onDown = { key.postDelayed(again, REPEAT_AFTER_MS) },
+            onUp = { key.removeCallbacks(again) },
+        )
     }
 
     /**
@@ -697,52 +743,76 @@ class LapachoIme : InputMethodService() {
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
 
+    /**
+     * The keys of a row. What shift and the dead key change is redrawn in
+     * place by [relabel], never by rebuilding the row: a key rebuilt under a
+     * finger that has not lifted yet takes that keystroke with it, and with
+     * rolled typing there is nearly always one — the letter after a capital
+     * was the one lost.
+     */
     private fun buildKeyRow(keys: List<String>, withShift: Boolean = false): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             if (withShift) {
-                val label = when (shift) { Shift.LOCKED -> "⇪"; Shift.ONCE -> "⬆"; Shift.OFF -> "⇧" }
-                // The glyphs differ by a stroke, and not every font draws ⇪ at
-                // all: the colour is what says, at a glance, that the next
-                // letter is capital or every letter is.
-                val tint = when (shift) {
-                    Shift.LOCKED -> SHIFT_LOCKED_COLOR
-                    Shift.ONCE -> SHIFT_ONCE_COLOR
-                    Shift.OFF -> KEY_COLOR
-                }
                 // Click and hold are both wired below, so the key itself takes none.
                 addView(
-                    keyButton(label, 1.5f, color = tint) {}.also { key ->
+                    keyButton("", 1.5f) {}.also { key ->
                         holdToOpen(
                             key,
                             LONG_PRESS_MS,
                             // Holding locks it outright: a double tap is a
                             // rhythm the keyboard grades, and it fails the
                             // people who type slowly.
-                            onHold = { shift = Shift.LOCKED; showLayer() },
+                            onHold = { shift = Shift.LOCKED; relabel() },
                             onTap = { onShift() },
                         )
+                        relabels += {
+                            key.text = when (shift) { Shift.LOCKED -> "⇪"; Shift.ONCE -> "⬆"; Shift.OFF -> "⇧" }
+                            // The glyphs differ by a stroke, and not every font draws ⇪ at
+                            // all: the colour is what says, at a glance, that the next
+                            // letter is capital or every letter is.
+                            val tint = when (shift) {
+                                Shift.LOCKED -> SHIFT_LOCKED_COLOR
+                                Shift.ONCE -> SHIFT_ONCE_COLOR
+                                Shift.OFF -> KEY_COLOR
+                            }
+                            ((key.background as RippleDrawable).getDrawable(0) as GradientDrawable).setColor(tint)
+                        }
                     },
                 )
             }
             for (c in keys) {
                 if (c == DEAD_ACUTE) {
-                    addView(keyButton(if (accentPending) "[´]" else "´", 1f) { accentPending = !accentPending; showLayer() })
+                    addView(
+                        keyButton("", 1f) { accentPending = !accentPending; relabel() }.also { key ->
+                            relabels += { key.text = if (accentPending) "[´]" else "´" }
+                        },
+                    )
                     continue
                 }
-                val key = if (shift != Shift.OFF) c.uppercase() else c
-                // Shifted too, so the hint on the key says what the row will
-                // actually give: Ñ over N, not ñ.
-                val alternates = longPress[c]?.let { if (shift != Shift.OFF) it.uppercase() else it }
-                addView(keyButton(key, 1f, alternates) { type(key) })
+                val alternates = longPress[c]
+                // Shift is read when the key is typed, not when it was drawn.
+                addView(
+                    keyButton(c, 1f, alternates) { type(shifted(c)) }.also { key ->
+                        // Shifted too, so the hint on the key says what the row will
+                        // actually give: Ñ over N, not ñ.
+                        relabels += {
+                            key.text = if (alternates == null) shifted(c) else labelWithHint(shifted(c), shifted(alternates))
+                        }
+                    },
+                )
             }
         }
+
+    private fun shifted(s: String): String = if (shift != Shift.OFF) s.uppercase() else s
+
+    private fun relabel() = relabels.forEach { it() }
 
     private fun onShift() {
         val now = System.currentTimeMillis()
         shift = nextShift(shift, now - lastShiftTapMs)
         lastShiftTapMs = now
-        showLayer()
+        relabel()
     }
 
     private fun type(key: String) {
@@ -750,7 +820,7 @@ class LapachoIme : InputMethodService() {
         if (shift == Shift.ONCE || accentPending) {
             shift = if (shift == Shift.ONCE) Shift.OFF else shift
             accentPending = false
-            showLayer()
+            relabel()
         }
     }
 
@@ -769,6 +839,7 @@ class LapachoIme : InputMethodService() {
 
     private fun showLayer() {
         keyRows.removeAllViews()
+        relabels.clear()
         val rows = when (layer) {
             Layer.LETTERS -> LETTER_ROWS
             Layer.SYMBOLS -> SYMBOL_ROWS
@@ -776,6 +847,7 @@ class LapachoIme : InputMethodService() {
         }
         val withShift = layer == Layer.LETTERS
         rows.forEachIndexed { i, row -> keyRows.addView(buildKeyRow(row, withShift && i == rows.lastIndex)) }
+        relabel()
     }
 
     private fun buildActionRow(): LinearLayout =

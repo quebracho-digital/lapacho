@@ -4,6 +4,27 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — fast typing no longer drops keys
+
+Fast typing rolls: the next finger lands before the last one lifts, so a
+whole word is one touch gesture. Reproduced on the emulator with real
+multi-touch events (`sendevent`, each key down before the previous one up):
+
+- `estoyprobando` came out as `estoyprob`, every time. Keys with a long
+  press (`a` → `@`, `n` → `ñ`, shift, `.`) stayed down long enough under
+  rolling to open their alternates row, which then swallowed the rest of the
+  word.
+- A word started with shift lost every letter: after the capital the whole
+  keyboard was rebuilt, taking the key under the next finger with it.
+
+Keys now type on release or as soon as another key goes down, whichever
+comes first — a rolled key is a tap, never a hold, and letters stay in the
+order they were pressed. Shift and the dead accent redraw the labels in
+place instead of rebuilding the rows, and a key reads shift when it is
+typed, not when it was drawn. After the fix all four patterns type intact;
+holding `a` still opens `@`, holding ⌫ still repeats, holding shift still
+locks.
+
 ### Desktop — builds for Windows and macOS in CI
 
 - `.github/workflows/desktop-build.yml` builds and tests the desktop app on
