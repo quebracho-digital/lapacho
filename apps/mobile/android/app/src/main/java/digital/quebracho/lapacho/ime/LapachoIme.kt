@@ -494,6 +494,19 @@ class LapachoIme : InputMethodService() {
         refreshStrip()
     }
 
+    /** Held backspace: the word before the cursor, and the spaces after it. */
+    private fun backspaceWord() {
+        if (searchPool == null) {
+            autoSpace = false
+            val ic = currentInputConnection ?: return
+            ic.deleteSurroundingText(wordDeleteLength(ic.getTextBeforeCursor(WORD_LOOKBEHIND, 0) ?: ""), 0)
+            refreshStrip()
+            return
+        }
+        query = query.dropLast(wordDeleteLength(query))
+        refreshStrip()
+    }
+
     /** Enter: a new line, or while searching, paste the first match. */
     private fun enter() {
         val pool = searchPool
@@ -648,21 +661,26 @@ class LapachoIme : InputMethodService() {
     }
 
     /**
-     * Repeats [action] while the key is held, after a pause — a backspace that
-     * deletes one character per tap and nothing on a long press is the thing
-     * people notice first about a keyboard that is not finished.
+     * A tap runs [onTap]; a hold runs [onRepeat] after a pause and then every
+     * [REPEAT_EVERY_MS] until the finger lifts — a backspace that deletes one
+     * character per tap and nothing on a long press is the thing people notice
+     * first about a keyboard that is not finished.
+     *
+     * Each repeat vibrates, so the steps are felt and the finger can lift
+     * between two of them.
      */
-    private fun holdToRepeat(key: TextView, action: () -> Unit) {
+    private fun holdToRepeat(key: TextView, onTap: () -> Unit, onRepeat: () -> Unit) {
         lateinit var again: Runnable
         again = Runnable {
             // Repeating is the press: the release deletes nothing more.
             pendingTap = null
-            action()
+            keyFeedback(key)
+            onRepeat()
             key.postDelayed(again, REPEAT_EVERY_MS)
         }
         pressable(
             key,
-            onTap = { key.removeCallbacks(again); action() },
+            onTap = { key.removeCallbacks(again); onTap() },
             onDown = { key.postDelayed(again, REPEAT_AFTER_MS) },
             onUp = { key.removeCallbacks(again) },
         )
@@ -859,11 +877,24 @@ class LapachoIme : InputMethodService() {
             addView(keyButton(",", 1f) { type(",") })
             addView(keyButton(strings.getString(R.string.key_space), 2.5f) { output(" ") })
             addView(keyButton(".", 1f, PUNCT_ALTERNATES) { type(".") })
-            addView(keyButton("⌫", 1.2f) { backspace() }.also { holdToRepeat(it) { backspace() } })
+            addView(keyButton("⌫", 1.2f) { backspace() }.also { holdToRepeat(it, onTap = { backspace() }, onRepeat = { backspaceWord() }) })
             addView(keyButton("↵", 1.2f) { enter() })
         }
 
     companion object {
+        /**
+         * How many characters a held backspace takes in one step: the spaces
+         * right before the cursor, then the word before them — "hola mundo  "
+         * loses "mundo  ". A word here is anything between spaces, so "¿qué"
+         * and "mundo." go whole, as they were typed.
+         */
+        fun wordDeleteLength(before: CharSequence): Int {
+            var i = before.length
+            while (i > 0 && before[i - 1].isWhitespace()) i--
+            while (i > 0 && !before[i - 1].isWhitespace()) i--
+            return before.length - i
+        }
+
         /**
          * Dead-key acute accent, as on a Spanish physical keyboard: ´ then a
          * vowel gives the accented vowel; anything else comes out unchanged.
@@ -919,7 +950,13 @@ class LapachoIme : InputMethodService() {
         /** Longer than a key's: this one writes to a list that outlives the session. */
         private const val LEARN_PRESS_MS = 500L
         private const val REPEAT_AFTER_MS = 400L
-        private const val REPEAT_EVERY_MS = 55L
+        /**
+         * Between two words deleted by a held backspace. Deleting a word is
+         * instant; this is the pause after it, long enough to lift the
+         * finger once the right word is gone (a reaction is ~250 ms), short
+         * enough that a sentence still goes quickly.
+         */
+        private const val REPEAT_EVERY_MS = 400L
         private const val ALTERNATES_TIMEOUT_MS = 5_000L
         private const val TAG = "LapachoIme"
         private const val TOP_N = 20
