@@ -71,10 +71,10 @@ jobs:
         run: |
           # The release is created elsewhere and may not exist yet: wait up to 30 min.
           for _ in $(seq 60); do gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break; sleep 30; done
-          files="$(ls deb/*.deb rpm/*.rpm appimage/*.AppImage msi/*.msi nsis/*.exe dmg/*.dmg 2>/dev/null)"
-          sums=""
-          for f in $files; do
+          # Each OS builds only its own formats: the other patterns match nothing.
+          shopt -s nullglob
+          files=(deb/*.deb rpm/*.rpm appimage/*.AppImage msi/*.msi nsis/*.exe dmg/*.dmg)
+          for f in "${files[@]}"; do
             (cd "$(dirname "$f")" && shasum -a 256 "$(basename "$f")" > "$(basename "$f").sha256")
-            sums="$sums $f.sha256"
           done
-          gh release upload "$GITHUB_REF_NAME" $files $sums --clobber
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" "${files[@]/%/.sha256}" --clobber
