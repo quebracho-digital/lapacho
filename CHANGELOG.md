@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — fast typing no longer drops keys
+### Android — fast typing no longer drops keys (`0.1.28`)
 
 Fast typing rolls: the next finger lands before the last one lifts, so a
 whole word is one touch gesture. Reproduced on the emulator with real
@@ -29,8 +29,8 @@ locks.
 
 - `.github/workflows/desktop-build.yml` builds and tests the desktop app on
   Linux, Windows and macOS and keeps the installers (`.deb`, `.rpm`,
-  AppImage, `.msi`, `.exe`, `.dmg`) as workflow artifacts. Unsigned, and not
-  attached to releases until the three build clean.
+  AppImage, `.msi`, `.exe`, `.dmg`). Unsigned. On a `v*` tag they are
+  attached to that release, next to the APK (first time: `0.1.27-idiomas`).
 - `keyring` was declared as a Linux-only dependency while `keystore.rs` uses
   it everywhere, so the app could not compile anywhere else. It is now a
   plain dependency with every platform's backend enabled.
@@ -42,7 +42,11 @@ locks.
   `ui/dist`, which `generate_context!` embeds (they now run after the build),
   and the `sigwait` shutdown handling used `libc`, declared for Linux only.
   `libc` is now a unix dependency (macOS has the same calls); Windows, with no
-  POSIX signals, gets no-ops and closes through the tray. Second run pending.
+  POSIX signals, gets no-ops and closes through the tray.
+- Windows then failed in the tests: page locks are not reference counted, so
+  two locked regions sharing a page unlocked each other on drop (a panic
+  inside `region` on Windows, silent on Linux). `Cipher` and `LockedRing` now
+  own whole pages.
 
 ### Releases on GitHub
 

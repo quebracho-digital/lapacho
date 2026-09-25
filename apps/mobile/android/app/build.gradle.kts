@@ -13,8 +13,8 @@ android {
         applicationId = "digital.quebracho.lapacho"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.1.27-idiomas"
+        versionCode = 29
+        versionName = "0.1.28-tipeo-rapido"
         // The only ABIs the Rust bridge is built for (a device and the
         // emulator). Without this, JNA ships six more and a phone on one of
         // those would install the app and then crash loading the bridge.
