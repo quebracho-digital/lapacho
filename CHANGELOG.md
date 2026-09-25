@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — holding backspace deletes words, one at a time
+### Android — holding backspace deletes words, one at a time (`0.1.29`)
 
 Held ⌫ used to delete a character every 55 ms, which overshoots by the time
 the finger lifts. Now, after the same 400 ms, it deletes the word before the
