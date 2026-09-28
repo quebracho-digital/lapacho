@@ -4,6 +4,15 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — the tray shows your history again after a restart
+
+Since the tray stopped reading the database on every capture (2026-08-05,
+below), it started empty on each launch and only listed what was copied in
+that session — the bug fixed on 2026-07-20 came back without anyone deciding
+it. The session buffer is now seeded once at startup with the 25 most recent
+saved items (kept ones first); each capture still rebuilds the tray from
+memory only, so the latency measured on 2026-08-31 is unchanged.
+
 ### Android — every emoji, and a search for them (`0.1.30`)
 
 The emoji layer had 30 fixed ones. It now has every emoji the phone's font
