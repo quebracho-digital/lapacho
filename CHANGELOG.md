@@ -4,6 +4,18 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — every emoji, and a search for them (`0.1.30`)
+
+The emoji layer had 30 fixed ones. It now has every emoji the phone's font
+can draw (1 922 in Unicode 18.0, without skin-tone variants), in a scrolling
+grid with a tab per group; the old 30 are the first tab. 🔍 searches them by
+name or keyword in Spanish and English, from Unicode's own CLDR annotations:
+`mate` gives 🧉, `bandera argentina` 🇦🇷. Whole words rank before parts of
+words, so `mate` is not first the `materna` of 🤱. The list ships in the APK
+(`emoji.tsv`, 150 KB, built by `tools/gen_emoji.py`) and is read on the first
+open of the layer, not on the keyboard's cold start. Checked on the emulator:
+the grid, the tabs, and a search typed on the keys that put 🧉 in the field.
+
 ### Android — holding backspace deletes words, one at a time (`0.1.29`)
 
 Held ⌫ used to delete a character every 55 ms, which overshoots by the time

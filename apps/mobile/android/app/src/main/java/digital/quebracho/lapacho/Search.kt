@@ -14,4 +14,5 @@ fun matchesQuery(text: String, query: String): Boolean {
 
 private val MARKS = Regex("\\p{Mn}+")
 
-private fun fold(s: String): String = MARKS.replace(Normalizer.normalize(s, Normalizer.Form.NFD), "").lowercase()
+/** Lowercase, accents removed: the form every search compares in. */
+internal fun fold(s: String): String = MARKS.replace(Normalizer.normalize(s, Normalizer.Form.NFD), "").lowercase()

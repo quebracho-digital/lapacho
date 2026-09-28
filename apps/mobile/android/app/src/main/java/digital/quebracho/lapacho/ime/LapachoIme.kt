@@ -27,7 +27,9 @@ import android.view.SoundEffectConstants
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.GridView
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -35,6 +37,10 @@ import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
+import digital.quebracho.lapacho.Emoji
+import digital.quebracho.lapacho.EmojiGroup
+import digital.quebracho.lapacho.loadEmoji
+import digital.quebracho.lapacho.searchEmoji
 import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.currentWord
 import digital.quebracho.lapacho.dictionarySignature
@@ -83,6 +89,13 @@ class LapachoIme : InputMethodService() {
     // Search mode: non-null while searching. The keys edit [query] instead of
     // the field, and the strip shows what in this pool matches it.
     private var searchPool: List<ClipboardItem>? = null
+    // Emoji search: the keys edit [query] and the strip shows matching emoji.
+    private var emojiSearch = false
+    private val searching get() = searchPool != null || emojiSearch
+    // Read on the first open of the emoji layer, not on the cold start path.
+    private var loadedEmoji: List<EmojiGroup>? = null
+    private val emoji: List<EmojiGroup>
+        get() = loadedEmoji ?: loadEmoji(this).also { loadedEmoji = it }
     // The strip's clips, read when the keyboard opens and not per keystroke
     // (docs §4.4): with suggestions, the strip redraws on every key.
     private var clips: List<ClipboardItem> = emptyList()
@@ -214,6 +227,7 @@ class LapachoIme : InputMethodService() {
         if (clip != null && !secret && !privateField) capture(clip.text, clip.sensitivity)
         secretOnClipboard = clip != null && (secret || privateField)
         searchPool = null
+        emojiSearch = false
         // The companion can forget a word while the keyboard is not on
         // screen, and the dictionary in memory would not know. Reading a
         // handful of rows is cheaper than rebuilding it blindly.
@@ -231,6 +245,7 @@ class LapachoIme : InputMethodService() {
     override fun onFinishInputView(finishingInput: Boolean) {
         // Don't keep decrypted items around once the keyboard is gone.
         searchPool = null
+        emojiSearch = false
         clips = emptyList()
         super.onFinishInputView(finishingInput)
     }
@@ -312,6 +327,7 @@ class LapachoIme : InputMethodService() {
             return
         }
         searchPool?.let { showSearch(it); return }
+        if (emojiSearch) { showEmojiSearch(); return }
         // While a word is being typed the strip belongs to the suggestions;
         // finish the word and the clips come back. One row, three jobs — the
         // alternative is a keyboard one row taller for everyone.
@@ -467,9 +483,36 @@ class LapachoIme : InputMethodService() {
         }
     }
 
+    /**
+     * Emoji search types into [query] with the letter keys; the strip shows
+     * what matches, by name or keyword in Spanish or English. A tapped emoji
+     * goes into the field and the search stays open, for a second one.
+     */
+    private fun startEmojiSearch() {
+        emojiSearch = true
+        query = ""
+        setLayer(Layer.LETTERS)
+        refreshStrip()
+    }
+
+    private fun stopEmojiSearch() {
+        emojiSearch = false
+        query = ""
+        refreshStrip()
+    }
+
+    private fun showEmojiSearch() {
+        pasteStrip.addView(pasteButton("✕") { stopEmojiSearch() })
+        pasteStrip.addView(pasteButton("🔍 $query▏") {})
+        if (query.isBlank()) return
+        val hits = searchEmoji(emoji, query, EMOJI_HITS)
+        if (hits.isEmpty()) pasteStrip.addView(pasteButton(strings.getString(R.string.no_results)) {})
+        for (e in hits) pasteStrip.addView(pasteButton(e.glyph) { commitText(e.glyph) })
+    }
+
     /** Where every key's text goes: the search query while searching, else the field. */
     private fun output(text: String) {
-        if (searchPool == null) {
+        if (!searching) {
             val swap = autoSpace && text in CLOSING_MARKS &&
                 currentInputConnection?.getTextBeforeCursor(1, 0) == " "
             if (swap) currentInputConnection?.deleteSurroundingText(1, 0)
@@ -484,7 +527,7 @@ class LapachoIme : InputMethodService() {
     }
 
     private fun backspace() {
-        if (searchPool == null) {
+        if (!searching) {
             autoSpace = false
             currentInputConnection?.deleteSurroundingText(1, 0)
             refreshStrip()
@@ -496,7 +539,7 @@ class LapachoIme : InputMethodService() {
 
     /** Held backspace: the word before the cursor, and the spaces after it. */
     private fun backspaceWord() {
-        if (searchPool == null) {
+        if (!searching) {
             autoSpace = false
             val ic = currentInputConnection ?: return
             ic.deleteSurroundingText(wordDeleteLength(ic.getTextBeforeCursor(WORD_LOOKBEHIND, 0) ?: ""), 0)
@@ -509,6 +552,11 @@ class LapachoIme : InputMethodService() {
 
     /** Enter: a new line, or while searching, paste the first match. */
     private fun enter() {
+        if (emojiSearch) {
+            if (query.isNotBlank()) searchEmoji(emoji, query, 1).firstOrNull()?.let { commitText(it.glyph) }
+            stopEmojiSearch()
+            return
+        }
         val pool = searchPool
         if (pool == null) {
             autoSpace = false
@@ -850,6 +898,8 @@ class LapachoIme : InputMethodService() {
     private fun toggleLayer(to: Layer) = setLayer(if (layer == to) Layer.LETTERS else to)
 
     private fun setLayer(to: Layer) {
+        // Back to the emoji grid from its search: the keys type into the field again.
+        if (to == Layer.EMOJI && emojiSearch) stopEmojiSearch()
         layer = to
         layerToggle.text = if (layer == Layer.LETTERS) "?123" else "abc"
         showLayer()
@@ -861,11 +911,54 @@ class LapachoIme : InputMethodService() {
         val rows = when (layer) {
             Layer.LETTERS -> LETTER_ROWS
             Layer.SYMBOLS -> SYMBOL_ROWS
-            Layer.EMOJI -> EMOJI_ROWS
+            Layer.EMOJI -> { keyRows.addView(buildEmojiPanel()); return }
         }
         val withShift = layer == Layer.LETTERS
         rows.forEachIndexed { i, row -> keyRows.addView(buildKeyRow(row, withShift && i == rows.lastIndex)) }
         relabel()
+    }
+
+    /**
+     * Every emoji, in a scrolling grid, under a row of tabs: search, the
+     * favourites, and one per Unicode group. A tab jumps the grid to where
+     * its group starts. A [GridView] draws only the cells on screen; two
+     * thousand views built on every switch to this layer would not be.
+     */
+    private fun buildEmojiPanel(): View {
+        val groups = listOf(EmojiGroup("⭐", FAVORITE_EMOJI.map { Emoji(it, "") })) + emoji
+        val all = groups.flatMap { it.emojis }
+        val grid = GridView(this).apply {
+            numColumns = EMOJI_COLUMNS
+            stretchMode = GridView.STRETCH_COLUMN_WIDTH
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(EMOJI_GRID_DP).toInt())
+            adapter = object : BaseAdapter() {
+                override fun getCount() = all.size
+                override fun getItem(i: Int) = all[i]
+                override fun getItemId(i: Int) = i.toLong()
+                override fun getView(i: Int, recycled: View?, parent: ViewGroup): View =
+                    ((recycled as? TextView) ?: TextView(this@LapachoIme).apply {
+                        gravity = Gravity.CENTER
+                        height = dp(KEY_HEIGHT_DP).toInt()
+                        setTextSize(TypedValue.COMPLEX_UNIT_DIP, EMOJI_TEXT_DP)
+                    }).apply { text = all[i].glyph }
+            }
+            setOnItemClickListener { _, v, i, _ -> keyFeedback(v); output(all[i].glyph) }
+        }
+        val tabs = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(keyButton("🔍", 1f) { startEmojiSearch() })
+            var start = 0
+            for (g in groups) {
+                val at = start
+                addView(keyButton(g.icon, 1f) { grid.setSelection(at) })
+                start += g.emojis.size
+            }
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(tabs)
+            addView(grid)
+        }
     }
 
     private fun buildActionRow(): LinearLayout =
@@ -980,14 +1073,20 @@ class LapachoIme : InputMethodService() {
         private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl"), row("zxcvbnm$DEAD_ACUTE"))
         private val SYMBOL_ROWS = listOf(row("1234567890"), row("@#\$%&-+()/"), row("<>[]{}=_|\\"), row("*\"':;!¡?¿"))
         /**
-         * Emoji layer: the ones actually used in a chat, not a picker. No
-         * search, no recents, no skin tones — that is a keyboard of its own.
+         * The emoji layer's first tab: the ones actually used in a chat.
+         * ponytail: fixed, no recents and no skin tones; recents would need
+         * to be stored, and what is typed is what this keyboard never stores.
          */
-        private val EMOJI_ROWS = listOf(
-            listOf("😀", "😂", "🥹", "😍", "😎", "🤔", "😅", "😭", "😡", "🙃"),
-            listOf("👍", "👎", "🙏", "👏", "💪", "🤝", "✌️", "🫶", "👀", "🤷"),
-            listOf("❤️", "🔥", "✨", "🎉", "✅", "❌", "⚠️", "💡", "📌", "🧉"),
+        private val FAVORITE_EMOJI = listOf(
+            "😀", "😂", "🥹", "😍", "😎", "🤔", "😅", "😭", "😡", "🙃",
+            "👍", "👎", "🙏", "👏", "💪", "🤝", "✌️", "🫶", "👀", "🤷",
+            "❤️", "🔥", "✨", "🎉", "✅", "❌", "⚠️", "💡", "📌", "🧉",
         )
+        private const val EMOJI_COLUMNS = 8
+        private const val EMOJI_TEXT_DP = 26f
+        /** Three rows; with the tabs, the symbols layer's four rows of height. */
+        private const val EMOJI_GRID_DP = 150f
+        private const val EMOJI_HITS = 30
         /**
          * Long-press alternates the keyboard offers in any language; the
          * ones a language needs (ñ, ç, ß…) come from its dictionary header.
