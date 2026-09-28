@@ -106,10 +106,9 @@ fn tray_icon_from_thumb(b64: &str) -> Option<tauri::image::Image<'static>> {
 
 /// Returns the live tray items (session buffer only).
 ///
-/// The tray shows only what has been copied this session (up to 25 items),
-/// prioritizing pinned/vaulted items. This keeps the tray instant (~150 ms)
-/// by avoiding a DB decrypt pass. For older items, the user opens the main
-/// window ("Abrir Lapacho…") which searches the full history.
+/// The buffer is seeded from the saved history at startup and then fed by each
+/// capture, so the tray shows the latest 25 items across restarts without a DB
+/// decrypt pass per rebuild. Older items live in the main window.
 fn get_tray_items(state: &AppState) -> Vec<ClipboardItem> {
     let mut result = state.tray_recent.lock().unwrap().snapshot();
     crate::sort_for_display(&mut result);

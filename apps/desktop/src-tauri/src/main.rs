@@ -133,6 +133,14 @@ impl SessionBuffer {
         }
     }
 
+    /// Fill from saved history, given newest-first (as `HistoryRepo::load`
+    /// returns it); keeps that order and the cap.
+    fn seed(&mut self, items: Vec<ClipboardItem>) {
+        for item in items.into_iter().take(TRAY_RECENT_MAX).rev() {
+            self.push_front(item);
+        }
+    }
+
     /// Remove an id, scrubbing both halves.
     fn evict(&mut self, id: &str) {
         self.locked.remove(id);
@@ -1146,6 +1154,13 @@ fn main() {
 
             let last_seen = Arc::new(Mutex::new(None));
             let tray_recent = Arc::new(Mutex::new(SessionBuffer::new()));
+            // Seed the buffer with the saved history, once, so the tray shows
+            // it after a restart. Rebuilds stay memory-only (the 280 ms DB
+            // decrypt per capture is why the tray stopped reading the DB).
+            match repo.load() {
+                Ok(items) => tray_recent.lock().unwrap().seed(items),
+                Err(e) => eprintln!("lapacho: could not seed the tray from history: {e}"),
+            }
             {
                 // Say out loud whether the guarantee actually holds. The last
                 // time this was assumed instead of reported, the security
@@ -1438,5 +1453,14 @@ mod tray_recent_tests {
         buf.push_front(item("id0", "again"));
         assert_eq!(buf.recent.len(), TRAY_RECENT_MAX);
         assert_eq!(buf.recent.iter().filter(|x| x.id == "id0").count(), 1);
+    }
+
+    #[test]
+    fn seed_keeps_newest_first_and_caps() {
+        let mut buf = SessionBuffer::new();
+        buf.seed((0..TRAY_RECENT_MAX + 5).map(|i| item(&format!("id{i}"), "b")).collect());
+        assert_eq!(buf.recent.len(), TRAY_RECENT_MAX);
+        assert_eq!(buf.recent[0].id, "id0");
+        assert_eq!(buf.recent[TRAY_RECENT_MAX - 1].id, format!("id{}", TRAY_RECENT_MAX - 1));
     }
 }
