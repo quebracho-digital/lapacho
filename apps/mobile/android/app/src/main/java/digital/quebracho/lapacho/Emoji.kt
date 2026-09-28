@@ -56,6 +56,16 @@ fun searchEmoji(groups: List<EmojiGroup>, query: String, limit: Int): List<Emoji
 }
 
 /**
+ * The user's favourite emoji, newest first, as stored: one line, space
+ * separated — no emoji contains a space.
+ */
+fun parseFavorites(saved: String?): List<String> = saved.orEmpty().split(' ').filter { it.isNotEmpty() }
+
+/** A favourite is removed if it is one, else added in front. */
+fun toggleFavorite(favorites: List<String>, glyph: String): List<String> =
+    if (glyph in favorites) favorites - glyph else listOf(glyph) + favorites
+
+/**
  * ponytail: parsed on the first open of the emoji layer (~2 000 lines plus a
  * glyph check each), kept for the keyboard's lifetime.
  */

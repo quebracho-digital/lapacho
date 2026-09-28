@@ -40,6 +40,8 @@ import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.Emoji
 import digital.quebracho.lapacho.EmojiGroup
 import digital.quebracho.lapacho.loadEmoji
+import digital.quebracho.lapacho.parseFavorites
+import digital.quebracho.lapacho.toggleFavorite
 import digital.quebracho.lapacho.searchEmoji
 import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.currentWord
@@ -923,10 +925,26 @@ class LapachoIme : InputMethodService() {
      * favourites, and one per Unicode group. A tab jumps the grid to where
      * its group starts. A [GridView] draws only the cells on screen; two
      * thousand views built on every switch to this layer would not be.
+     *
+     * The ⭐ tab is the user's favourites, newest first, then the common ones.
+     * Holding an emoji offers to add it there — or to remove it, if it
+     * already is one: a deliberate press and a confirming tap, like learning
+     * a word. The system's long press here, not [holdToOpen]: that one keeps
+     * the finger from its parent, and this parent has to scroll.
      */
     private fun buildEmojiPanel(): View {
-        val groups = listOf(EmojiGroup("⭐", FAVORITE_EMOJI.map { Emoji(it, "") })) + emoji
-        val all = groups.flatMap { it.emojis }
+        val favorites = parseFavorites(repo.getPreference(FAVORITES_KEY))
+        val star = EmojiGroup("⭐", (favorites + COMMON_EMOJI).distinct().map { Emoji(it, "") })
+        val groups = listOf(star) + emoji
+        // Each group starts a row of its own, padded with blank cells, so a
+        // tab brings its group to the top and not the tail of the one before.
+        val all = mutableListOf<Emoji>()
+        val starts = groups.map { g ->
+            all.size.also {
+                all += g.emojis
+                repeat((EMOJI_COLUMNS - g.emojis.size % EMOJI_COLUMNS) % EMOJI_COLUMNS) { all += BLANK }
+            }
+        }
         val grid = GridView(this).apply {
             numColumns = EMOJI_COLUMNS
             stretchMode = GridView.STRETCH_COLUMN_WIDTH
@@ -942,17 +960,34 @@ class LapachoIme : InputMethodService() {
                         setTextSize(TypedValue.COMPLEX_UNIT_DIP, EMOJI_TEXT_DP)
                     }).apply { text = all[i].glyph }
             }
-            setOnItemClickListener { _, v, i, _ -> keyFeedback(v); output(all[i].glyph) }
+            setOnItemClickListener { _, v, i, _ ->
+                if (all[i] === BLANK) return@setOnItemClickListener
+                keyFeedback(v)
+                output(all[i].glyph)
+            }
+            setOnItemLongClickListener { _, v, i, _ ->
+                if (all[i] === BLANK) return@setOnItemLongClickListener true
+                val glyph = all[i].glyph
+                val label = if (glyph in favorites) R.string.fav_remove else R.string.fav_add
+                keyFeedback(v)
+                popupNear(v, 0) { row, popup ->
+                    row.addView(
+                        pasteButton(strings.getString(label, glyph)) {
+                            // ponytail: stored in plain settings, unlike the lexicon — a
+                            // favourite emoji says far less than a learned word.
+                            repo.setPreference(FAVORITES_KEY, toggleFavorite(favorites, glyph).joinToString(" "))
+                            popup.dismiss()
+                            showLayer()
+                        },
+                    )
+                }
+                true
+            }
         }
         val tabs = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(keyButton("🔍", 1f) { startEmojiSearch() })
-            var start = 0
-            for (g in groups) {
-                val at = start
-                addView(keyButton(g.icon, 1f) { grid.setSelection(at) })
-                start += g.emojis.size
-            }
+            groups.forEachIndexed { i, g -> addView(keyButton(g.icon, 1f) { grid.setSelection(starts[i]) }) }
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1073,11 +1108,12 @@ class LapachoIme : InputMethodService() {
         private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl"), row("zxcvbnm$DEAD_ACUTE"))
         private val SYMBOL_ROWS = listOf(row("1234567890"), row("@#\$%&-+()/"), row("<>[]{}=_|\\"), row("*\"':;!¡?¿"))
         /**
-         * The emoji layer's first tab: the ones actually used in a chat.
-         * ponytail: fixed, no recents and no skin tones; recents would need
-         * to be stored, and what is typed is what this keyboard never stores.
+         * The emoji layer's first tab, after the user's own favourites: the
+         * ones actually used in a chat.
+         * ponytail: no recents and no skin tones; recents would store what is
+         * typed, and this keyboard only stores what it is asked to.
          */
-        private val FAVORITE_EMOJI = listOf(
+        private val COMMON_EMOJI = listOf(
             "😀", "😂", "🥹", "😍", "😎", "🤔", "😅", "😭", "😡", "🙃",
             "👍", "👎", "🙏", "👏", "💪", "🤝", "✌️", "🫶", "👀", "🤷",
             "❤️", "🔥", "✨", "🎉", "✅", "❌", "⚠️", "💡", "📌", "🧉",
@@ -1087,6 +1123,9 @@ class LapachoIme : InputMethodService() {
         /** Three rows; with the tabs, the symbols layer's four rows of height. */
         private const val EMOJI_GRID_DP = 150f
         private const val EMOJI_HITS = 30
+        private const val FAVORITES_KEY = "favorite_emoji"
+        /** The padding cell at the end of a group's last row. */
+        private val BLANK = Emoji("", "")
         /**
          * Long-press alternates the keyboard offers in any language; the
          * ones a language needs (ñ, ç, ß…) come from its dictionary header.

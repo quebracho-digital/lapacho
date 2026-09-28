@@ -79,6 +79,8 @@
     <string name="key_space">space</string>
     <string name="learned_chip">✓ «%1$s» learned</string>
     <string name="learn_chip">learn «%1$s»</string>
+    <string name="fav_add">⭐ add %1$s to favourites</string>
+    <string name="fav_remove">remove %1$s from favourites</string>
     <string name="private_field">🔒 private field: history hidden</string>
     <string name="no_clips">(no clips)</string>
     <string name="no_results">(no results)</string>

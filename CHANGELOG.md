@@ -4,6 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — favourite emoji (`0.1.31`)
+
+Hold an emoji and a chip offers to add it to the ⭐ tab; hold one that is
+already there and it offers to remove it. Favourites go first, newest first,
+then the common 30. Same shape as learning a word — a deliberate hold and a
+confirming tap — and nothing is stored that was not asked for, which is why
+there are still no "recents". Each group of the grid now starts a row of its
+own, so a tab brings its group to the top instead of the tail of the one
+before. Checked on the emulator: add, survive a reinstall, remove.
+
 ### Desktop — the tray shows your history again after a restart
 
 Since the tray stopped reading the database on every capture (2026-08-05,
