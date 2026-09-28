@@ -41,6 +41,14 @@ class EmojiTest {
         assertEquals(listOf("🧉", "🤱"), searchEmoji(parseEmoji(sample), "mate", 10).map { it.glyph })
     }
 
+    @Test fun favoritesRoundTripNewestFirst() {
+        assertEquals(emptyList<String>(), parseFavorites(null))
+        val one = toggleFavorite(parseFavorites(""), "🧉")
+        val two = toggleFavorite(one, "👨‍👩‍👧")
+        assertEquals(listOf("👨‍👩‍👧", "🧉"), parseFavorites(two.joinToString(" ")))
+        assertEquals(listOf("👨‍👩‍👧"), toggleFavorite(two, "🧉"))
+    }
+
     /** The committed list parses, and the most typed ones are findable in Spanish. */
     @Test fun theBundledListIsWhole() {
         // Unit tests run from the module directory (app/).
