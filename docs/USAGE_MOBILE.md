@@ -7,8 +7,8 @@ internet permission at all.
 
 > **Status:** early (P0 spike). It works day to day, but it is a debug build
 > installed by hand, and the keyboard is deliberately basic (suggestions and
-> corrections you tap, but nothing rewritten by itself, no swipe typing, and a fixed set of emoji rather than a
-> picker).
+> corrections you tap, but nothing rewritten by itself, no swipe typing, and emoji without skin tones or
+> recents).
 
 ## Install
 
@@ -177,7 +177,7 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 | ñ | **Long press on n** (with ⇧: Ñ). It is no longer a key of its own. |
 | @ | **Long press on a**. Also in the symbols layer. |
 | ¿ ? ¡ ! | **Long press on .**: the four appear above the key, tap one. |
-| ☺ | Emoji: 30 common ones, three rows, in place of the letters. Tap it again to come back. |
+| ☺ | Emoji: every one your phone can draw, in a scrolling grid. The tabs on top jump to a group (⭐ the common ones, then faces, people, animals, food, places, activities, objects, symbols, flags). **🔍 searches** by name in Spanish or English (`mate`, `bandera argentina`, `thumbs`): type with the letters, tap a result to add it (several in a row if you like), ✕ or ↵ to finish. Tap ☺ again to come back. |
 | ?123 / abc | Switch between letters and numbers/symbols (`< > [ ] { } = _ \| \` `¡ ¿` and more). |
 | , and . | Next to the space bar, on both layers. |
 | ⌫ / ↵ | Delete / new line. **Hold ⌫** and it deletes a word at a time, with a short pause (and a buzz) after each: lift the finger when the right one is gone. |

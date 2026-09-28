@@ -136,7 +136,7 @@ The keyboard itself is deliberately small: Spanish layout with a dead-key
 acute, ñ, `@` and `¿ ? ¡ !` on long press, a numbers/symbols layer —
 opened by itself in numeric fields (amounts, PINs, phone numbers, dates), kept
 while you type in it, back to the letters in the next text field —
-a fixed emoji layer — no swipe typing, and no autocorrect that rewrites a word
+every emoji, with a search in Spanish or English — no swipe typing, and no autocorrect that rewrites a word
 behind your back. From the second letter of a
 word the strip offers up to three completions from a bundled dictionary
 (`lapacho-predict` over 49 525 Spanish words, accent- and case-insensitive),
