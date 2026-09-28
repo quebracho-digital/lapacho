@@ -19,7 +19,7 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 >
 > **Android** is an early spike, usable day to day: a keyboard with a paste
 > strip, encrypted history, word suggestions and spelling corrections from
-> on-device dictionaries (Spanish bundled, others imported and mixed), and the
+> on-device dictionaries (Spanish and English bundled, either removable, others imported and mixed), and the
 > same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
 > The app and the keyboard speak English and Spanish.
 > See [Mobile](#mobile).

@@ -46,19 +46,21 @@
     <string name="dict_not_loading">Dictionary: NOT LOADING (%1$s: %2$s)</string>
 
     <!-- Keyboard languages -->
-    <string name="languages_header">Keyboard languages\n\nAll of them are used at once. To add one, download its file with the browser and pick it with «Add». Tap an imported one to remove it.</string>
+    <string name="languages_header">Keyboard languages\n\nAll of them are used at once. To add one, download its file with the browser and pick it with «Add». Tap one to remove it; the bundled ones can be added back without a file.</string>
     <string name="dict_bundled">bundled with the app</string>
     <string name="dict_official">official ✓ · sha256 %1$s…</string>
     <string name="dict_custom">custom · sha256 %1$s…</string>
     <string name="add">Add</string>
-    <string name="too_many_imported">There are already %1$d imported languages; remove one before adding another.</string>
+    <string name="too_many_languages">There are already %1$d languages; remove one before adding another.</string>
+    <string name="keep_one_language">At least one language has to stay.</string>
+    <string name="import_file">Import a file…</string>
     <string name="reading_file">Reading the file…</string>
     <string name="not_official_title">«%1$s» is not an official dictionary</string>
     <string name="not_official_message">Its SHA-256 matches none of those published with Lapacho:\n\n%1$s\n\nIt may be a custom dictionary, one published after this version, or a modified one. The worst it can do is suggest words you do not want. Import it only if you know where it came from.</string>
     <string name="import_as_custom">Import as custom</string>
     <string name="dict_added">«%1$s» added. The keyboard uses it the next time it opens.</string>
     <string name="remove_title">Remove «%1$s»</string>
-    <string name="remove_message">The keyboard stops suggesting its words. You can import it again whenever you like.</string>
+    <string name="remove_message">The keyboard stops suggesting its words. You can add it back whenever you like.</string>
     <string name="remove">Remove</string>
 
     <!-- Dictionary import errors -->
@@ -72,7 +74,6 @@
     <string name="err_cant_read">Could not read the file.</string>
     <string name="err_too_big">The file is over %1$d MB.</string>
     <string name="err_not_utf8">The file is not UTF-8 text.</string>
-    <string name="err_bundled_lang">«%1$s» already comes with the app; use another «#lang», like «%1$s-ar».</string>
     <string name="err_no_words">The dictionary has no words.</string>
 
     <!-- Keyboard -->

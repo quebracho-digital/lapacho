@@ -27,7 +27,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.doAfterTextChanged
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.InstalledDict
-import digital.quebracho.lapacho.MAX_IMPORTED
+import digital.quebracho.lapacho.MAX_LANGUAGES
 import digital.quebracho.lapacho.PickedDict
 import digital.quebracho.lapacho.UserError
 import digital.quebracho.lapacho.installDictionary
@@ -36,6 +36,9 @@ import digital.quebracho.lapacho.installedDictionaries
 import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.loadPredictor
+import digital.quebracho.lapacho.removeDictionary
+import digital.quebracho.lapacho.removedBundled
+import digital.quebracho.lapacho.restoreBundled
 import digital.quebracho.lapacho.matchesQuery
 import digital.quebracho.lapacho.storage.ClipboardItem
 import digital.quebracho.lapacho.storage.HISTORY_MAX
@@ -252,7 +255,7 @@ class MainActivity : AppCompatActivity() {
         val dicts = installedDictionaries(this)
         val labels = dicts.map { d ->
             val origin = when {
-                d.file == null -> getString(R.string.dict_bundled)
+                d.bundled -> getString(R.string.dict_bundled)
                 d.official -> getString(R.string.dict_official, d.sha256?.take(12))
                 else -> getString(R.string.dict_custom, d.sha256?.take(12))
             }
@@ -260,14 +263,14 @@ class MainActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setCustomTitle(dialogHeader(getString(R.string.languages_header)))
-            .setItems(labels.toTypedArray()) { _, i -> dicts[i].file?.let { confirmRemove(dicts[i]) } ?: showLanguages() }
+            .setItems(labels.toTypedArray()) { _, i -> confirmRemove(dicts[i]) }
             .setPositiveButton(R.string.add) { _, _ ->
-                if (dicts.size - 1 >= MAX_IMPORTED) {
+                if (dicts.size >= MAX_LANGUAGES) {
                     AlertDialog.Builder(this)
-                        .setMessage(getString(R.string.too_many_imported, MAX_IMPORTED))
+                        .setMessage(getString(R.string.too_many_languages, MAX_LANGUAGES))
                         .setPositiveButton(R.string.got_it, null).show()
                 } else {
-                    pickDictionary.launch(arrayOf("*/*"))
+                    addLanguage()
                 }
             }
             .setNegativeButton(R.string.close, null)
@@ -303,11 +306,48 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this).setMessage(message).setPositiveButton(R.string.got_it) { _, _ -> showLanguages() }.show()
     }
 
+    /**
+     * A bundled language the user removed comes back from here, no file
+     * needed; anything else is imported from a file.
+     */
+    private fun addLanguage() {
+        val back = removedBundled(this)
+        if (back.isEmpty()) {
+            pickDictionary.launch(arrayOf("*/*"))
+            return
+        }
+        val labels = back.map { "${it.name} (${it.lang})\n${getString(R.string.dict_bundled)}" } + getString(R.string.import_file)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.add)
+            .setItems(labels.toTypedArray()) { _, i ->
+                if (i == back.size) {
+                    pickDictionary.launch(arrayOf("*/*"))
+                } else {
+                    val message = try {
+                        restoreBundled(this, back[i].lang)
+                        getString(R.string.dict_added, back[i].name)
+                    } catch (e: Exception) {
+                        failureMessage(e)
+                    }
+                    tellThenShowLanguages(message)
+                }
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> showLanguages() }
+            .show()
+    }
+
     private fun confirmRemove(dict: InstalledDict) {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.remove_title, dict.header.name))
             .setMessage(R.string.remove_message)
-            .setPositiveButton(R.string.remove) { _, _ -> dict.file?.delete(); showLanguages() }
+            .setPositiveButton(R.string.remove) { _, _ ->
+                try {
+                    removeDictionary(this, dict)
+                    showLanguages()
+                } catch (e: Exception) {
+                    tellThenShowLanguages(failureMessage(e))
+                }
+            }
             .setNegativeButton(R.string.cancel, null)
             .show()
     }

@@ -43,6 +43,25 @@ class PredictTest {
         assertEquals(mapOf("a" to "@ã", "n" to "ñ"), keyAlternates(listOf(es, pt), mapOf("a" to "@")))
     }
 
+    @Test fun aBundledLanguageIsOffWhenRemovedOrReplaced() {
+        assertEquals(listOf("es", "en"), activeBundled(listOf("es", "en"), emptySet(), emptySet()))
+        assertEquals(listOf("en"), activeBundled(listOf("es", "en"), setOf("es"), emptySet()))
+        // An imported English replaces the bundled one instead of doubling it.
+        assertEquals(listOf("es"), activeBundled(listOf("es", "en"), emptySet(), setOf("en")))
+    }
+
+    /** Each bundled asset parses as its own language, and English is the published list byte for byte. */
+    @Test fun theBundledDictionariesAreWhole() {
+        for (lang in BUNDLED_LANGUAGES) {
+            val text = java.io.File("src/main/assets/dict/$lang.txt").readText()
+            assertEquals(lang, parseHeader(text).lang)
+        }
+        assertEquals(
+            java.io.File("../dictionaries/en.txt").readText(),
+            java.io.File("src/main/assets/dict/en.txt").readText(),
+        )
+    }
+
     /**
      * Every official hash is the hash of a committed file, and every
      * committed dictionary is official — so the file on the release page and

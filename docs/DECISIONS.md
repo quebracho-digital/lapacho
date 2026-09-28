@@ -38,8 +38,9 @@ because it works — the manifest would keep saying "no internet" while bytes
 arrive from the network anyway. The day someone notices, the promise reads as
 a technicality rather than a fact.
 
-**What replaced it.** Spanish ships inside the APK
-(`assets/dict/es.txt`, ~600 KB, see its `NOTICE-es.txt`). Any other language
+**What replaced it.** Spanish and English ship inside the APK
+(`assets/dict/{es,en}.txt`, ~600 KB each, see the `NOTICE-*.txt` beside
+them; English since `0.1.32`, and either can be removed). Any other language
 is a file the user downloads **with their browser** and hands to Lapacho
 through the system file picker (`ACTION_OPEN_DOCUMENT`), which needs no
 permission at all — not network, not storage. Built in `0.1.20`; format and

@@ -97,9 +97,13 @@ the picker's *Downloads* shortcut: go **☰ → your phone's name → Download**
 instead (details in [`DICTIONARIES.md`](DICTIONARIES.md#installing-one)). The keyboard never downloads
 anything itself, because it has no way to.
 
-Every dictionary you add is used **at the same time** as Spanish; there is no
-key to switch. With English imported, `wh` offers *what, who, why* and `con`
-still offers *con, como*. Up to two imported at once.
+Spanish and English both come with the app and are used **at the same
+time**; there is no key to switch. `wh` offers *what, who, why* and `con`
+still offers *con, como*. Don't write in one of them? Remove it in
+**IDIOMAS** (tap it → Quitar) and its words stop showing up; **Agregar**
+brings it back without a file. Removing Spanish also takes ñ off the `n`,
+which comes from the Spanish dictionary. Up to three languages at once, and
+at least one has to stay.
 
 A dictionary we publish goes straight in and shows as **oficial ✓**. Any other
 file — a list you made, or one from somewhere else — gets a warning with its
