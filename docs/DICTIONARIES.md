@@ -35,11 +35,14 @@ cannot tell those three cases apart, so it asks, every time, per file; there
 is no setting that turns the check off for good. Either way the file must pass
 the [format](#format) check.
 
-**LANGUAGES** lists what the keyboard is using — the bundled Spanish, then each
-imported file as *oficial ✓* or *personalizado*, with the start of its
-SHA-256. Tap an imported one to remove it. Up to **two** imported
-dictionaries at a time, on top of Spanish; importing one whose `#lang` is
-already there replaces it.
+**LANGUAGES** lists what the keyboard is using — the bundled ones (Spanish
+and English), then each imported file as *oficial ✓* or *personalizado*,
+with the start of its SHA-256. Tap any of them to remove it, bundled ones
+included; **ADD** offers a removed bundled language back before asking for a
+file. Up to **three** languages at a time (each costs ~8.5 MB of keyboard
+memory), at least one. Importing one whose `#lang` is already there replaces
+it — for a bundled language too, so a newer official English replaces the
+one inside the APK.
 
 ## Format
 
@@ -110,7 +113,7 @@ everyday words (the ones it shares with Spanish) low ones.
 
 [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords)
 (MIT) has lists for ~50 languages, counted over subtitles. It is where the
-bundled Spanish comes from. English, for example:
+bundled Spanish and English come from. English, for example:
 
 ```sh
 curl -sfLO https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/en/en_50k.txt

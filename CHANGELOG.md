@@ -4,6 +4,21 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — English comes with the app, and any language can be removed (`0.1.32`)
+
+The APK now carries English next to Spanish (+570 KB), both on by default,
+so nobody has to download a file to write in English. **IDIOMAS** can remove
+either — Spanish included — for someone who writes in only one; **Agregar**
+offers a removed one back without a file. A removed bundled language is a
+`<lang>.off` mark in the dictionaries folder, which the keyboard already
+watches. Importing a bundled language replaces the bundled list instead of
+doubling it (a phone that had English imported keeps exactly one English).
+Up to three languages at once — the old memory ceiling of one bundled plus
+two imported — and at least one. Removing Spanish takes ñ off the `n` with
+it: that alternate comes from the Spanish dictionary's header. Checked on
+the emulator: remove, add back, refuse the last one, English-only
+suggestions (`th` → the, that, this).
+
 ### Android — favourite emoji (`0.1.31`)
 
 Hold an emoji and a chip offers to add it to the ⭐ tab; hold one that is

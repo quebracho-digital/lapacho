@@ -46,19 +46,21 @@
     <string name="dict_not_loading">Diccionario: NO CARGA (%1$s: %2$s)</string>
 
     <!-- Keyboard languages -->
-    <string name="languages_header">Idiomas del teclado\n\nSe usan todos a la vez. Para agregar uno, bajá su archivo con el navegador y elegilo con «Agregar». Tocá uno importado para quitarlo.</string>
+    <string name="languages_header">Idiomas del teclado\n\nSe usan todos a la vez. Para agregar uno, bajá su archivo con el navegador y elegilo con «Agregar». Tocá uno para quitarlo; los incluidos se pueden volver a agregar sin archivo.</string>
     <string name="dict_bundled">incluido en la app</string>
     <string name="dict_official">oficial ✓ · sha256 %1$s…</string>
     <string name="dict_custom">personalizado · sha256 %1$s…</string>
     <string name="add">Agregar</string>
-    <string name="too_many_imported">Ya hay %1$d idiomas importados; quitá uno antes de agregar otro.</string>
+    <string name="too_many_languages">Ya hay %1$d idiomas; quitá uno antes de agregar otro.</string>
+    <string name="keep_one_language">Tiene que quedar al menos un idioma.</string>
+    <string name="import_file">Importar un archivo…</string>
     <string name="reading_file">Leyendo el archivo…</string>
     <string name="not_official_title">«%1$s» no es un diccionario oficial</string>
     <string name="not_official_message">Su SHA-256 no coincide con ninguno de los publicados con Lapacho:\n\n%1$s\n\nPuede ser un diccionario personalizado, uno publicado después de esta versión, o uno modificado. Lo peor que puede hacer es sugerir palabras que no querés. Importalo solo si sabés de dónde salió.</string>
     <string name="import_as_custom">Importar como personalizado</string>
     <string name="dict_added">«%1$s» agregado. El teclado lo usa la próxima vez que se abra.</string>
     <string name="remove_title">Quitar «%1$s»</string>
-    <string name="remove_message">El teclado deja de sugerir sus palabras. Podés volver a importarlo cuando quieras.</string>
+    <string name="remove_message">El teclado deja de sugerir sus palabras. Podés volver a agregarlo cuando quieras.</string>
     <string name="remove">Quitar</string>
 
     <!-- Dictionary import errors -->
@@ -72,7 +74,6 @@
     <string name="err_cant_read">No se pudo leer el archivo.</string>
     <string name="err_too_big">El archivo pasa de %1$d MB.</string>
     <string name="err_not_utf8">El archivo no es texto UTF-8.</string>
-    <string name="err_bundled_lang">«%1$s» ya viene con la app; usá otro «#lang», como «%1$s-ar».</string>
     <string name="err_no_words">El diccionario no tiene palabras.</string>
 
     <!-- Keyboard -->

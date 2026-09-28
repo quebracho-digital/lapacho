@@ -11,23 +11,28 @@ import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
 
 /**
- * The dictionary shipped inside the APK. Every other one is *imported* from a
+ * The dictionaries shipped inside the APK, as `dict/<lang>.txt` assets: both
+ * in use until the user removes one. Every other one is *imported* from a
  * file the user picked, so that adding a language never costs the keyboard a
  * network permission (see `docs/DECISIONS.md`, format in
- * `docs/DICTIONARIES.md`).
+ * `docs/DICTIONARIES.md`). An imported file of a bundled language replaces
+ * the bundled one.
  */
-private const val DICT_ASSET = "dict/es.txt"
-private const val BUNDLED_LANG = "es"
-/** Where imported dictionaries live: app-private, shared by the IME's process. */
+val BUNDLED_LANGUAGES = listOf("es", "en")
+/**
+ * Where imported dictionaries live: app-private, shared by the IME's process.
+ * A removed bundled language leaves a `<lang>.off` file here, so the IME's
+ * [dictionarySignature] sees the change like any other.
+ */
 private const val DICT_DIR = "dict"
 /** First line of every dictionary: what tells one from any other text file. */
 const val DICT_MAGIC = "#lapacho-dict 1"
 /**
  * ponytail: ~8.5 MB of native heap per 50 000-word list, all of them loaded
- * in the keyboard's process — hence a cap on how many mix. Raising it is
- * safe once the predictor stores words in one flat buffer.
+ * in the keyboard's process — hence a cap on how many mix, bundled or not.
+ * Raising it is safe once the predictor stores words in one flat buffer.
  */
-const val MAX_IMPORTED = 2
+const val MAX_LANGUAGES = 3
 /** Ten times the bundled Spanish list: room for a big language, not for a corpus. */
 const val MAX_DICT_BYTES = 8 * 1024 * 1024
 
@@ -50,6 +55,7 @@ val OFFICIAL_DICTIONARIES = mapOf(
 
 /** One dictionary the keyboard is using. [file] is null for the bundled one. */
 class InstalledDict(val header: DictHeader, val file: File?, val sha256: String?) {
+    val bundled: Boolean get() = file == null
     val official: Boolean get() = file == null || sha256 in OFFICIAL_DICTIONARIES
 }
 
@@ -92,17 +98,57 @@ private fun importedDir(context: Context) = File(context.filesDir, DICT_DIR)
 private fun importedFiles(context: Context): List<File> =
     importedDir(context).listFiles { f -> f.name.endsWith(".txt") }?.sortedBy { it.name }.orEmpty()
 
-private fun bundledText(context: Context) = context.assets.open(DICT_ASSET).bufferedReader().use { it.readText() }
+private fun removedMark(context: Context, lang: String) = File(importedDir(context), "$lang.off")
 
-/** The bundled dictionary first, then the imported ones. */
-fun installedDictionaries(context: Context): List<InstalledDict> =
-    listOf(InstalledDict(parseHeader(bundledText(context)), null, null)) +
-        importedFiles(context).mapNotNull { f ->
-            val bytes = f.readBytes()
-            // A file that no longer parses (edited by hand, half written) is
-            // skipped rather than taking the keyboard down with it.
-            runCatching { InstalledDict(parseHeader(String(bytes)), f, sha256(bytes)) }.getOrNull()
-        }
+private fun bundledText(context: Context, lang: String) =
+    context.assets.open("dict/$lang.txt").bufferedReader().use { it.readText() }
+
+/** Just the `#` lines: the header, without reading 600 KB of words for it. */
+private fun bundledHeader(context: Context, lang: String): DictHeader =
+    context.assets.open("dict/$lang.txt").bufferedReader().useLines { lines ->
+        parseHeader(lines.takeWhile { it.startsWith("#") }.joinToString("\n"))
+    }
+
+/** Bundled languages in use: not removed, and not replaced by an imported file. */
+fun activeBundled(bundled: List<String>, removed: Set<String>, imported: Set<String>): List<String> =
+    bundled.filter { it !in removed && it !in imported }
+
+/** The bundled dictionaries in use first, then the imported ones. */
+fun installedDictionaries(context: Context): List<InstalledDict> {
+    val imported = importedFiles(context).mapNotNull { f ->
+        val bytes = f.readBytes()
+        // A file that no longer parses (edited by hand, half written) is
+        // skipped rather than taking the keyboard down with it.
+        runCatching { InstalledDict(parseHeader(String(bytes)), f, sha256(bytes)) }.getOrNull()
+    }
+    val removed = BUNDLED_LANGUAGES.filter { removedMark(context, it).exists() }.toSet()
+    return activeBundled(BUNDLED_LANGUAGES, removed, imported.map { it.header.lang }.toSet())
+        .map { InstalledDict(bundledHeader(context, it), null, null) } + imported
+}
+
+/** Bundled languages the user removed, which come back without a file. */
+fun removedBundled(context: Context): List<DictHeader> =
+    BUNDLED_LANGUAGES.filter { removedMark(context, it).exists() }.map { bundledHeader(context, it) }
+
+/**
+ * Stops using [dict]. A bundled language is marked removed too, so that
+ * removing an imported copy of it does not quietly bring the bundled one
+ * back. The last language stays: with none, the strip would never suggest.
+ */
+fun removeDictionary(context: Context, dict: InstalledDict) {
+    refuseUnless(installedDictionaries(context).size > 1, R.string.keep_one_language)
+    dict.file?.delete()
+    if (dict.header.lang in BUNDLED_LANGUAGES) {
+        importedDir(context).mkdirs()
+        removedMark(context, dict.header.lang).createNewFile()
+    }
+}
+
+/** Brings back a bundled language the user removed. */
+fun restoreBundled(context: Context, lang: String) {
+    refuseUnless(installedDictionaries(context).size < MAX_LANGUAGES, R.string.too_many_languages, MAX_LANGUAGES)
+    removedMark(context, lang).delete()
+}
 
 /**
  * Changes whenever a dictionary is added, replaced or removed: the IME
@@ -110,7 +156,7 @@ fun installedDictionaries(context: Context): List<InstalledDict> =
  * is cheaper than rebuilding blindly.
  */
 fun dictionarySignature(context: Context): String =
-    importedFiles(context).joinToString { "${it.name}@${it.lastModified()}" }
+    importedDir(context).listFiles()?.sortedBy { it.name }?.joinToString { "${it.name}@${it.lastModified()}" }.orEmpty()
 
 /**
  * All active dictionaries, mixed, plus the words the user taught the keyboard.
@@ -118,7 +164,10 @@ fun dictionarySignature(context: Context): String =
  * does not bury a smaller one.
  */
 fun loadPredictor(context: Context, learned: List<String> = emptyList()): WordPredictor =
-    WordPredictor(listOf(bundledText(context)) + importedFiles(context).map { it.readText() }, learned)
+    WordPredictor(
+        installedDictionaries(context).map { d -> d.file?.readText() ?: bundledText(context, d.header.lang) },
+        learned,
+    )
 
 /**
  * Long-press alternates from every active dictionary's header, on top of
@@ -136,7 +185,8 @@ fun keyAlternates(dicts: List<DictHeader>, base: Map<String, String>): Map<Strin
 
 /**
  * Reads and checks a picked file: UTF-8, under [MAX_DICT_BYTES], a valid
- * header, not the bundled language, some words. Throws with a message for
+ * header, some words. A bundled language is accepted: it replaces the
+ * bundled list (a newer official one, or a custom variant). Throws with a message for
  * the user. Nothing is written — the caller decides whether a file that is
  * not [PickedDict.official] goes in, see [installDictionary].
  *
@@ -164,22 +214,24 @@ fun readDictionary(context: Context, uri: Uri): PickedDict {
         throw UserError(R.string.err_not_utf8)
     }
     val header = parseHeader(text)
-    refuseUnless(header.lang != BUNDLED_LANG, R.string.err_bundled_lang, BUNDLED_LANG)
     refuseUnless(text.lineSequence().any { it.isNotBlank() && !it.trimStart().startsWith("#") }, R.string.err_no_words)
     return PickedDict(header, sha256(bytes), bytes)
 }
 
 /**
  * Copies a checked file into the imported dictionaries. Importing a language
- * that is already there replaces it. Throws if [MAX_IMPORTED] are in use.
+ * that is already there replaces it, and brings back a bundled one that was
+ * removed. Throws if [MAX_LANGUAGES] are in use.
  */
 fun installDictionary(context: Context, picked: PickedDict) {
     val lang = picked.header.lang
     val dir = importedDir(context).apply { mkdirs() }
     val target = File(dir, "$lang.txt")
-    refuseUnless(target.exists() || importedFiles(context).size < MAX_IMPORTED, R.string.too_many_imported, MAX_IMPORTED)
+    val active = installedDictionaries(context).map { it.header.lang }
+    refuseUnless(lang in active || active.size < MAX_LANGUAGES, R.string.too_many_languages, MAX_LANGUAGES)
     // Written aside and renamed, so the keyboard never reads half a file.
     File(dir, "$lang.tmp").apply { writeBytes(picked.bytes); renameTo(target) }
+    removedMark(context, lang).delete()
 }
 
 /**

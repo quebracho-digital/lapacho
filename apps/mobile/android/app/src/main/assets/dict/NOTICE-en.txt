@@ -1,0 +1,37 @@
+English word list: en.txt
+
+Derived from hermitdave/FrequencyWords (2018 English list, en_50k.txt),
+https://github.com/hermitdave/FrequencyWords — word frequencies counted over
+the OpenSubtitles corpus.
+
+Built with the recipe in docs/DICTIONARIES.md: entries that are not plain
+lowercase a-z are dropped, as are one-letter words other than a and i. The
+three `#` lines at the top are Lapacho's dictionary header; the second column
+is the original count.
+
+This file's SHA-256 is listed in the app as an official dictionary
+(OFFICIAL_DICTIONARIES in Predict.kt); a test fails if the two drift apart.
+
+---
+
+MIT License
+
+Copyright (c) 2016 Hermit Dave
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
