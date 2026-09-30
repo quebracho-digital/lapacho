@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — swipe typing
+### Android — swipe typing (`0.1.34`)
 
 Drawing a word across the letters types it: the keyboard follows the finger,
 draws the line, and when the finger lifts types the best word with a space
