@@ -18,7 +18,7 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > measure it yourself). Builds for Linux, Windows and macOS (Apple Silicon).
 >
 > **Android** is an early spike, usable day to day: a keyboard with a paste
-> strip, encrypted history, word suggestions and spelling corrections from
+> strip, encrypted history, swipe typing, word suggestions and spelling corrections from
 > on-device dictionaries (Spanish and English bundled, either removable, others imported and mixed), and the
 > same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
 > The app and the keyboard speak English and Spanish.
@@ -136,8 +136,9 @@ The keyboard itself is deliberately small: Spanish layout with a dead-key
 acute, ñ, `@` and `¿ ? ¡ !` on long press, a numbers/symbols layer —
 opened by itself in numeric fields (amounts, PINs, phone numbers, dates), kept
 while you type in it, back to the letters in the next text field —
-every emoji, with a search in Spanish or English — no swipe typing, and no autocorrect that rewrites a word
-behind your back. From the second letter of a
+every emoji, with a search in Spanish or English — **swipe typing** (draw a
+word across the letters; the runners-up wait in the strip), and no autocorrect
+that rewrites a word behind your back. From the second letter of a
 word the strip offers up to three completions from a bundled dictionary
 (`lapacho-predict` over 49 525 Spanish words, accent- and case-insensitive),
 and gives the clips back when the word ends. When nothing completes the
@@ -303,7 +304,7 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
       reads the session buffer instead of decrypting the history)
 - [x] Modular threat scanner + per-item actions (copy/export/plugin)
 - [x] Leptos/WASM frontend + rich rendering (Markdown, safe SVG, JSON, Mermaid)
-- [x] Native system tray + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive) + launch-to-tray + dynamic tray indicator icon (shows last image thumbnail)
+- [x] Native system tray + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive) + launch-to-tray + dynamic tray indicator icon (shows last image thumbnail) + pinned items in their own tray section
 - [x] Full image support (capture, tray thumbnails, metadata sanitization)
 - [x] Android spike: paste-strip keyboard, encrypted shared history, desktop
       classifier via uniffi, secrets never stored (see [Mobile](#mobile))
@@ -314,6 +315,9 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
       imported from a file and mixed ([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md))
 - [x] Android: spell correction, offered in the strip and never applied by
       itself (`Predictor::correct`)
+- [x] Android: swipe typing, decoded on the phone by `Predictor::swipe`
+      (SHARK2 over the same dictionaries; why not a library:
+      [`docs/DECISIONS.md`](docs/DECISIONS.md))
 - [x] Android: interface in English and Spanish, following the phone or the
       per-app language setting
 - [x] Android: GitHub releases, from a pushed tag (Actions) or from the build

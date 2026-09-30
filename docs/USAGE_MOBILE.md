@@ -7,7 +7,7 @@ internet permission at all.
 
 > **Status:** early (P0 spike). It works day to day, but it is a debug build
 > installed by hand, and the keyboard is deliberately basic (suggestions and
-> corrections you tap, but nothing rewritten by itself, no swipe typing, and emoji without skin tones or
+> corrections you tap, swipe typing, but nothing rewritten by itself, and emoji without skin tones or
 > recents — favourites, yes).
 
 ## Install
@@ -86,6 +86,26 @@ the app — 49 525 Spanish words ordered by how common they are — and it is th
 same for everybody. Nothing you type is recorded, counted or kept: suggestions
 are looked up and forgotten. The one exception is a word you deliberately
 teach it, below.
+
+## Swipe typing
+
+Instead of tapping, draw the word: put a finger on its first letter, slide it
+across the others without lifting, and lift on the last. A green line follows
+the finger. The keyboard types the word it reads, with a space after it — and
+one before, if it would otherwise stick to the previous word — and puts the
+next two it thought of in the strip: tap one to swap it in. Shift works as for
+typed letters: once for a capital, locked for all caps.
+
+It reads the whole shape, so you don't have to hit every key's middle, and
+words that only differ in a doubled letter (`calle`, `cale`) draw the same
+line — the strip has the other one. It uses the same dictionaries as the
+suggestions, so a word you taught it can be swiped too.
+
+A tap that slides a little still types its letter: a press only becomes a swipe
+after the finger moves most of a key. Two fingers typing fast are not a swipe
+either. Swiping is off in password fields, while searching, and on the
+numbers and emoji layers. The line is decoded and forgotten — nothing about it
+is stored.
 
 ## Other languages, and your own word lists
 

@@ -23,8 +23,8 @@ app and the keyboard (IME), which capture and paste the clipboard.
 - **"Paste keyboard", not a Gboard replacement.** The IME's real feature is the
   paste strip. The keys (letters, dead-key acute, shift/caps lock, ñ and the
   Spanish marks on long press, a numbers/symbols layer, every emoji with a
-  search) are enough to type with, nothing more — no swipe, and
-  corrections only as chips in the strip (`predictor.correct` when nothing
+  search, swipe typing through `predictor.swipe`) are enough to type with,
+  and corrections only as chips in the strip (`predictor.correct` when nothing
   completes the word), never applied on space.
 - **Suggestions, but no user model.** `crates/lapacho-predict` completes the
   word being typed out of `app/src/main/assets/dict/es.txt` (49 525 words with
