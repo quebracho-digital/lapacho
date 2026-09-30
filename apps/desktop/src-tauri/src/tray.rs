@@ -118,11 +118,18 @@ fn get_tray_items(state: &AppState) -> Vec<ClipboardItem> {
     result
 }
 
+/// The item copied last. Not `items.first()`: the list is sorted for display,
+/// pinned and vaulted items first, so with anything pinned the first item is
+/// never the latest copy.
+pub(crate) fn newest(items: &[ClipboardItem]) -> Option<&ClipboardItem> {
+    items.iter().max_by_key(|i| i.timestamp)
+}
+
 /// Returns an icon for the tray *indicator* (the panel icon) derived from the
-/// top history item. Only images currently carry a thumbnail; everything else
+/// item copied last. Only images currently carry a thumbnail; everything else
 /// (text, SVG, MD, …) falls back to the default Lapacho icon.
 fn tray_icon_for_top(items: &[ClipboardItem]) -> Option<tauri::image::Image<'static>> {
-    let top = items.first()?;
+    let top = newest(items)?;
     if top.content_type != "image" {
         return None;
     }

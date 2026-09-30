@@ -4,6 +4,13 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — the tray icon shows the latest copy even with items pinned
+
+The panel icon turns into the thumbnail of the last image copied, but it
+took the first item of the list as sorted for display, where pinned and
+vaulted items come first. With anything pinned, a copied image never reached
+the icon. It now follows the item with the newest timestamp.
+
 ### Android — English comes with the app, and any language can be removed (`0.1.32`)
 
 The APK now carries English next to Spanish (+570 KB), both on by default,

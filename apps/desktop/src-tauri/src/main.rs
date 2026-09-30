@@ -1463,4 +1463,17 @@ mod tray_recent_tests {
         assert_eq!(buf.recent[0].id, "id0");
         assert_eq!(buf.recent[TRAY_RECENT_MAX - 1].id, format!("id{}", TRAY_RECENT_MAX - 1));
     }
+
+    #[test]
+    fn tray_icon_follows_the_latest_copy_not_the_pinned_ones() {
+        let mut pinned = item("pinned", "old");
+        pinned.pinned = true;
+        pinned.timestamp = 1;
+        let mut image = item("image", "png");
+        image.timestamp = 2;
+        let mut items = vec![image, pinned];
+        sort_for_display(&mut items);
+        assert_eq!(items[0].id, "pinned", "pinned sorts first for display");
+        assert_eq!(tray::newest(&items).map(|i| i.id.as_str()), Some("image"));
+    }
 }
