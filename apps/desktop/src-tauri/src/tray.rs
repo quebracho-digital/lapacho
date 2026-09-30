@@ -118,11 +118,18 @@ fn get_tray_items(state: &AppState) -> Vec<ClipboardItem> {
     result
 }
 
+/// The item copied last. Not `items.first()`: the list is sorted for display,
+/// pinned and vaulted items first, so with anything pinned the first item is
+/// never the latest copy.
+pub(crate) fn newest(items: &[ClipboardItem]) -> Option<&ClipboardItem> {
+    items.iter().max_by_key(|i| i.timestamp)
+}
+
 /// Returns an icon for the tray *indicator* (the panel icon) derived from the
-/// top history item. Only images currently carry a thumbnail; everything else
+/// item copied last. Only images currently carry a thumbnail; everything else
 /// (text, SVG, MD, …) falls back to the default Lapacho icon.
 fn tray_icon_for_top(items: &[ClipboardItem]) -> Option<tauri::image::Image<'static>> {
-    let top = items.first()?;
+    let top = newest(items)?;
     if top.content_type != "image" {
         return None;
     }
@@ -137,7 +144,14 @@ fn build_menu(app: &AppHandle, items: &[ClipboardItem]) -> tauri::Result<Menu<Wr
         let empty = MenuItem::with_id(app, ID_EMPTY, "(no clips yet)", false, None::<&str>)?;
         builder = builder.item(&empty);
     } else {
-        for it in items.iter().take(TRAY_MENU_ITEMS) {
+        let shown = &items[..items.len().min(TRAY_MENU_ITEMS)];
+        // Pinned/vaulted first, then the rest newest first (see
+        // `sort_for_display`); a separator between the two groups.
+        let kept = shown.iter().take_while(|i| i.pinned || i.vaulted).count();
+        for (n, it) in shown.iter().enumerate() {
+            if n == kept && n > 0 {
+                builder = builder.item(&PredefinedMenuItem::separator(app)?);
+            }
             let label = item_label(it);
             // The id is the item's UUID; the menu-event handler routes it to copy.
             // Image items carry their 18×18 thumbnail as a native menu icon.
