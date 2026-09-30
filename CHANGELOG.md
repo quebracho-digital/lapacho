@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — swipe typing
+### Android — swipe typing (`0.1.34`)
 
 Drawing a word across the letters types it: the keyboard follows the finger,
 draws the line, and when the finger lifts types the best word with a space
@@ -22,7 +22,7 @@ line is kept. Off in private fields, while searching and on the other layers.
 Checked on the emulator: `hola gracias cuando que` swiped, taps unaffected,
 `casa` swapped for `cada` from the strip.
 
-### Desktop — pinned items in their own tray section; the icon shows the latest copy
+### Desktop — pinned items in their own tray section; the icon shows the latest copy (`0.1.33`)
 
 The panel icon turns into the thumbnail of the last image copied, but it
 took the first item of the list as sorted for display, where pinned and
