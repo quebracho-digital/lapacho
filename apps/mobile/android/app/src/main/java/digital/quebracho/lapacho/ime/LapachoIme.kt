@@ -7,7 +7,10 @@ import android.app.LocaleManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.inputmethodservice.InputMethodService
@@ -36,6 +39,7 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import kotlin.math.hypot
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.Emoji
 import digital.quebracho.lapacho.EmojiGroup
@@ -114,6 +118,9 @@ class LapachoIme : InputMethodService() {
     private var longPress: Map<String, String> = BASE_LONG_PRESS
     // Set when a word is learned, shown once, gone on the next keystroke.
     private var justLearned: String? = null
+    // After a swipe: the word it typed and the runners-up, offered once in the
+    // strip in case the first guess was wrong. Gone on the next keystroke.
+    private var swiped: Pair<String, List<String>>? = null
     // True while the space before the cursor is one a suggestion put there,
     // so a closing mark typed next can take its place: "hola ," -> "hola, ".
     private var autoSpace = false
@@ -174,7 +181,7 @@ class LapachoIme : InputMethodService() {
             HorizontalScrollView(this).apply { addView(pasteStrip) },
         )
 
-        keyRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        keyRows = swipeRows()
         root.addView(keyRows)
         root.addView(buildActionRow())
         showLayer()
@@ -326,6 +333,11 @@ class LapachoIme : InputMethodService() {
         justLearned?.let { word ->
             justLearned = null
             pasteStrip.addView(pasteButton(strings.getString(R.string.learned_chip, word)) {})
+            return
+        }
+        swiped?.let { (typed, others) ->
+            swiped = null
+            for (other in others) pasteStrip.addView(pasteButton(other) { replaceSwiped(typed, other) })
             return
         }
         searchPool?.let { showSearch(it); return }
@@ -862,6 +874,8 @@ class LapachoIme : InputMethodService() {
                 // Shift is read when the key is typed, not when it was drawn.
                 addView(
                     keyButton(c, 1f, alternates) { type(shifted(c)) }.also { key ->
+                        // What a swipe reads the key as; see [swipeRows].
+                        if (c.length == 1 && c[0].isLetter()) key.tag = c[0]
                         // Shifted too, so the hint on the key says what the row will
                         // actually give: Ñ over N, not ñ.
                         relabels += {
@@ -871,6 +885,158 @@ class LapachoIme : InputMethodService() {
                 )
             }
         }
+
+    /**
+     * The letter rows, which also read a swipe across them. A touch goes to
+     * the key under it as always; once the finger has moved [SWIPE_START]
+     * key widths away, the rows take the gesture over — the key gets a
+     * cancel and types nothing — draw the line, and decode it when the
+     * finger lifts. A second finger before that is rolled typing, not a
+     * swipe, and the rows let go of it.
+     *
+     * Only on the letters, outside a search and outside a private field: the
+     * emoji grid scrolls, and a password is not a dictionary word.
+     */
+    private fun swipeRows(): LinearLayout = object : LinearLayout(this) {
+        private val points = ArrayList<Float>()
+        private var swiping = false
+        private val trail = Path()
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            color = SWIPE_COLOR
+            strokeWidth = dp(4f)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        init {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        private fun enabled() = layer == Layer.LETTERS && !searching && !privateField
+
+        // A key with alternates asks its ancestors to keep their hands off
+        // it (that is for the strip, which scrolls); these rows must still
+        // see the finger leave the key.
+        override fun requestDisallowInterceptTouchEvent(disallow: Boolean) {}
+
+        override fun onInterceptTouchEvent(ev: MotionEvent): Boolean = track(ev)
+
+        // A touch that landed between two keys comes here straight away.
+        override fun onTouchEvent(ev: MotionEvent): Boolean {
+            if (!enabled() && !swiping) return super.onTouchEvent(ev)
+            track(ev)
+            return true
+        }
+
+        override fun dispatchDraw(canvas: Canvas) {
+            super.dispatchDraw(canvas)
+            if (swiping) canvas.drawPath(trail, paint)
+        }
+
+        /** Follows the finger; true once it is a swipe. */
+        private fun track(ev: MotionEvent): Boolean {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    points.clear()
+                    if (enabled()) { points += ev.x; points += ev.y }
+                }
+                MotionEvent.ACTION_POINTER_DOWN -> if (!swiping) points.clear()
+                MotionEvent.ACTION_MOVE -> if (points.isNotEmpty()) {
+                    for (h in 0 until ev.historySize) { points += ev.getHistoricalX(h); points += ev.getHistoricalY(h) }
+                    points += ev.x
+                    points += ev.y
+                    if (!swiping && hypot(ev.x - points[0], ev.y - points[1]) > keyWidth() * SWIPE_START) {
+                        swiping = true
+                        trail.reset()
+                        trail.moveTo(points[0], points[1])
+                        for (i in 2 until points.size step 2) trail.lineTo(points[i], points[i + 1])
+                    } else if (swiping) {
+                        trail.lineTo(ev.x, ev.y)
+                    }
+                    if (swiping) invalidate()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (swiping && ev.actionMasked == MotionEvent.ACTION_UP) decode()
+                    swiping = false
+                    points.clear()
+                    invalidate()
+                }
+            }
+            return swiping
+        }
+
+        /** Every letter key and its centre, in these rows' coordinates. */
+        private fun keys(): Pair<String, List<Float>> {
+            val letters = StringBuilder()
+            val centres = ArrayList<Float>()
+            for (r in 0 until childCount) {
+                val row = getChildAt(r) as? ViewGroup ?: continue
+                for (k in 0 until row.childCount) {
+                    val key = row.getChildAt(k)
+                    val c = key.tag as? Char ?: continue
+                    letters.append(c)
+                    centres += row.left + key.left + key.width / 2f
+                    centres += row.top + key.top + key.height / 2f
+                }
+            }
+            return letters.toString() to centres
+        }
+
+        /**
+         * From one key's centre to the next: the unit the decoder measures
+         * in. ponytail: the top row's 10 equal keys, so the width over 10.
+         */
+        private fun keyWidth(): Float = width / 10f
+
+        private fun decode() {
+            val (letters, centres) = keys()
+            val t0 = System.nanoTime()
+            val words = predictor.swipe(points.toList(), letters, centres, keyWidth(), SUGGESTIONS.toUInt())
+            // Counts and timing only, never the words: see [showSuggestions].
+            Log.i(TAG, "swipe: ${points.size / 2} points, ${words.size} words in ${(System.nanoTime() - t0) / 1000}µs")
+            commitSwiped(words.map(::swipeCase))
+        }
+    }
+
+    /** A swiped word in the case shift asks for: capitalized once, or all caps. */
+    private fun swipeCase(word: String): String = when (shift) {
+        Shift.OFF -> word
+        Shift.ONCE -> word.replaceFirstChar { it.uppercase() }
+        Shift.LOCKED -> word.uppercase()
+    }
+
+    /**
+     * Types the best of a swipe's [words] as a word of its own — a space
+     * before it if it would otherwise stick to the one before, and one after
+     * it, which a closing mark typed next can take the place of — and offers
+     * the rest in the strip.
+     */
+    private fun commitSwiped(words: List<String>) {
+        val word = words.firstOrNull() ?: return
+        val before = currentInputConnection?.getTextBeforeCursor(1, 0)
+        val gap = if (before.isNullOrEmpty() || before.last().isWhitespace()) "" else " "
+        commitText("$gap$word ")
+        autoSpace = true
+        if (shift == Shift.ONCE || accentPending) {
+            if (shift == Shift.ONCE) shift = Shift.OFF
+            accentPending = false
+            relabel()
+        }
+        swiped = if (words.size > 1) word to words.drop(1) else null
+        refreshStrip()
+    }
+
+    /** Swaps the word a swipe just typed for [other], if it is still there. */
+    private fun replaceSwiped(typed: String, other: String) {
+        val ic = currentInputConnection ?: return
+        if (ic.getTextBeforeCursor(typed.length + 1, 0)?.toString() == "$typed ") {
+            ic.deleteSurroundingText(typed.length + 1, 0)
+            commitText("$other ")
+            autoSpace = true
+        }
+        refreshStrip()
+    }
 
     private fun shifted(s: String): String = if (shift != Shift.OFF) s.uppercase() else s
 
@@ -1103,6 +1269,13 @@ class LapachoIme : InputMethodService() {
         private const val SHIFT_ONCE_COLOR = 0xFF5A5A5A.toInt()
         private const val SHIFT_LOCKED_COLOR = 0xFF2E7D32.toInt()
         private const val HINT_COLOR = 0xFF9E9E9E.toInt()
+        private const val SWIPE_COLOR = 0xCC81C784.toInt()
+        /**
+         * Key widths a finger moves before a press becomes a swipe. A tap
+         * drifts a fraction of a key; less than one key, so a two-letter
+         * word between neighbours still swipes.
+         */
+        private const val SWIPE_START = 0.7f
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
         private fun row(keys: String) = keys.map(Char::toString)
         private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl"), row("zxcvbnm$DEAD_ACUTE"))

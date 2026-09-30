@@ -202,6 +202,11 @@ History search implemented; English translation complete. Sensitivity: long hex 
     network permission, by decision.
   - [x] **Official vs custom** (`0.1.21`) — hashes of published dictionaries
     in the APK; a match imports silently, anything else asks first, per file.
+  - [x] **Swipe typing** — `Predictor::swipe` (SHARK2, location channel)
+    over the same dictionaries; the IME's letter rows read the gesture and
+    offer the runners-up in the strip. Tuned on synthetic swipes only:
+    `SWIPE_SIGMA` wants retuning against real ones from a phone, and the
+    shape channel is the next step if swipes drawn small or off-centre fail.
   - [ ] **Publish official dictionaries** next to the APKs on `/lapacho`
     (English is committed and listed in the app; not uploaded yet).
   - [x] **Explicit learning** — long-press the word you typed → a chip offers

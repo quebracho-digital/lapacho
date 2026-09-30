@@ -231,6 +231,131 @@ impl Predictor {
     }
 }
 
+/// Points a swipe and each word's template are resampled to before they are
+/// compared, evenly spaced along each line.
+const SWIPE_POINTS: usize = 32;
+
+/// How much farther than the nearest key, in key widths, a swipe may start or
+/// end from a key for that key to be the word's first or last letter. A
+/// finger lands on the edge of a key about as often as on its middle.
+const SWIPE_ENDS: f32 = 0.6;
+
+/// The spread of a finger around the line through a word's keys, in key
+/// widths. It sets how much a line that drifts away from a word costs,
+/// against how much the word's frequency counts: smaller trusts the finger,
+/// larger the dictionary. Tuned on synthetic swipes over the 500 commonest
+/// Spanish words (`tests/swipe.rs`): 0.1–0.3 all land within a few points;
+/// real fingers may want it retuned — it is the one knob here.
+const SWIPE_SIGMA: f32 = 0.2;
+
+/// A key under a swipe: its letter and its centre, in the same units as the
+/// swipe's points (pixels, usually).
+pub type SwipeKey = (char, f32, f32);
+
+impl Predictor {
+    /// Words a swipe spelled, best first: `path` is where the finger went,
+    /// `keys` where each letter is, `key_width` the distance between two
+    /// neighbouring keys' centres — everything is measured in key widths, so
+    /// the screen's size and density do not matter.
+    ///
+    /// SHARK2 (Kristensson & Zhai, 2004), location channel only: a word's
+    /// template is the line through its keys' centres, the swipe and the
+    /// template are resampled to [`SWIPE_POINTS`], and the word scores by the
+    /// mean distance between the two, turned into a likelihood and weighed
+    /// against the word's frequency. Candidates are the words whose first and
+    /// last letters are near where the swipe started and ended. A doubled
+    /// letter is one point: `calle` and `cale` draw the same line, and the
+    /// frequency picks.
+    ///
+    /// ponytail: no shape channel (the line compared after scaling away its
+    /// position), which SHARK2 adds for swipes drawn small or off to one side.
+    /// Add it if real swipes that pass through the right keys lose to others.
+    pub fn swipe(&self, path: &[(f32, f32)], keys: &[SwipeKey], key_width: f32, limit: usize) -> Vec<String> {
+        if path.len() < 2 || keys.is_empty() || key_width <= 0.0 || limit == 0 {
+            return Vec::new();
+        }
+        let scale = |x: f32, y: f32| (x / key_width, y / key_width);
+        let keys: Vec<(char, (f32, f32))> = keys
+            .iter()
+            .filter_map(|&(c, x, y)| Some((fold(&c.to_string()).chars().next()?, scale(x, y))))
+            .collect();
+        let drawn = resample(&path.iter().map(|&(x, y)| scale(x, y)).collect::<Vec<_>>());
+        let near = |p: (f32, f32)| -> Vec<char> {
+            let nearest = keys.iter().map(|k| dist(k.1, p)).fold(f32::MAX, f32::min);
+            let mut near: Vec<char> = keys.iter().filter(|k| dist(k.1, p) <= nearest + SWIPE_ENDS).map(|k| k.0).collect();
+            near.dedup();
+            near
+        };
+        let (firsts, lasts) = (near(drawn[0]), near(drawn[SWIPE_POINTS - 1]));
+
+        let mut hits: Vec<(f32, &Entry)> = Vec::new();
+        let mut line: Vec<(f32, f32)> = Vec::new();
+        for first in firsts {
+            let mut buf = [0u8; 4];
+            let first_str = first.encode_utf8(&mut buf);
+            let start = self.words.partition_point(|e| *e.key < *first_str);
+            for e in self.words[start..].iter().take_while(|e| e.key.starts_with(first)) {
+                if !e.key.chars().last().is_some_and(|c| lasts.contains(&c)) {
+                    continue;
+                }
+                line.clear();
+                let mut prev = None;
+                let spelled = e.key.chars().all(|c| {
+                    if prev == Some(c) {
+                        return true;
+                    }
+                    prev = Some(c);
+                    keys.iter().find(|k| k.0 == c).map(|k| line.push(k.1)).is_some()
+                });
+                // A word with a letter that is not on the keys, or one a tap types.
+                if !spelled || line.len() < 2 {
+                    continue;
+                }
+                let template = resample(&line);
+                let d = drawn.iter().zip(&template).map(|(a, b)| dist(*a, *b)).sum::<f32>() / SWIPE_POINTS as f32;
+                hits.push((d * d / (2.0 * SWIPE_SIGMA * SWIPE_SIGMA) - (e.freq as f32).ln(), e));
+            }
+        }
+        hits.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut seen: Vec<&str> = Vec::new();
+        hits.into_iter()
+            .filter(|(_, e)| {
+                let fresh = !seen.contains(&&*e.key);
+                seen.push(&e.key);
+                fresh
+            })
+            .take(limit)
+            .map(|(_, e)| e.word.to_string())
+            .collect()
+    }
+}
+
+fn dist(a: (f32, f32), b: (f32, f32)) -> f32 {
+    (a.0 - b.0).hypot(a.1 - b.1)
+}
+
+/// `points` as [`SWIPE_POINTS`] points evenly spaced along the line through
+/// them, so that a slow stretch of a swipe weighs no more than a fast one.
+fn resample(points: &[(f32, f32)]) -> Vec<(f32, f32)> {
+    let total: f32 = points.windows(2).map(|w| dist(w[0], w[1])).sum();
+    let step = total / (SWIPE_POINTS - 1) as f32;
+    let mut out = Vec::with_capacity(SWIPE_POINTS);
+    out.push(points[0]);
+    let (mut walked, mut next) = (0.0, step);
+    for w in points.windows(2) {
+        let len = dist(w[0], w[1]);
+        while step > 0.0 && out.len() < SWIPE_POINTS - 1 && next <= walked + len {
+            let t = (next - walked) / len;
+            out.push((w[0].0 + t * (w[1].0 - w[0].0), w[0].1 + t * (w[1].1 - w[0].1)));
+            next += step;
+        }
+        walked += len;
+    }
+    // Rounding can leave the loop one short; the rest is the last point.
+    out.resize(SWIPE_POINTS, points[points.len() - 1]);
+    out
+}
+
 /// The set of letters in `key`, one bit each (`char mod 32`, so every
 /// alphabet folds into the same 32 bits).
 ///
@@ -469,6 +594,26 @@ mod tests {
         let p = Predictor::new(&["de 100\nte 90\nquebrados 50"], &["quebrachos"]);
         assert!(p.correct("dr", 3).is_empty());
         assert!(p.correct("quebrachos", 3).is_empty());
+    }
+
+    #[test]
+    fn a_swipe_over_three_keys_spells_the_word_they_draw() {
+        let keys = [('o', 0.0, 0.0), ('s', 1.0, -1.0), ('a', 2.0, 0.0), ('ñ', 1.0, 1.0)];
+        let p = Predictor::new(&["osa 5\noa 90\nsa 7\nño 50"], &[]);
+        assert_eq!(p.swipe(&[(0.0, 0.0), (1.0, -1.0), (2.0, 0.0)], &keys, 1.0, 1), vec!["osa"]);
+        // Straight from o to a: the more frequent word the same ends allow.
+        assert_eq!(p.swipe(&[(0.0, 0.0), (2.0, 0.0)], &keys, 1.0, 1), vec!["oa"]);
+    }
+
+    #[test]
+    fn a_swipe_needs_a_line_and_keys() {
+        let p = one(DICT);
+        let keys = [('q', 0.0, 0.0), ('e', 1.0, 0.0)];
+        assert!(p.swipe(&[(0.0, 0.0)], &keys, 1.0, 3).is_empty(), "a tap, not a swipe");
+        assert!(p.swipe(&[(0.0, 0.0), (1.0, 0.0)], &[], 1.0, 3).is_empty());
+        assert!(p.swipe(&[(0.0, 0.0), (1.0, 0.0)], &keys, 0.0, 3).is_empty());
+        // "que" needs a u, and there is none on these keys.
+        assert!(p.swipe(&[(0.0, 0.0), (1.0, 0.0)], &keys, 1.0, 3).is_empty());
     }
 
     #[test]

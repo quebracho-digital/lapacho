@@ -4,7 +4,25 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Desktop — pinned items in their own tray section; the icon shows the latest copy (`0.1.33`)
+### Android — swipe typing
+
+Drawing a word across the letters types it: the keyboard follows the finger,
+draws the line, and when the finger lifts types the best word with a space
+after it — and one before, if it would otherwise stick to the last word. The
+two runners-up wait in the strip; tapping one swaps it in. Shift applies to a
+swiped word as to a typed one. A press becomes a swipe once the finger moves
+0.7 of a key, so a tap that drifts still types its letter, and a second finger
+before that is rolled typing, not a swipe.
+
+The decoder is ours, in `lapacho-predict` (see `docs/DECISIONS.md` for why not
+a library): the finger's line against the line through each word's keys,
+weighed against the word's frequency, among the words that start and end
+near where the swipe did. ~4 ms per swipe on the emulator. Nothing about the
+line is kept. Off in private fields, while searching and on the other layers.
+Checked on the emulator: `hola gracias cuando que` swiped, taps unaffected,
+`casa` swapped for `cada` from the strip.
+
+### Desktop — pinned items in their own tray section; the icon shows the latest copy
 
 The panel icon turns into the thumbnail of the last image copied, but it
 took the first item of the list as sorted for display, where pinned and
