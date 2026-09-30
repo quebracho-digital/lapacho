@@ -25,7 +25,9 @@ from source is covered in the [README](../README.md#development).
 
 Click the tray icon for your recent clips — pick one to copy it back to the
 clipboard — plus **Buscar…** (quick search), **Open Lapacho…** and **Quit**.
-When the last copy is an image, the tray icon shows its thumbnail.
+Pinned (and vaulted) clips come first, then a separator, then the rest in the
+order you copied them. When the last copy is an image, the tray icon shows its
+thumbnail — pinned items don't change that.
 
 ## The main window
 
