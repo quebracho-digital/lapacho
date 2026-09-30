@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Desktop — pinned items in their own tray section; the icon shows the latest copy
+### Desktop — pinned items in their own tray section; the icon shows the latest copy (`0.1.33`)
 
 The panel icon turns into the thumbnail of the last image copied, but it
 took the first item of the list as sorted for display, where pinned and
