@@ -147,6 +147,18 @@ impl WordPredictor {
         self.inner.correct(&word, limit as usize)
     }
 
+    /// Words a swipe spelled, best first. `path` is the finger's line as
+    /// `x0, y0, x1, y1, …`; `letters` the keys' letters, one char each, and
+    /// `centres` their centres the same way; `key_width` the distance
+    /// between two neighbouring keys, in the same units (pixels). The line
+    /// is decoded and dropped: nothing about it is kept.
+    pub fn swipe(&self, path: Vec<f32>, letters: String, centres: Vec<f32>, key_width: f32, limit: u32) -> Vec<String> {
+        let path: Vec<(f32, f32)> = path.chunks_exact(2).map(|p| (p[0], p[1])).collect();
+        let keys: Vec<lapacho_predict::SwipeKey> =
+            letters.chars().zip(centres.chunks_exact(2)).map(|(c, p)| (c, p[0], p[1])).collect();
+        self.inner.swipe(&path, &keys, key_width, limit as usize)
+    }
+
     /// Whether the word is already known, accents aside. What the keyboard
     /// asks before offering to learn one.
     pub fn knows(&self, word: String) -> bool {

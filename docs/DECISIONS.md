@@ -161,6 +161,38 @@ worse than Gboard at guessing. That is the trade this product exists to make.
 
 ---
 
+## A swipe-typing library instead of our own decoder
+
+|  |  |
+|---|---|
+| **Rejected** | 2026-09-30, adding swipe typing to the keyboard |
+| **Replaced by** | `Predictor::swipe` in `lapacho-predict`: SHARK2's location channel over the dictionary the keyboard already holds |
+
+The candidates, as of 2026-09: Google's gesture library and FUTO's are closed or
+not free, which rules them out here. In Rust, `super-swipe-type` (a port of
+CleverKeys' ONNX transformer) is English-only, one author, months old, and
+would bring a model runtime into a keyboard process; nothing else on crates.io
+is more than a name. Outside Rust, FlorisBoard's statistical classifier and
+OpenSwipe are Kotlin tied to their own keyboards, and HeliBoard's NLnet-funded
+free gesture library is still collecting data (until 2026-11-30), with no
+released language or licence to build on.
+
+What tipped it is that the missing layer was small. The decoder needs a word
+list with frequencies, which Lapacho already loads for suggestions, plus the
+line through each word's keys compared with the finger's: ~150 lines, no
+dependency, no model, nothing leaving the phone and nothing stored. On
+synthetic swipes over the 500 commonest Spanish words it puts the word first
+99 % of the time on the key centres, and among the three offered 99.6 % with
+every key missed by a third of a key (`tests/swipe.rs`), in ~4 ms on the
+emulator.
+
+**When to reopen.** If HeliBoard's library ships under a free licence with a
+Rust or C API and decodes real swipes measurably better — or if real swipes
+from phones show ours failing in ways the missing SHARK2 shape channel would
+not fix.
+
+---
+
 ## A second keyboard row for suggestions
 
 |  |  |
