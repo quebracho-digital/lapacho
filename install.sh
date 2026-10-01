@@ -28,7 +28,7 @@ mkdir -p "$bin_dir"
 # ETXTBSY, and this script is most useful while the old version is still up.
 # The running process keeps its own inode and dies happy at the next restart.
 rm -f "$bin_dir/lapacho"
-install -m755 "$repo/target/release/lapacho-desktop" "$bin_dir/lapacho"
+install -m755 "$repo/target/release/lapacho" "$bin_dir/lapacho"
 
 echo "==> installing icons"
 install -Dm644 "$icons/32x32.png"       "$icon_dir/32x32/apps/lapacho.png"

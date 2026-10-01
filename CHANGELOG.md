@@ -4,6 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — the packages install `lapacho`, like `install.sh` does
+
+The Linux packages installed the binary as `/usr/bin/lapacho-desktop` (the
+Cargo crate's name), while `install.sh` installs `~/.local/bin/lapacho` with
+an autostart entry. Installing the `.deb` over a script install left both
+running, two tray icons on the same history. `mainBinaryName` makes every
+bundle install `lapacho`. Upgrading from a script install: remove
+`~/.local/bin/lapacho` and `~/.local/share/applications/lapacho.desktop`,
+keep the autostart entry (it runs `lapacho`, now the packaged one).
+
 ### Android — `abc` on the emoji layer goes straight back to the letters
 
 The key reads `abc` on both the numbers and the emoji layer, but it still
