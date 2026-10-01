@@ -1165,7 +1165,7 @@ class LapachoIme : InputMethodService() {
     private fun buildActionRow(): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layerToggle = keyButton("?123", 1.4f) { toggleLayer(Layer.SYMBOLS) }
+            layerToggle = keyButton("?123", 1.4f) { setLayer(layerToggleTarget(layer)) }
             addView(layerToggle)
             addView(keyButton("☺", 1f) { toggleLayer(Layer.EMOJI) })
             addView(keyButton(",", 1f) { type(",") })
@@ -1226,6 +1226,14 @@ class LapachoIme : InputMethodService() {
                 else -> false
             }
         }
+
+        /**
+         * Where the ?123 / abc key goes: to the numbers from the letters, and
+         * back to the letters from anywhere else — it reads "abc" on the
+         * emoji layer too, and once sent that layer to the numbers.
+         */
+        fun layerToggleTarget(current: Layer): Layer =
+            if (current == Layer.LETTERS) Layer.SYMBOLS else Layer.LETTERS
 
         /**
          * The layer a field opens on. A field that declares itself numeric —

@@ -4,6 +4,13 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — `abc` on the emoji layer goes straight back to the letters
+
+The key reads `abc` on both the numbers and the emoji layer, but it still
+did what `?123` does — numbers, or letters if already on the numbers — so
+from the emoji it went to the numbers first. It now goes to the letters
+from anywhere that is not the letters.
+
 ### Android — swipe typing (`0.1.34`)
 
 Drawing a word across the letters types it: the keyboard follows the finger,
