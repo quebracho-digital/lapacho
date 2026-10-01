@@ -8,6 +8,7 @@ import android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
 import android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
 import android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
 import digital.quebracho.lapacho.ime.LapachoIme.Companion.initialLayer
+import digital.quebracho.lapacho.ime.LapachoIme.Companion.layerToggleTarget
 import digital.quebracho.lapacho.ime.LapachoIme.Layer
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -25,5 +26,11 @@ class InitialLayerTest {
         assertEquals(Layer.LETTERS, initialLayer(TYPE_CLASS_TEXT))
         assertEquals(Layer.LETTERS, initialLayer(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_EMAIL_ADDRESS))
         assertEquals(Layer.LETTERS, initialLayer(0))
+    }
+
+    @Test fun abcGoesBackToTheLettersFromTheEmojiToo() {
+        assertEquals(Layer.SYMBOLS, layerToggleTarget(Layer.LETTERS))
+        assertEquals(Layer.LETTERS, layerToggleTarget(Layer.SYMBOLS))
+        assertEquals(Layer.LETTERS, layerToggleTarget(Layer.EMOJI))
     }
 }
