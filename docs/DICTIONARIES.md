@@ -87,7 +87,8 @@ on `n` comes from.
 
 **Limits.** At most 8 MB — room for a few hundred thousand words; the bundled
 Spanish is 50 000 words in 640 KB. Each 50 000 words cost the keyboard about
-8.5 MB of memory while it is open, which is why only two can be imported.
+8.5 MB of memory while it is open, which is why at most three languages are
+active at once, bundled ones included.
 
 ## How dictionaries mix
 

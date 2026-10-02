@@ -222,6 +222,30 @@ History search implemented; English translation complete. Sensitivity: long hex 
     automatic, never from a private field, never for what the classifier reads
     as a secret. A learned word outranks the dictionary; the keyboard picks up
     what the app forgot the next time it opens.
+- [ ] **Mobile: a layout per language, and switching between them** — today
+  the letter rows are one hard-coded QWERTY (`LETTER_ROWS`) whatever the
+  dictionaries, and a dictionary header can only *add* long-press characters.
+  - **Layout from the language:** a header line (`#rows azertyuiop qsdfghjklm
+    wxcvbn`) or a bundled layout per language; the keyboard opens on the
+    default language's (the first active one).
+  - **Switch** with a 🌐 key and/or a sideways swipe on the space bar, cycling
+    the active languages; suggestions follow the layout shown (only words its
+    keys can type), corrections and swipe too — swipe already reads the real
+    key positions.
+  - **Other scripts:** `#alternates` only accepts keys `a`–`z`; `fold()` only
+    strips Latin accents, so Hebrew niqqud and Arabic harakat aren't ignored
+    when matching; `currentWord()` stops at a combining mark (`isLetter`), so
+    a word typed with harakat is cut. Shift does nothing for scripts without
+    case (fine), and the dictionary format is already plain UTF-8.
+  - **RTL (Hebrew, Arabic):** typing works today as far as the field goes —
+    Android lays out bidirectional text in the app, not the keyboard. A
+    Hebrew/Arabic layout is a different key order, not a mirrored one, so the
+    keys need no RTL handling; the suggestion strip should read right to left
+    (best word on the right). The app doesn't declare `supportsRtl`, so its
+    own screens stay left-to-right in an RTL locale.
+  - **Out of scope here:** Chinese and Japanese are not a layout problem — they
+    need a conversion engine (pinyin/kana → characters, with a candidate list)
+    and have no spaces to find a word by. A separate project if ever.
 - [ ] **Multi-client sync (optional, E2E, per-item)** — design: `docs/ARQUITECTURA_MOBILE_ANDROID.md` §5
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
   hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;
