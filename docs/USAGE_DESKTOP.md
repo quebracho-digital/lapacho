@@ -36,7 +36,7 @@ Every clip is captured automatically. Each row has these actions:
 | Button | Action |
 |--------|--------|
 | ⧉ | Copy the original content back to the clipboard. |
-| ⤢ | Show it maximized, with rendering for Markdown, JSON, SVG and Mermaid. |
+| ⤢ | Open it in its own window, with rendering for Markdown, JSON, SVG and Mermaid; **‹ ›** step to the previous and next clip without closing it, and [plugins](#plugins) run from here. |
 | 🔒 | "This is a secret": mask it, and remember that for this content. |
 | 🏷 | Give it a name, so you can find it by what it is (Enter saves, Esc cancels). |
 | 📍 / 📌 | Pin: exempt from the history size limit. |

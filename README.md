@@ -179,8 +179,10 @@ Build notes and known gaps: [`apps/mobile/android/README.md`](apps/mobile/androi
   full value and its length are never shown, but those few characters are. If
   that trade is wrong for your threat model, it is one function —
   `ingest::sensitive_display`.
-- Plugins receive their input via `stdin` (not arguments → no injection) and run
-  with a timeout; their output is sanitized before reaching the UI.
+- Plugins receive their input via `stdin` and the values they ask for via
+  environment variables (never arguments → no injection), run with a timeout,
+  and their output is sanitized before reaching the UI. Only parameters a
+  plugin declares are passed.
 
 ### Content at rest, and content in memory
 
@@ -304,6 +306,8 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
 - [x] Tray rebuild latency: 281–308 ms → 0.9–2.9 ms per capture (the rebuild
       reads the session buffer instead of decrypting the history)
 - [x] Modular threat scanner + per-item actions (copy/export/plugin)
+- [x] Plugins that ask for values (`params`), and a built-in search and
+      replace, literal or regex ([`docs/USAGE_DESKTOP.md`](docs/USAGE_DESKTOP.md#plugins))
 - [x] Leptos/WASM frontend + rich rendering (Markdown, safe SVG, JSON, Mermaid)
 - [x] Native system tray + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive) + launch-to-tray + dynamic tray indicator icon (shows last image thumbnail) + pinned items in their own tray section
 - [x] Full image support (capture, tray thumbnails, metadata sanitization)
