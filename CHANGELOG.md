@@ -4,6 +4,14 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — fast typing no longer turns into swipes
+
+Since swipe typing, a fast tap whose thumb slid most of a key as it lifted was
+taken for a swipe: the key typed nothing and the "swipe" decoded into a stray
+word ("hola" typed fast came out as "h op l as"). A press now becomes a swipe
+only after 100 ms down, and never within 350 ms of the last key, as on AOSP's
+keyboard. A real swipe is unchanged; its trail just starts a moment later.
+
 ### Desktop — which version is running
 
 The window's header shows the version on the right (`v0.1.35`), and the

@@ -137,6 +137,8 @@ class LapachoIme : InputMethodService() {
     private var query = ""
     // The key under a finger that has not lifted yet; see [pressable].
     private var pendingTap: (() -> Unit)? = null
+    // When the last key went down, on the MotionEvent clock; see [swipeRows].
+    private var lastKeyDownAt = 0L
     // Redraws each key of the current layer for the current shift and dead
     // key, in place; see [relabel].
     private val relabels = mutableListOf<() -> Unit>()
@@ -689,6 +691,7 @@ class LapachoIme : InputMethodService() {
                     keyFeedback(v)
                     v.playSoundEffect(SoundEffectConstants.CLICK)
                     pendingTap = onTap
+                    lastKeyDownAt = event.eventTime
                     onDown()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -966,14 +969,18 @@ class LapachoIme : InputMethodService() {
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     points.clear()
-                    if (enabled() && !onControlKey(ev.x, ev.y)) { points += ev.x; points += ev.y }
+                    // Mid-word, a finger that slides as it lifts is a fast tap.
+                    val typing = ev.eventTime - lastKeyDownAt < FAST_TYPING_MS
+                    if (enabled() && !typing && !onControlKey(ev.x, ev.y)) { points += ev.x; points += ev.y }
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> if (!swiping) points.clear()
                 MotionEvent.ACTION_MOVE -> if (points.isNotEmpty()) {
                     for (h in 0 until ev.historySize) { points += ev.getHistoricalX(h); points += ev.getHistoricalY(h) }
                     points += ev.x
                     points += ev.y
-                    if (!swiping && hypot(ev.x - points[0], ev.y - points[1]) > keyWidth() * SWIPE_START) {
+                    if (!swiping && ev.eventTime - ev.downTime >= SWIPE_MIN_MS &&
+                        hypot(ev.x - points[0], ev.y - points[1]) > keyWidth() * SWIPE_START
+                    ) {
                         swiping = true
                         trail.reset()
                         trail.moveTo(points[0], points[1])
@@ -1329,6 +1336,17 @@ class LapachoIme : InputMethodService() {
          * word between neighbours still swipes.
          */
         private const val SWIPE_START = 0.7f
+        /**
+         * A press shorter than this is a tap however far it drifted: a fast
+         * thumb slides most of a key as it lifts, and the swipe took it.
+         * Only delays the trail of a real swipe, which lasts several times this.
+         */
+        private const val SWIPE_MIN_MS = 100L
+        /**
+         * A press this soon after the last key is typing, not a swipe —
+         * AOSP's LatinIME does the same, with about the same window.
+         */
+        private const val FAST_TYPING_MS = 350L
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
         private fun row(keys: String) = keys.map(Char::toString)
         private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl$DEAD_ACUTE"), row("zxcvbnm"))
