@@ -121,6 +121,7 @@ pub fn App() -> impl IntoView {
     // a silent purge of real history is indistinguishable from a bug.
     let (purged, set_purged) = signal(0usize);
     let (plugins, set_plugins) = signal(Vec::<PluginDef>::new());
+    let (version, set_version) = signal(String::new());
     let (ttl, set_ttl) = signal(None::<u64>);
     let (detail, set_detail) = signal(None::<UIClipboardItem>);
     let (export, set_export) = signal(None::<ExportResult>);
@@ -171,6 +172,7 @@ pub fn App() -> impl IntoView {
         set_items.set(bindings::get_history().await);
         set_persist.set(bindings::get_persist_level().await);
         set_plugins.set(bindings::list_plugins().await);
+        set_version.set(bindings::app_version().await);
         set_ttl.set(bindings::get_sensitive_ttl().await);
     });
 
@@ -292,7 +294,13 @@ pub fn App() -> impl IntoView {
     };
 
     view! {
-        <header>"Lapacho " <small>"· secure clipboard"</small></header>
+        <header>
+            "Lapacho " <small>"· secure clipboard"</small>
+            <small class="version">{move || {
+                let v = version.get();
+                v.strip_prefix("Lapacho ").map(|n| format!("v{n}")).unwrap_or(v)
+            }}</small>
+        </header>
 
         <div id="controls">
             <label>
