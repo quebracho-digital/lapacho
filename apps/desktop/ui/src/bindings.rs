@@ -135,6 +135,14 @@ pub async fn get_sensitive_ttl() -> Option<u64> {
     }
 }
 
+/// "Lapacho 0.1.35"; empty if the backend can't say.
+pub async fn app_version() -> String {
+    match invoke("app_version", JsValue::NULL).await {
+        Ok(v) => v.as_string().unwrap_or_default(),
+        Err(_) => String::new(),
+    }
+}
+
 pub async fn list_plugins() -> Vec<PluginDef> {
     match invoke("list_plugins", JsValue::NULL).await {
         Ok(v) => serde_wasm_bindgen::from_value(v).unwrap_or_default(),

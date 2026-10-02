@@ -4,6 +4,12 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — which version is running
+
+The window's header shows the version on the right (`v0.1.35`), and the
+tray menu ends with a greyed-out `Lapacho 0.1.35` under a separator — the
+quickest way to tell which of several installs is the one up.
+
 ### Desktop — the version follows the release
 
 Desktop stayed at 0.1.0 while Android went through thirty releases, so a new

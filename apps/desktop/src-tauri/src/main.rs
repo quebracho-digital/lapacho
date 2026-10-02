@@ -633,6 +633,17 @@ fn export_item(id: String, state: State<'_, AppState>) -> Result<ExportResult, S
     })
 }
 
+/// "Lapacho 0.1.35" — the workspace version, which the release's tag
+/// carries too (see the version check in the Android release workflow).
+pub(crate) fn version_label() -> String {
+    format!("Lapacho {}", env!("CARGO_PKG_VERSION"))
+}
+
+#[tauri::command]
+fn app_version() -> String {
+    version_label()
+}
+
 #[tauri::command]
 fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginDefinition>, String> {
     plugins::load_plugins(&state.plugins_dir)
@@ -1287,6 +1298,7 @@ fn main() {
             toggle_vault,
             export_item,
             list_plugins,
+            app_version,
             run_plugin
         ])
         .build(tauri::generate_context!())

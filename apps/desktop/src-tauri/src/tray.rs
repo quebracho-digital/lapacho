@@ -34,6 +34,7 @@ const LABEL_MAX: usize = 50;
 const ID_OPEN: &str = "lapacho:open";
 const ID_SEARCH: &str = "lapacho:search";
 const ID_QUIT: &str = "lapacho:quit";
+const ID_VERSION: &str = "lapacho:version";
 const ID_EMPTY: &str = "lapacho:empty";
 
 /// Builds the one-line label for a clip.
@@ -174,11 +175,16 @@ fn build_menu(app: &AppHandle, items: &[ClipboardItem]) -> tauri::Result<Menu<Wr
     let search = MenuItem::with_id(app, ID_SEARCH, "Buscar…  (Ctrl+Shift+Alt+V)", true, None::<&str>)?;
     let open = MenuItem::with_id(app, ID_OPEN, "Open Lapacho…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, ID_QUIT, "Quit", true, None::<&str>)?;
+    // Which build is running, at a glance: installers from three channels
+    // (script, .deb, release assets) have been on this machine at once.
+    let version = MenuItem::with_id(app, ID_VERSION, crate::version_label(), false, None::<&str>)?;
     builder
         .item(&separator)
         .item(&search)
         .item(&open)
         .item(&quit)
+        .item(&PredefinedMenuItem::separator(app)?)
+        .item(&version)
         .build()
 }
 
