@@ -113,6 +113,13 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME does not match versionName $version"
             exit 1
           fi
+          # Desktop ships from the same tag: its version is versionName
+          # without the suffix (semver and MSI both need the bare numbers).
+          desktop="$(sed -n 's/^version = "\(.*\)"/\1/p' ../../../Cargo.toml | head -1)"
+          if [ "$desktop" != "${version%%-*}" ]; then
+            echo "::error::desktop version $desktop (Cargo.toml) does not match versionName $version"
+            exit 1
+          fi
           mkdir -p "$RUNNER_TEMP/out"
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/out/lapacho-$version.apk"
           for dict in dictionaries/*.txt; do
