@@ -19,6 +19,11 @@ interpreter on Windows or macOS. A plugin file cannot take a built-in's id.
 A failed run now says why next to **Run** (a bad regex, "No matches") instead
 of doing nothing.
 
+The clip window (⤢) gets **‹ ›** to step to the previous and next clip without
+closing it, and opening or closing it is deferred one frame: swapping the
+window from inside its own click dropped handlers that same click was still
+bubbling to.
+
 ### Desktop — the packages install `lapacho`, like `install.sh` does
 
 The Linux packages installed the binary as `/usr/bin/lapacho-desktop` (the

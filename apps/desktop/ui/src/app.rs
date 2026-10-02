@@ -129,6 +129,7 @@ pub fn App() -> impl IntoView {
     // failed — a wrong regex or "No matches" has to be seen, not swallowed.
     let (plugin_values, set_plugin_values) = signal(std::collections::HashMap::<String, String>::new());
     let (plugin_err, set_plugin_err) = signal(None::<String>);
+
     // Raw vs. rendered preview inside the maximize modal (reset on each open).
     let (view_raw, set_view_raw) = signal(false);
     // Search query (client-side filter on display_content for live list).
@@ -139,6 +140,31 @@ pub fn App() -> impl IntoView {
     // confirming second click. Putting a secret on disk shouldn't be one stray
     // click away from the pin next to it.
     let (arming, set_arming) = signal(None::<String>);
+
+    // Opens `item` in the detail modal, fresh, or closes it with `None`.
+    //
+    // Deferred to the next frame on purpose. Called from a click inside the
+    // modal (✕, ‹ ›), an immediate swap drops the modal's handlers while that
+    // same click is still bubbling up to them, and wasm-bindgen throws
+    // "closure invoked recursively or after being dropped" once per handler —
+    // the red lines that piled up over the ✕ on every close.
+    let show_detail = move |item: Option<UIClipboardItem>| {
+        request_animation_frame(move || {
+            set_export.set(None);
+            set_view_raw.set(false);
+            set_sel_plugin.set(String::new());
+            set_plugin_values.set(Default::default());
+            set_plugin_err.set(None);
+            set_detail.set(item);
+        });
+    };
+    // The item `step` places away from `id` in the list as shown.
+    let neighbour = move |id: &str, step: isize| -> Option<UIClipboardItem> {
+        items.with(|list| {
+            let at = list.iter().position(|x| x.id == id)? as isize + step;
+            list.get(usize::try_from(at).ok()?).cloned()
+        })
+    };
 
     // Initial load (runs once at mount).
     spawn_local(async move {
@@ -409,14 +435,7 @@ pub fn App() -> impl IntoView {
                                     >"⧉"</button>
                                     <button
                                         title="Maximize"
-                                        on:click=move |_| {
-                                            set_export.set(None);
-                                            set_view_raw.set(false);
-                                            set_sel_plugin.set(String::new());
-                                            set_plugin_values.set(Default::default());
-                                            set_plugin_err.set(None);
-                                            set_detail.set(Some(item_max.clone()));
-                                        }
+                                        on:click=move |_| show_detail(Some(item_max.clone()))
                                     >"⤢"</button>
                                     {(!sens && it.content_type != "image").then(|| {
                                         let id_secret = it.id.clone();
@@ -504,6 +523,8 @@ pub fn App() -> impl IntoView {
                     let id_export = item.id.clone();
                     let id_plugin = item.id.clone();
                     let id_mermaid = item.id.clone();
+                    let (id_prev, id_next) = (item.id.clone(), item.id.clone());
+                    let (id_has_prev, id_has_next) = (item.id.clone(), item.id.clone());
                     let tag_class = format!("tag s-{}", item.sensitivity.label());
                     // Per-type rendering inputs. Sensitive items carry only the
                     // redacted placeholder, so they're never "rich".
@@ -521,12 +542,32 @@ pub fn App() -> impl IntoView {
                                 | DetectedType::Mermaid
                         );
                     view! {
-                        <div class="overlay" on:click=move |_| set_detail.set(None)>
+                        <div class="overlay" on:click=move |_| show_detail(None)>
                             <div class="modal" on:click=move |ev| ev.stop_propagation()>
                                 <h2>
                                     <span class=tag_class>{item.sensitivity.label()}</span>
                                     {if is_image { "Image" } else { item.detected_type.label() }}
-                                    <button class="close" on:click=move |_| set_detail.set(None)>
+                                    <button
+                                        class="nav"
+                                        title="Previous"
+                                        disabled=move || neighbour(&id_has_prev, -1).is_none()
+                                        on:click=move |_| {
+                                            if let Some(it) = neighbour(&id_prev, -1) {
+                                                show_detail(Some(it));
+                                            }
+                                        }
+                                    >"‹"</button>
+                                    <button
+                                        class="nav"
+                                        title="Next"
+                                        disabled=move || neighbour(&id_has_next, 1).is_none()
+                                        on:click=move |_| {
+                                            if let Some(it) = neighbour(&id_next, 1) {
+                                                show_detail(Some(it));
+                                            }
+                                        }
+                                    >"›"</button>
+                                    <button class="close" on:click=move |_| show_detail(None)>
                                         "✕"
                                     </button>
                                 </h2>
