@@ -4,6 +4,21 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — search and replace, and plugins that ask for values
+
+Plugins can declare `params`: the window shows a field (or a checkbox) for
+each before running, and the command gets the values as `LAPACHO_PARAM_<NAME>`
+environment variables — never as arguments, like the clip itself on stdin.
+A value for a parameter the plugin does not declare is refused.
+
+The first plugin to use them is built in: **Search and replace**, literal or
+with a regular expression whose groups the replacement can use (`$1`). It runs
+as `lapacho plugin replace`, the app's own binary, so it goes through the same
+process boundary, timeout and sanitizing as any plugin and needs no `sed` or
+interpreter on Windows or macOS. A plugin file cannot take a built-in's id.
+A failed run now says why next to **Run** (a bad regex, "No matches") instead
+of doing nothing.
+
 ### Desktop — the packages install `lapacho`, like `install.sh` does
 
 The Linux packages installed the binary as `/usr/bin/lapacho-desktop` (the

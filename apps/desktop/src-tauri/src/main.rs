@@ -651,6 +651,7 @@ fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginDefinition>, Str
 fn run_plugin(
     plugin_id: String,
     item_id: String,
+    params: Option<std::collections::HashMap<String, String>>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<UIClipboardItem, String> {
@@ -658,7 +659,7 @@ fn run_plugin(
     if source.content_type == "image" {
         return Err("Plugins operate on text, not images.".to_string());
     }
-    let resp = plugins::execute_plugin(&state.plugins_dir, &plugin_id, &source.raw_content)?;
+    let resp = plugins::execute_plugin(&state.plugins_dir, &plugin_id, &source.raw_content, &params.unwrap_or_default())?;
     if !resp.success {
         return Err(resp.error.unwrap_or_else(|| "Plugin failed".to_string()));
     }
@@ -1091,9 +1092,17 @@ fn block_shutdown_signals() {}
 fn spawn_signal_waiter(_app: tauri::AppHandle) {}
 
 fn main() {
-    // First statement on purpose — see `block_shutdown_signals`.
-    block_shutdown_signals();
+    // No core dumps, for the app and for a built-in plugin alike: both hold
+    // clipboard content. It starts no thread, so it may go before the mask.
     harden_process();
+    // Started as a built-in plugin (`lapacho plugin <id>`, see
+    // `plugins::SELF_COMMAND`): stdin to stdout, and none of the app.
+    let args: Vec<String> = std::env::args_os().map(|a| a.to_string_lossy().into_owned()).collect();
+    if let Some(code) = plugins::run_builtin(&args) {
+        std::process::exit(code);
+    }
+    // Before any thread on purpose — see `block_shutdown_signals`.
+    block_shutdown_signals();
     mitigate_webkit_blank_window();
     let app = tauri::Builder::default()
         .setup(|app| {

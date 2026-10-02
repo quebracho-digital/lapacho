@@ -87,7 +87,40 @@ Plugins transform a clip with an external command. Each is a JSON file in
 ```
 
 The clip is passed on standard input (never as an argument), the command has a
-timeout, and its output is sanitized before it is shown.
+timeout, and its output is sanitized before it is shown. The result is a new
+clip; the original is left as it was.
+
+Open a clip (⤢), pick the plugin, **Run**. If it fails — a wrong regular
+expression, nothing matched — the reason shows next to the button.
+
+### Search and replace
+
+Built in, always first in the list. Type what to **Search** and what to
+**Replace with**; every occurrence is replaced. Tick **Regular expression** to
+search with a pattern, and use its groups in the replacement: search
+`(\d+)-(\d+)-(\d+)`, replace with `$3/$2/$1`, and `2026-10-02` becomes
+`02/10/2026`. If nothing matches it says so instead of making a copy.
+
+### Plugins that ask for values
+
+A plugin can declare `params`; the window shows a field for each before it
+runs, and the command gets each value as the environment variable
+`LAPACHO_PARAM_<NAME>` — again never as an argument, so a value can't turn
+into a flag or a second command:
+
+```json
+{
+  "id": "prefix",
+  "name": "Prefix every line",
+  "description": "Puts a text before each line",
+  "command": "sh",
+  "args": ["-c", "while IFS= read -r l; do printf '%s%s\\n' \"$LAPACHO_PARAM_TEXT\" \"$l\"; done"],
+  "params": [{ "name": "text", "label": "Prefix" }]
+}
+```
+
+`name` is lowercase letters, digits and `_`. `kind` is `"text"` (the default)
+or `"flag"`, a checkbox that arrives as `1` or `0`.
 
 ## Where things live (Linux)
 

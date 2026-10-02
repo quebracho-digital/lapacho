@@ -161,6 +161,30 @@ pub struct PluginDefinition {
     /// If omitted, applies to any text item.
     #[serde(default)]
     pub applies_to: Option<Vec<String>>,
+    /// Values the window asks for before running the plugin. Each reaches
+    /// the process as the environment variable `LAPACHO_PARAM_<NAME>`
+    /// (uppercased) — never as an argument, so a value can't become a flag
+    /// or a second command.
+    #[serde(default)]
+    pub params: Vec<PluginParam>,
+}
+
+/// One value a plugin asks for. `name` is `[a-z][a-z0-9_]*`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct PluginParam {
+    pub name: String,
+    pub label: String,
+    #[serde(default)]
+    pub kind: ParamKind,
+}
+
+/// A text field, or a checkbox whose value is `"1"` or `"0"`.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ParamKind {
+    #[default]
+    Text,
+    Flag,
 }
 
 /// Result of executing a plugin.

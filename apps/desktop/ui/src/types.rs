@@ -130,4 +130,16 @@ pub struct PluginDef {
     pub id: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub params: Vec<PluginParam>,
+}
+
+/// A value the plugin asks for before it runs.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct PluginParam {
+    pub name: String,
+    pub label: String,
+    /// `"text"` or `"flag"` (a checkbox).
+    #[serde(default)]
+    pub kind: String,
 }

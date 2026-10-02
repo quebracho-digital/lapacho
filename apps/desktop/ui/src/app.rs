@@ -125,6 +125,10 @@ pub fn App() -> impl IntoView {
     let (detail, set_detail) = signal(None::<UIClipboardItem>);
     let (export, set_export) = signal(None::<ExportResult>);
     let (sel_plugin, set_sel_plugin) = signal(String::new());
+    // What was typed into the selected plugin's fields, and why its last run
+    // failed — a wrong regex or "No matches" has to be seen, not swallowed.
+    let (plugin_values, set_plugin_values) = signal(std::collections::HashMap::<String, String>::new());
+    let (plugin_err, set_plugin_err) = signal(None::<String>);
     // Raw vs. rendered preview inside the maximize modal (reset on each open).
     let (view_raw, set_view_raw) = signal(false);
     // Search query (client-side filter on display_content for live list).
@@ -408,6 +412,9 @@ pub fn App() -> impl IntoView {
                                         on:click=move |_| {
                                             set_export.set(None);
                                             set_view_raw.set(false);
+                                            set_sel_plugin.set(String::new());
+                                            set_plugin_values.set(Default::default());
+                                            set_plugin_err.set(None);
                                             set_detail.set(Some(item_max.clone()));
                                         }
                                     >"⤢"</button>
@@ -613,7 +620,11 @@ pub fn App() -> impl IntoView {
                                             }
                                         });
                                     }>"Export"</button>
-                                    <select on:change=move |ev| set_sel_plugin.set(event_target_value(&ev))>
+                                    <select on:change=move |ev| {
+                                        set_sel_plugin.set(event_target_value(&ev));
+                                        set_plugin_values.set(Default::default());
+                                        set_plugin_err.set(None);
+                                    }>
                                         <option value="">"— plugin —"</option>
                                         {move || {
                                             plugins
@@ -623,21 +634,76 @@ pub fn App() -> impl IntoView {
                                                 .collect_view()
                                         }}
                                     </select>
+                                    // The selected plugin's fields. Rebuilt only when the
+                                    // choice changes: reading the values here would rebuild
+                                    // the inputs on every keystroke.
+                                    {move || {
+                                        let pid = sel_plugin.get();
+                                        plugins
+                                            .get()
+                                            .into_iter()
+                                            .find(|p| p.id == pid)
+                                            .map(|p| p.params)
+                                            .unwrap_or_default()
+                                            .into_iter()
+                                            .map(|param| {
+                                                let name = param.name.clone();
+                                                if param.kind == "flag" {
+                                                    view! {
+                                                        <label class="plugin-param">
+                                                            <input
+                                                                type="checkbox"
+                                                                on:change=move |ev| {
+                                                                    let on = if event_target_checked(&ev) { "1" } else { "0" };
+                                                                    set_plugin_values.update(|v| {
+                                                                        v.insert(name.clone(), on.to_string());
+                                                                    });
+                                                                }
+                                                            />
+                                                            {param.label.clone()}
+                                                        </label>
+                                                    }
+                                                        .into_any()
+                                                } else {
+                                                    view! {
+                                                        <input
+                                                            class="plugin-param"
+                                                            type="text"
+                                                            placeholder=param.label.clone()
+                                                            on:input=move |ev| {
+                                                                let value = event_target_value(&ev);
+                                                                set_plugin_values.update(|v| {
+                                                                    v.insert(name.clone(), value);
+                                                                });
+                                                            }
+                                                        />
+                                                    }
+                                                        .into_any()
+                                                }
+                                            })
+                                            .collect_view()
+                                    }}
                                     <button on:click=move |_| {
                                         let pid = sel_plugin.get();
                                         if pid.is_empty() {
                                             return;
                                         }
                                         let item_id = id_plugin.clone();
+                                        let params = plugin_values.get_untracked();
                                         spawn_local(async move {
-                                            if let Ok(newit) = bindings::run_plugin(&pid, &item_id).await {
-                                                set_items.update(|v| {
-                                                    v.retain(|x| x.id != newit.id);
-                                                    v.insert(0, newit);
-                                                });
+                                            match bindings::run_plugin(&pid, &item_id, &params).await {
+                                                Ok(newit) => {
+                                                    set_plugin_err.set(None);
+                                                    set_items.update(|v| {
+                                                        v.retain(|x| x.id != newit.id);
+                                                        v.insert(0, newit);
+                                                    });
+                                                }
+                                                Err(e) => set_plugin_err.set(Some(e)),
                                             }
                                         });
                                     }>"Run"</button>
+                                    <span class="plugin-err">{move || plugin_err.get()}</span>
                                 </div>
 
                                 {move || {

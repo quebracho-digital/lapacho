@@ -1,5 +1,6 @@
 use crate::security::{classify_sensitivity, sanitize_svg, sanitize_text};
-use crate::types::{PluginDefinition, PluginResponse, Sensitivity};
+use crate::types::{ParamKind, PluginDefinition, PluginParam, PluginResponse, Sensitivity};
+use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -8,6 +9,98 @@ use std::time::{Duration, Instant};
 
 /// Maximum time a plugin process may run before being killed.
 const PLUGIN_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// A plugin `command` that means "this program". The built-in plugins run as
+/// `<lapacho> plugin <id>` ([`run_builtin`]), across the same process
+/// boundary, timeout and output sanitizing as anyone else's — and with no
+/// interpreter to install on any of the three systems.
+pub const SELF_COMMAND: &str = "@lapacho";
+
+/// The plugins that ship with Lapacho, listed before the user's.
+pub fn builtin_plugins() -> Vec<PluginDefinition> {
+    let param = |name: &str, label: &str, kind| PluginParam { name: name.into(), label: label.into(), kind };
+    vec![PluginDefinition {
+        id: "replace".to_string(),
+        name: "Search and replace".to_string(),
+        description: "Replaces every match of a text, or of a regular expression".to_string(),
+        command: SELF_COMMAND.to_string(),
+        args: vec!["plugin".to_string(), "replace".to_string()],
+        max_chars: None,
+        max_words: None,
+        applies_to: None,
+        params: vec![
+            param("search", "Search", ParamKind::Text),
+            param("replace", "Replace with", ParamKind::Text),
+            param("regex", "Regular expression", ParamKind::Flag),
+        ],
+    }]
+}
+
+/// The environment variable a parameter reaches the plugin as.
+fn param_env(name: &str) -> String {
+    format!("LAPACHO_PARAM_{}", name.to_ascii_uppercase())
+}
+
+/// `[a-z][a-z0-9_]*`: it becomes part of an environment variable's name.
+fn valid_param_name(name: &str) -> bool {
+    name.starts_with(|c: char| c.is_ascii_lowercase())
+        && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// `text` with every `search` replaced by `with` — literally, or as a
+/// regular expression whose groups `with` can use (`$1`, `${name}`). Finding
+/// nothing is an error, so the window says so instead of storing a copy of
+/// the item. The `regex` crate runs in linear time: no pattern can hang it.
+pub fn replace(text: &str, search: &str, with: &str, regex: bool) -> Result<String, String> {
+    if search.is_empty() {
+        return Err("Nothing to search for".to_string());
+    }
+    if regex {
+        let re = regex::Regex::new(search).map_err(|e| format!("Invalid regular expression: {e}"))?;
+        if !re.is_match(text) {
+            return Err("No matches".to_string());
+        }
+        return Ok(re.replace_all(text, with).into_owned());
+    }
+    if !text.contains(search) {
+        return Err("No matches".to_string());
+    }
+    Ok(text.replace(search, with))
+}
+
+/// Runs a built-in plugin when this program was started as one —
+/// `<lapacho> plugin <id>`, the input on stdin, the parameters in the
+/// environment — and returns its exit code. `None` when the arguments are
+/// not a plugin call, so the app starts as usual.
+pub fn run_builtin(args: &[String]) -> Option<i32> {
+    let [_, call, id] = args else { return None };
+    if call != "plugin" {
+        return None;
+    }
+    let mut input = String::new();
+    if let Err(e) = std::io::stdin().read_to_string(&mut input) {
+        eprintln!("Could not read the input: {e}");
+        return Some(1);
+    }
+    let param = |name: &str| std::env::var(param_env(name)).unwrap_or_default();
+    let out = match id.as_str() {
+        "replace" => replace(&input, &param("search"), &param("replace"), param("regex") == "1"),
+        other => Err(format!("No built-in plugin '{other}'")),
+    };
+    match out {
+        Ok(text) => {
+            let mut stdout = std::io::stdout();
+            if stdout.write_all(text.as_bytes()).and_then(|_| stdout.flush()).is_err() {
+                return Some(1);
+            }
+            Some(0)
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            Some(1)
+        }
+    }
+}
 
 /// Creates the plugins directory and seeds an example plugin if it doesn't exist yet.
 pub fn init_plugins_dir(plugins_dir: &Path) -> Result<(), String> {
@@ -25,21 +118,24 @@ pub fn init_plugins_dir(plugins_dir: &Path) -> Result<(), String> {
         max_chars: None,
         max_words: None,
         applies_to: None,
+        params: Vec::new(),
     };
     let content = serde_json::to_string_pretty(&example).map_err(|e| e.to_string())?;
     fs::write(plugins_dir.join("uppercase.json"), content).map_err(|e| e.to_string())?;
     Ok(())
 }
 
-/// Loads all plugin definitions (`*.json`) from the plugins directory.
+/// The built-in plugins, then every definition (`*.json`) in the plugins
+/// directory. A file can't take a built-in's id.
 pub fn load_plugins(plugins_dir: &Path) -> Result<Vec<PluginDefinition>, String> {
-    let mut plugins = Vec::new();
+    let mut plugins = builtin_plugins();
     if let Ok(entries) = fs::read_dir(plugins_dir) {
         for entry in entries.flatten() {
             let path: PathBuf = entry.path();
             if path.extension().and_then(|e| e.to_str()) == Some("json")
                 && let Ok(content) = fs::read_to_string(&path)
                 && let Ok(plugin) = serde_json::from_str::<PluginDefinition>(&content)
+                && !plugins.iter().any(|p| p.id == plugin.id)
             {
                 plugins.push(plugin);
             }
@@ -50,12 +146,15 @@ pub fn load_plugins(plugins_dir: &Path) -> Result<Vec<PluginDefinition>, String>
 
 /// Executes a plugin by passing `input_text` via stdin and sanitizing the output.
 ///
-/// Security model: raw content goes in via stdin (not args — no command injection).
-/// Output is sanitized before it can reach the UI.
+/// Security model: raw content goes in via stdin and `params` via the
+/// environment (not args — no command injection). Only the parameters the
+/// plugin declares are passed; one it does not declare is refused. Output is
+/// sanitized before it can reach the UI.
 pub fn execute_plugin(
     plugins_dir: &Path,
     plugin_id: &str,
     input_text: &str,
+    params: &HashMap<String, String>,
 ) -> Result<PluginResponse, String> {
     let plugins = load_plugins(plugins_dir)?;
     let plugin = plugins
@@ -63,7 +162,27 @@ pub fn execute_plugin(
         .find(|p| p.id == plugin_id)
         .ok_or_else(|| format!("Plugin '{}' not found", plugin_id))?;
 
-    let mut child = Command::new(&plugin.command)
+    if let Some(name) = params.keys().find(|k| !plugin.params.iter().any(|p| &p.name == *k)) {
+        return Err(format!("Plugin '{}' has no parameter '{name}'", plugin.name));
+    }
+    let mut command = if plugin.command == SELF_COMMAND {
+        Command::new(std::env::current_exe().map_err(|e| e.to_string())?)
+    } else {
+        Command::new(&plugin.command)
+    };
+    for p in &plugin.params {
+        if !valid_param_name(&p.name) {
+            return Err(format!("Plugin '{}' has an invalid parameter name '{}'", plugin.name, p.name));
+        }
+        let value = params.get(&p.name).map(String::as_str).unwrap_or("");
+        // The one thing an environment variable cannot hold.
+        if value.contains('\0') {
+            return Err(format!("'{}' contains a NUL character", p.label));
+        }
+        command.env(param_env(&p.name), value);
+    }
+
+    let mut child = command
         .args(&plugin.args)
         .current_dir(plugins_dir)
         .stdin(Stdio::piped())
@@ -177,9 +296,62 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("lp_plugins_exec_{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         init_plugins_dir(&dir).unwrap();
-        let resp = execute_plugin(&dir, "uppercase", "hola").unwrap();
+        let resp = execute_plugin(&dir, "uppercase", "hola", &HashMap::new()).unwrap();
         assert!(resp.success);
         assert_eq!(resp.result_raw_content.trim(), "HOLA");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn replace_literal_and_regex() {
+        assert_eq!(replace("a.b.c", ".", "-", false).unwrap(), "a-b-c");
+        // As a regex the dot is any character.
+        assert_eq!(replace("ab", ".", "-", true).unwrap(), "--");
+        assert_eq!(
+            replace("2026-10-02", r"(\d+)-(\d+)-(\d+)", "$3/$2/$1", true).unwrap(),
+            "02/10/2026"
+        );
+    }
+
+    #[test]
+    fn replace_reports_what_went_wrong() {
+        assert_eq!(replace("hola", "x", "y", false).unwrap_err(), "No matches");
+        assert_eq!(replace("hola", "", "y", false).unwrap_err(), "Nothing to search for");
+        assert!(replace("hola", "(", "y", true).unwrap_err().starts_with("Invalid regular expression"));
+    }
+
+    #[test]
+    fn builtins_are_listed_first_and_a_file_cannot_take_their_id() {
+        let dir = std::env::temp_dir().join(format!("lp_plugins_shadow_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("evil.json"), r#"{"id":"replace","name":"x","description":"","command":"true","args":[]}"#).unwrap();
+        let plugins = load_plugins(&dir).unwrap();
+        let replaces: Vec<_> = plugins.iter().filter(|p| p.id == "replace").collect();
+        assert_eq!(replaces.len(), 1);
+        assert_eq!(replaces[0].command, SELF_COMMAND);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn params_reach_the_plugin_as_environment_and_undeclared_ones_are_refused() {
+        let dir = std::env::temp_dir().join(format!("lp_plugins_params_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("echo.json"),
+            r#"{"id":"echo","name":"Echo","description":"","command":"sh","args":["-c","printf %s \"$LAPACHO_PARAM_WORD\""],
+                "params":[{"name":"word","label":"Word"}]}"#,
+        )
+        .unwrap();
+        // A value that would be a flag or a second command as an argument.
+        let word = HashMap::from([("word".to_string(), "--x; rm -rf ~".to_string())]);
+        let resp = execute_plugin(&dir, "echo", "", &word).unwrap();
+        assert_eq!(resp.result_raw_content, "--x; rm -rf ~");
+
+        let other = HashMap::from([("path".to_string(), "/".to_string())]);
+        assert!(execute_plugin(&dir, "echo", "", &other).unwrap_err().contains("no parameter 'path'"));
         let _ = fs::remove_dir_all(&dir);
     }
 }
