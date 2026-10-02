@@ -98,6 +98,9 @@ History search implemented; English translation complete. Sensitivity: long hex 
   de más. `PersistLevel::persists()` es la única fuente de la regla, usada por `save` y por el
   des-vaulteo, para que no diverjan. Las etiquetas del selector dicen "salvo bóveda": el modo ya
   no promete lo que no cumple. *Falta prueba GUI real.*
+- [ ] **Desktop: "About…" in the tray** — a tray entry that opens a small window:
+  version, licence (MIT OR Apache-2.0), link to the repo and its releases,
+  credits. Today only the version shows (window header, last tray line, #37).
 
 ### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
 - [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).
