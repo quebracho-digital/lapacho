@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — search and replace on a held clip
+### Android — search and replace on a held clip (`0.1.35`)
 
 Holding a clip — in the app's list or in the keyboard's strip — offers the
 built-in plugins, the same Rust code desktop runs (`run_builtin_with`, shared
@@ -17,7 +17,7 @@ external-command plugins stay on desktop: an Android app can't run binaries
 of its own. Checked on the emulator: from the list, from the strip (back to
 the field with the result first), tap still pastes, no-match and cancel.
 
-### Android — ⌫ above ↵, where every other keyboard has it
+### Android — ⌫ above ↵, where every other keyboard has it (`0.1.35`)
 
 ⌫ now ends the last row of letters (and of symbols), above ↵, instead of
 sitting in the bottom row between `.` and ↵. The ´ key moves to the end of the
@@ -25,7 +25,7 @@ middle row, where a Spanish keyboard has ñ, and the space bar takes the room �
 left. The emoji layer gets its own ⌫ at the end of the tabs. A swipe no longer
 starts on ⇧, ´ or ⌫, so a held ⌫ keeps deleting even if the finger drifts.
 
-### Desktop — search and replace, and plugins that ask for values
+### Desktop — search and replace, and plugins that ask for values (`0.1.35`)
 
 Plugins can declare `params`: the window shows a field (or a checkbox) for
 each before running, and the command gets the values as `LAPACHO_PARAM_<NAME>`
@@ -45,7 +45,7 @@ closing it, and opening or closing it is deferred one frame: swapping the
 window from inside its own click dropped handlers that same click was still
 bubbling to.
 
-### Desktop — the packages install `lapacho`, like `install.sh` does
+### Desktop — the packages install `lapacho`, like `install.sh` does (`0.1.35`)
 
 The Linux packages installed the binary as `/usr/bin/lapacho-desktop` (the
 Cargo crate's name), while `install.sh` installs `~/.local/bin/lapacho` with
@@ -55,7 +55,7 @@ bundle install `lapacho`. Upgrading from a script install: remove
 `~/.local/bin/lapacho` and `~/.local/share/applications/lapacho.desktop`,
 keep the autostart entry (it runs `lapacho`, now the packaged one).
 
-### Android — `abc` on the emoji layer goes straight back to the letters
+### Android — `abc` on the emoji layer goes straight back to the letters (`0.1.35`)
 
 The key reads `abc` on both the numbers and the emoji layer, but it still
 did what `?123` does — numbers, or letters if already on the numbers — so
