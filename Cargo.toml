@@ -13,7 +13,9 @@ members = [
 exclude = ["apps/desktop/ui"]
 
 [workspace.package]
-version = "0.1.0"
+# Desktop's version: versionName (apps/mobile/android/app/build.gradle.kts)
+# without its suffix. CI fails when they differ.
+version = "0.1.35"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 authors = ["Leonardo Fishman", "Quebracho Digital"]

@@ -4,6 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — the version follows the release
+
+Desktop stayed at 0.1.0 while Android went through thirty releases, so a new
+`.deb` or `.msi` didn't read as an upgrade. Its version is now the workspace's,
+the release's numbers without the suffix (`0.1.35-plugins` → `0.1.35`;
+semver would sort the suffixed one first, and MSI takes only numbers), and
+`tauri.conf.json` no longer carries a second one. The Android release
+workflow fails when the two differ, so a bump can't forget either. The
+installers attached to v0.1.35 were built before this and say 0.1.0.
+
 ### Android — search and replace on a held clip (`0.1.35`)
 
 Holding a clip — in the app's list or in the keyboard's strip — offers the

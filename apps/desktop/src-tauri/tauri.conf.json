@@ -2,7 +2,6 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Lapacho",
   "mainBinaryName": "lapacho",
-  "version": "0.1.0",
   "identifier": "digital.quebracho.lapacho",
   "build": {
     "frontendDist": "../ui/dist",
