@@ -68,6 +68,17 @@ pub fn replace(text: &str, search: &str, with: &str, regex: bool) -> Result<Stri
     Ok(text.replace(search, with))
 }
 
+/// Runs the built-in plugin `id` over `input` in this process, each parameter
+/// read through `param`. One dispatch for both hosts: desktop reaches it as
+/// `lapacho plugin <id>` ([`run_builtin`]), the Android app through the
+/// bridge, with no process at all.
+pub fn run_builtin_with(id: &str, input: &str, param: impl Fn(&str) -> String) -> Result<String, String> {
+    match id {
+        "replace" => replace(input, &param("search"), &param("replace"), param("regex") == "1"),
+        other => Err(format!("No built-in plugin '{other}'")),
+    }
+}
+
 /// Runs a built-in plugin when this program was started as one —
 /// `<lapacho> plugin <id>`, the input on stdin, the parameters in the
 /// environment — and returns its exit code. `None` when the arguments are
@@ -82,11 +93,7 @@ pub fn run_builtin(args: &[String]) -> Option<i32> {
         eprintln!("Could not read the input: {e}");
         return Some(1);
     }
-    let param = |name: &str| std::env::var(param_env(name)).unwrap_or_default();
-    let out = match id.as_str() {
-        "replace" => replace(&input, &param("search"), &param("replace"), param("regex") == "1"),
-        other => Err(format!("No built-in plugin '{other}'")),
-    };
+    let out = run_builtin_with(id, &input, |name| std::env::var(param_env(name)).unwrap_or_default());
     match out {
         Ok(text) => {
             let mut stdout = std::io::stdout();

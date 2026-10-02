@@ -55,6 +55,25 @@ The same text copied twice keeps one entry.
 
 Tap a clip in the strip: it is typed into the field, exactly as it was copied.
 Scroll the strip sideways for older ones (the 20 most recent are shown).
+**Hold** a clip to change it first — see [Plugins](#plugins).
+
+## Plugins
+
+Hold a clip — in the keyboard's strip, or in the app's list — and pick what to
+do with it. Today there is one, **Search and replace**: type what to look
+for and what to put instead, tick **Regular expression** to search with a
+pattern (its groups go in the replacement as `$1`, `$2`…), and **RUN**. The
+result is saved as a new clip; the original stays.
+
+From the keyboard, holding a clip opens the app on that form — a form needs
+keys, and the keyboard is the keys — and once it ran, or you cancelled, you
+are back in the field you were typing in, with the result first in the strip:
+tap it to paste. If nothing matched, it says so and opens the form again with
+what you typed.
+
+They are the same built-in plugins as on desktop, the same code. Desktop's
+own plugins — external commands — don't come over: an Android app can't run
+programs of its own. Secrets (masked clips) don't open plugins.
 
 ## Search
 
@@ -238,7 +257,8 @@ LANGUAGES is **IDIOMAS**, WORDS **PALABRAS**, SAVE **GUARDAR**, CLEAR HISTORY
 
 It shows the same history as the keyboard, with a search box on top. Secrets
 are masked and carry a short id so two of them can be told apart. **Tap an
-item to copy it** back to the clipboard, ready to paste anywhere; a masked one
+item to copy it** back to the clipboard, ready to paste anywhere (**hold** it
+for its [plugins](#plugins)); a masked one
 is copied flagged as sensitive, so it stays masked. **SAVE** saves text by
 hand. **CLEAR HISTORY** deletes every stored item and empties the clipboard
 (otherwise the clip still on it would come back the next time the keyboard

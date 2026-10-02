@@ -21,6 +21,10 @@ pub enum MobileError {
     /// The requested item is not in history (expired by TTL, deleted, or synced away).
     #[error("item not found: {id}")]
     NotFound { id: String },
+    /// A plugin ran and refused: a bad regex, nothing matched. `reason` is
+    /// meant for the user.
+    #[error("{reason}")]
+    Plugin { reason: String },
 }
 
 type Result<T> = std::result::Result<T, MobileError>;
@@ -53,6 +57,50 @@ impl From<lapacho_core::types::ClipboardItem> for MobileItem {
 }
 
 /// Sensitivity of a clipboard payload — "None", "Personal", "Credential" or
+/// A plugin the app can run, and the values it asks for first.
+#[derive(uniffi::Record)]
+pub struct PluginInfo {
+    pub id: String,
+    pub name: String,
+    pub params: Vec<PluginParamInfo>,
+}
+
+/// One value a plugin asks for: a text field, or a checkbox when `flag`.
+#[derive(uniffi::Record)]
+pub struct PluginParamInfo {
+    pub name: String,
+    pub label: String,
+    pub flag: bool,
+}
+
+/// The plugins built into lapacho-core — the same ones desktop lists first.
+/// Only these: an Android app can't run binaries of its own (W^X since
+/// Android 10), so desktop's external-command plugins have nothing to run.
+#[uniffi::export]
+pub fn builtin_plugins() -> Vec<PluginInfo> {
+    use lapacho_core::types::ParamKind;
+    lapacho_core::plugins::builtin_plugins()
+        .into_iter()
+        .map(|p| PluginInfo {
+            id: p.id,
+            name: p.name,
+            params: p
+                .params
+                .into_iter()
+                .map(|q| PluginParamInfo { name: q.name, label: q.label, flag: q.kind == ParamKind::Flag })
+                .collect(),
+        })
+        .collect()
+}
+
+/// Runs a built-in plugin over `input`, in this process. A flag param is
+/// `"1"` when ticked; a missing one counts as empty.
+#[uniffi::export]
+pub fn run_plugin(id: String, input: String, params: std::collections::HashMap<String, String>) -> Result<String> {
+    lapacho_core::plugins::run_builtin_with(&id, &input, |name| params.get(name).cloned().unwrap_or_default())
+        .map_err(|reason| MobileError::Plugin { reason })
+}
+
 /// "Secret" — decided by the same ingest pipeline desktop runs, so a password
 /// copied from a note is recognized on both. Stateless: needs no key or DB,
 /// which lets the Kotlin storage use it before the P1 migration lands.
@@ -176,6 +224,22 @@ impl WordPredictor {
 mod tests {
     use super::*;
     use lapacho_core::crypto;
+
+    #[test]
+    fn the_desktop_built_ins_run_here_too() {
+        let replace = builtin_plugins().into_iter().find(|p| p.id == "replace").unwrap();
+        assert!(replace.params.iter().any(|p| p.name == "regex" && p.flag));
+        let params = std::collections::HashMap::from([
+            ("search".to_string(), "(\\w+)@(\\w+)".to_string()),
+            ("replace".to_string(), "$2 at $1".to_string()),
+            ("regex".to_string(), "1".to_string()),
+        ]);
+        assert_eq!(run_plugin("replace".into(), "leo@quebracho".into(), params).unwrap(), "quebracho at leo");
+        assert!(matches!(
+            run_plugin("replace".into(), "hola".into(), Default::default()),
+            Err(MobileError::Plugin { reason }) if reason == "Nothing to search for"
+        ));
+    }
 
     #[test]
     fn classify_sensitivity_flags_a_password_copied_from_a_note() {

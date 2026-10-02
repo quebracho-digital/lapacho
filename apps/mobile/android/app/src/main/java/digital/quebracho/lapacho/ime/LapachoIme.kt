@@ -1,8 +1,10 @@
 package digital.quebracho.lapacho.ime
 
+import digital.quebracho.lapacho.app.MainActivity
 import digital.quebracho.lapacho.app.R
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.app.LocaleManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
@@ -466,12 +468,32 @@ class LapachoIme : InputMethodService() {
         }
         pasteStrip.addView(pasteButton("🔍") { startSearch() })
         for (item in clips) {
-            pasteStrip.addView(pasteButton(previewLabel(item)) { commitRaw(item) })
+            pasteStrip.addView(clipChip(item))
         }
     }
 
     // Masked items are left out of the pool: matching against them would let
     // typing part of an old password reveal that it is stored.
+    /**
+     * A clip in the strip: a tap pastes it, holding it opens it in the app on
+     * its plugins — the form there needs keys, and this keyboard is the keys.
+     * Not for a masked clip: see the app's long press.
+     */
+    private fun clipChip(item: ClipboardItem): Button {
+        if (item.isMasked()) return pasteButton(previewLabel(item)) { commitRaw(item) }
+        return pasteButton(previewLabel(item)) {}.apply {
+            holdToOpen(this, LEARN_PRESS_MS, onHold = { openPlugins(item) }, onTap = { commitRaw(item) })
+        }
+    }
+
+    private fun openPlugins(item: ClipboardItem) {
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(MainActivity.EXTRA_PLUGIN_ITEM, item.id),
+        )
+    }
+
     private fun startSearch() {
         searchPool = repo.loadTopN(HISTORY_MAX).filterNot { it.isMasked() }
         query = ""

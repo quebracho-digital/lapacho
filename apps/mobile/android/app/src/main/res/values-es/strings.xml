@@ -86,4 +86,14 @@
     <string name="no_clips">(sin clips)</string>
     <string name="no_results">(sin resultados)</string>
     <string name="empty_clip">(vacío)</string>
+    <!-- Plugins: a held clip, in the app or from the keyboard -->
+    <string name="plugins">Plugins</string>
+    <string name="plugin_run">Aplicar</string>
+    <string name="plugin_done">Guardado como clip nuevo</string>
+    <string name="plugin_replace">Buscar y reemplazar</string>
+    <string name="param_search">Buscar</string>
+    <string name="param_replace">Reemplazar por</string>
+    <string name="param_regex">Expresión regular</string>
+    <string name="plugin_no_matches">No se encontró nada</string>
+    <string name="plugin_nothing_to_search">Escribí qué buscar</string>
 </resources>
