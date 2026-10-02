@@ -4,6 +4,14 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — ⌫ above ↵, where every other keyboard has it
+
+⌫ now ends the last row of letters (and of symbols), above ↵, instead of
+sitting in the bottom row between `.` and ↵. The ´ key moves to the end of the
+middle row, where a Spanish keyboard has ñ, and the space bar takes the room ⌫
+left. The emoji layer gets its own ⌫ at the end of the tabs. A swipe no longer
+starts on ⇧, ´ or ⌫, so a held ⌫ keeps deleting even if the finger drifts.
+
 ### Desktop — search and replace, and plugins that ask for values
 
 Plugins can declare `params`: the window shows a field (or a checkbox) for

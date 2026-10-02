@@ -830,7 +830,7 @@ class LapachoIme : InputMethodService() {
      * rolled typing there is nearly always one — the letter after a capital
      * was the one lost.
      */
-    private fun buildKeyRow(keys: List<String>, withShift: Boolean = false): LinearLayout =
+    private fun buildKeyRow(keys: List<String>, withShift: Boolean = false, withBackspace: Boolean = false): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             if (withShift) {
@@ -884,7 +884,12 @@ class LapachoIme : InputMethodService() {
                     },
                 )
             }
+            // Above ↵, where every other keyboard has it.
+            if (withBackspace) addView(backspaceKey(1.5f))
         }
+
+    private fun backspaceKey(weight: Float): TextView =
+        keyButton("⌫", weight) { backspace() }.also { holdToRepeat(it, onTap = { backspace() }, onRepeat = { backspaceWord() }) }
 
     /**
      * The letter rows, which also read a swipe across them. A touch goes to
@@ -939,7 +944,7 @@ class LapachoIme : InputMethodService() {
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     points.clear()
-                    if (enabled()) { points += ev.x; points += ev.y }
+                    if (enabled() && !onControlKey(ev.x, ev.y)) { points += ev.x; points += ev.y }
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> if (!swiping) points.clear()
                 MotionEvent.ACTION_MOVE -> if (points.isNotEmpty()) {
@@ -964,6 +969,24 @@ class LapachoIme : InputMethodService() {
                 }
             }
             return swiping
+        }
+
+        /**
+         * Whether the finger came down on ⇧, ´ or ⌫: a word starts on a
+         * letter, and a held ⌫ whose finger drifts must keep deleting, not
+         * turn into a swipe.
+         */
+        private fun onControlKey(x: Float, y: Float): Boolean {
+            for (r in 0 until childCount) {
+                val row = getChildAt(r) as? ViewGroup ?: continue
+                for (k in 0 until row.childCount) {
+                    val key = row.getChildAt(k)
+                    val left = row.left + key.left
+                    val top = row.top + key.top
+                    if (x >= left && x < left + key.width && y >= top && y < top + key.height) return key.tag !is Char
+                }
+            }
+            return false
         }
 
         /** Every letter key and its centre, in these rows' coordinates. */
@@ -1082,7 +1105,7 @@ class LapachoIme : InputMethodService() {
             Layer.EMOJI -> { keyRows.addView(buildEmojiPanel()); return }
         }
         val withShift = layer == Layer.LETTERS
-        rows.forEachIndexed { i, row -> keyRows.addView(buildKeyRow(row, withShift && i == rows.lastIndex)) }
+        rows.forEachIndexed { i, row -> keyRows.addView(buildKeyRow(row, withShift && i == rows.lastIndex, i == rows.lastIndex)) }
         relabel()
     }
 
@@ -1154,6 +1177,7 @@ class LapachoIme : InputMethodService() {
             orientation = LinearLayout.HORIZONTAL
             addView(keyButton("🔍", 1f) { startEmojiSearch() })
             groups.forEachIndexed { i, g -> addView(keyButton(g.icon, 1f) { grid.setSelection(starts[i]) }) }
+            addView(backspaceKey(1.5f))
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1169,9 +1193,8 @@ class LapachoIme : InputMethodService() {
             addView(layerToggle)
             addView(keyButton("☺", 1f) { toggleLayer(Layer.EMOJI) })
             addView(keyButton(",", 1f) { type(",") })
-            addView(keyButton(strings.getString(R.string.key_space), 2.5f) { output(" ") })
+            addView(keyButton(strings.getString(R.string.key_space), 3.7f) { output(" ") })
             addView(keyButton(".", 1f, PUNCT_ALTERNATES) { type(".") })
-            addView(keyButton("⌫", 1.2f) { backspace() }.also { holdToRepeat(it, onTap = { backspace() }, onRepeat = { backspaceWord() }) })
             addView(keyButton("↵", 1.2f) { enter() })
         }
 
@@ -1286,7 +1309,7 @@ class LapachoIme : InputMethodService() {
         private const val SWIPE_START = 0.7f
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
         private fun row(keys: String) = keys.map(Char::toString)
-        private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl"), row("zxcvbnm$DEAD_ACUTE"))
+        private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl$DEAD_ACUTE"), row("zxcvbnm"))
         private val SYMBOL_ROWS = listOf(row("1234567890"), row("@#\$%&-+()/"), row("<>[]{}=_|\\"), row("*\"':;!¡?¿"))
         /**
          * The emoji layer's first tab, after the user's own favourites: the
