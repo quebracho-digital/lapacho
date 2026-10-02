@@ -222,16 +222,27 @@ History search implemented; English translation complete. Sensitivity: long hex 
     automatic, never from a private field, never for what the classifier reads
     as a secret. A learned word outranks the dictionary; the keyboard picks up
     what the app forgot the next time it opens.
+- [ ] **Mobile: words in one flat buffer, then lift the language cap** — the
+  predictor keeps two heap strings per word (folded key + word): ~8.5 MB of
+  native heap per 50 000 words against ~1.3 MB of text, in a keyboard process
+  Android kills under memory pressure. One `String` holding every word plus
+  `(start, end)` offsets per entry brings it near the text's size (~6×
+  less), and the first-word load time (~820 ms for es+en on the emulator) with
+  it. Contained in `lapacho-predict`, whose tests pin the behaviour. Then
+  `MAX_LANGUAGES` (3) can go up or away. First, before layouts.
 - [ ] **Mobile: a layout per language, and switching between them** — today
   the letter rows are one hard-coded QWERTY (`LETTER_ROWS`) whatever the
   dictionaries, and a dictionary header can only *add* long-press characters.
   - **Layout from the language:** a header line (`#rows azertyuiop qsdfghjklm
     wxcvbn`) or a bundled layout per language; the keyboard opens on the
     default language's (the first active one).
-  - **Switch** with a 🌐 key and/or a sideways swipe on the space bar, cycling
-    the active languages; suggestions follow the layout shown (only words its
-    keys can type), corrections and swipe too — swipe already reads the real
-    key positions.
+  - **Switch layouts, not languages.** Languages that share a layout (es, en,
+    pt on QWERTY — ñ is a long press, not another keyboard) stay mixed as
+    today: writing in either needs no switch. The 🌐 key and/or a sideways
+    swipe on the space bar cycle the *layouts* among the active languages,
+    and only show when there is more than one. Suggestions, corrections and
+    swipe use every dictionary whose layout is on screen — swipe already reads
+    the real key positions.
   - **Other scripts:** `#alternates` only accepts keys `a`–`z`; `fold()` only
     strips Latin accents, so Hebrew niqqud and Arabic harakat aren't ignored
     when matching; `currentWord()` stops at a combining mark (`isLetter`), so
