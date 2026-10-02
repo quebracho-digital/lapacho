@@ -80,14 +80,21 @@
       /* ---- detail / export modal ---- */
       .overlay {
         position: fixed; inset: 0; background: rgba(0,0,0,0.55);
-        display: flex; align-items: center; justify-content: center; padding: 16px;
+        /* Top, not centred: a centred modal moves its header — and the ‹ ›
+           in it — up and down with every clip's height. */
+        display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px 16px;
       }
       .modal {
         background: #1e1a14; border: 1px solid #3a3228; border-radius: 10px;
         width: 100%; max-width: 820px; max-height: 92vh; overflow: auto;
         padding: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
       }
-      .modal h2 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+      .modal h2 {
+        margin: -16px -16px 8px; padding: 16px 16px 8px; font-size: 15px;
+        display: flex; gap: 8px; align-items: center;
+        /* Stays put while a long clip scrolls under it. */
+        position: sticky; top: -16px; background: #1e1a14; z-index: 1;
+      }
       .modal .full {
         white-space: pre-wrap; word-break: break-word;
         background: #14110d; border: 1px solid #2a241c; border-radius: 6px;
