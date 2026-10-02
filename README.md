@@ -18,7 +18,7 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > measure it yourself). Builds for Linux, Windows and macOS (Apple Silicon).
 >
 > **Android** is an early spike, usable day to day: a keyboard with a paste
-> strip, encrypted history, swipe typing, word suggestions and spelling corrections from
+> strip, encrypted history, swipe typing, search and replace on a held clip, word suggestions and spelling corrections from
 > on-device dictionaries (Spanish and English bundled, either removable, others imported and mixed), and the
 > same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
 > The app and the keyboard speak English and Spanish.
@@ -320,6 +320,8 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
       imported from a file and mixed ([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md))
 - [x] Android: spell correction, offered in the strip and never applied by
       itself (`Predictor::correct`)
+- [x] Android: the built-in plugins (search and replace) on a held clip, in the
+      app or from the keyboard's strip — the same Rust code as desktop
 - [x] Android: swipe typing, decoded on the phone by `Predictor::swipe`
       (SHARK2 over the same dictionaries; why not a library:
       [`docs/DECISIONS.md`](docs/DECISIONS.md))

@@ -13,6 +13,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.LinearLayout
 import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
@@ -24,6 +26,11 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import uniffi.lapacho_mobile_bridge.MobileException
+import uniffi.lapacho_mobile_bridge.PluginInfo
+import uniffi.lapacho_mobile_bridge.PluginParamInfo
+import uniffi.lapacho_mobile_bridge.builtinPlugins
+import uniffi.lapacho_mobile_bridge.runPlugin
 import androidx.core.widget.doAfterTextChanged
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
 import digital.quebracho.lapacho.InstalledDict
@@ -83,6 +90,8 @@ private class OpenInDownloads : ActivityResultContracts.OpenDocument() {
 class MainActivity : AppCompatActivity() {
 
     private lateinit var repo: HistoryRepo
+    // Opened by the keyboard on a held clip: go back to it when done.
+    private var fromKeyboard = false
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var search: EditText
     private var all: List<ClipboardItem> = emptyList()
@@ -148,6 +157,13 @@ class MainActivity : AppCompatActivity() {
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
         historyList.adapter = adapter
         historyList.setOnItemClickListener { _, _, position, _ -> copy(shown[position]) }
+        // Held: its plugins. Not for a masked item — the result would put
+        // the secret, or most of it, back in the list in the clear.
+        historyList.setOnItemLongClickListener { _, _, position, _ ->
+            val item = shown[position]
+            if (!item.isMasked()) choosePlugin(item)
+            !item.isMasked()
+        }
 
         findViewById<Button>(R.id.clear_button).setOnClickListener { confirmClear() }
         findViewById<Button>(R.id.words_button).setOnClickListener { showLexicon() }
@@ -171,6 +187,105 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+        openFromKeyboard()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
+    /**
+     * The keyboard sends a held clip here ([EXTRA_PLUGIN_ITEM]): a form needs
+     * keys, and the keyboard is the keys. Once the plugin ran or was
+     * cancelled, back to the app the user was typing in, where the result
+     * heads the strip.
+     */
+    private fun openFromKeyboard() {
+        val id = intent.getStringExtra(EXTRA_PLUGIN_ITEM) ?: return
+        intent.removeExtra(EXTRA_PLUGIN_ITEM)
+        val item = all.find { it.id == id }?.takeUnless { it.isMasked() } ?: return
+        fromKeyboard = true
+        choosePlugin(item)
+    }
+
+    private fun backToKeyboard() {
+        if (fromKeyboard) {
+            fromKeyboard = false
+            moveTaskToBack(true)
+        }
+    }
+
+    /** The plugins [item] can go through; one tap picks one. */
+    private fun choosePlugin(item: ClipboardItem) {
+        val plugins = builtinPlugins()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.plugins)
+            .setItems(plugins.map(::pluginName).toTypedArray()) { _, i -> askParams(item, plugins[i]) }
+            .setOnCancelListener { backToKeyboard() }
+            .show()
+    }
+
+    /**
+     * A field per value the plugin asks for, then the run. The result is a new
+     * clip, like on desktop; the original stays. A refusal (a bad regex,
+     * nothing matched) says why and opens the form again with what was typed.
+     */
+    private fun askParams(item: ClipboardItem, plugin: PluginInfo, typed: Map<String, String> = emptyMap()) {
+        val pad = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20f, resources.displayMetrics).toInt()
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+        }
+        val fields = plugin.params.map { p ->
+            val field = if (p.flag) {
+                CheckBox(this).apply { text = paramLabel(p); isChecked = typed[p.name] == "1" }
+            } else {
+                EditText(this).apply { hint = paramLabel(p); isSingleLine = true; setText(typed[p.name].orEmpty()) }
+            }
+            form.addView(field)
+            p to field
+        }
+        AlertDialog.Builder(this)
+            .setTitle(pluginName(plugin))
+            .setView(form)
+            .setPositiveButton(R.string.plugin_run) { _, _ ->
+                val values = fields.associate { (p, field) ->
+                    p.name to if (field is CheckBox) (if (field.isChecked) "1" else "0") else (field as EditText).text.toString()
+                }
+                try {
+                    save(runPlugin(plugin.id, item.rawContent, values))
+                    refresh()
+                    Toast.makeText(this, R.string.plugin_done, Toast.LENGTH_SHORT).show()
+                    backToKeyboard()
+                } catch (e: MobileException.Plugin) {
+                    Toast.makeText(this, pluginRefusal(e.reason), Toast.LENGTH_LONG).show()
+                    askParams(item, plugin, values)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> backToKeyboard() }
+            .setOnCancelListener { backToKeyboard() }
+            .show()
+    }
+
+    // The built-ins' names come from lapacho-core in English; these are the
+    // ones this app knows how to say in its own language.
+    private fun pluginName(p: PluginInfo): String = when (p.id) {
+        "replace" -> getString(R.string.plugin_replace)
+        else -> p.name
+    }
+
+    private fun paramLabel(p: PluginParamInfo): String = when (p.name) {
+        "search" -> getString(R.string.param_search)
+        "replace" -> getString(R.string.param_replace)
+        "regex" -> getString(R.string.param_regex)
+        else -> p.label
+    }
+
+    private fun pluginRefusal(reason: String): String = when (reason) {
+        "No matches" -> getString(R.string.plugin_no_matches)
+        "Nothing to search for" -> getString(R.string.plugin_nothing_to_search)
+        else -> reason
     }
 
     private fun save(text: String) {
@@ -425,5 +540,10 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             Toast.makeText(this, R.string.copied, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    companion object {
+        /** The id of a clip the keyboard wants run through a plugin. */
+        const val EXTRA_PLUGIN_ITEM = "digital.quebracho.lapacho.PLUGIN_ITEM"
     }
 }

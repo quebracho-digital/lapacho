@@ -4,6 +4,19 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — search and replace on a held clip
+
+Holding a clip — in the app's list or in the keyboard's strip — offers the
+built-in plugins, the same Rust code desktop runs (`run_builtin_with`, shared
+by `lapacho plugin <id>` and the bridge). A form asks for the plugin's values;
+the result is saved as a new clip. From the keyboard the hold opens the app on
+that form and goes back to the field afterwards, where the result heads the
+strip. A refusal ("No matches", a bad regex) says why and reopens the form
+with what was typed. Masked clips don't open plugins. Desktop's
+external-command plugins stay on desktop: an Android app can't run binaries
+of its own. Checked on the emulator: from the list, from the strip (back to
+the field with the result first), tap still pastes, no-match and cancel.
+
 ### Android — ⌫ above ↵, where every other keyboard has it
 
 ⌫ now ends the last row of letters (and of symbols), above ↵, instead of
