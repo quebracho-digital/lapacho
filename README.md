@@ -63,8 +63,9 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
   - **SvgEventHandler:** detects `<svg>` with `onload`, `onerror`, or other event handlers
   - **ImgOnError:** detects `<img>` with `onerror` handler (classic XSS vector)
 - **Transformation plugins:** external commands that receive content via
-  `stdin` (no command injection), with timeout, and whose output is sanitized
-  before display.
+  `stdin` and the values they ask for via the environment (no command
+  injection), with timeout, and whose output is sanitized before display.
+  Search and replace (literal or regex) ships built in.
 - **SQLite history** (WAL mode) with size limit and TTL-based cleanup.
 
 ## Architecture

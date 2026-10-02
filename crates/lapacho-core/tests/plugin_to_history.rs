@@ -24,7 +24,7 @@ fn plugin_output_is_stored_raw_and_masked_for_display() {
     // 36 lowercase letters: the seeded `uppercase` plugin (`tr a-z A-Z`) keeps
     // this a valid GitHub-style credential after transforming it.
     let token = "ghp_abcdefghijklmnopqrstuvwxyzabcdefghij";
-    let resp = plugins::execute_plugin(&plugins_dir, "uppercase", token).unwrap();
+    let resp = plugins::execute_plugin(&plugins_dir, "uppercase", token, &Default::default()).unwrap();
     assert!(resp.success);
 
     // Route the plugin's raw output through the same ingest pipeline as the

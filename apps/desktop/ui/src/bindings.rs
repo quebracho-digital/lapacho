@@ -98,6 +98,7 @@ struct TtlArgs {
 struct RunPluginArgs<'a> {
     plugin_id: &'a str,
     item_id: &'a str,
+    params: &'a std::collections::HashMap<String, String>,
 }
 
 // --- queries ---------------------------------------------------------------
@@ -231,8 +232,12 @@ pub async fn export_item(id: &str) -> Result<ExportResult, String> {
     serde_wasm_bindgen::from_value(v).map_err(|e| e.to_string())
 }
 
-pub async fn run_plugin(plugin_id: &str, item_id: &str) -> Result<UIClipboardItem, String> {
-    let v = invoke("run_plugin", args(&RunPluginArgs { plugin_id, item_id }))
+pub async fn run_plugin(
+    plugin_id: &str,
+    item_id: &str,
+    params: &std::collections::HashMap<String, String>,
+) -> Result<UIClipboardItem, String> {
+    let v = invoke("run_plugin", args(&RunPluginArgs { plugin_id, item_id, params }))
         .await
         .map_err(js_err)?;
     serde_wasm_bindgen::from_value(v).map_err(|e| e.to_string())
