@@ -23,7 +23,9 @@ History search implemented; English translation complete. Sensitivity: long hex 
 - `threats` — **modular scanner** (trait `Detector` + `REGISTRY`): active-content,
   embedded-frame, trojan-source-bidi, zero-width, control-chars, sensitive-data,
   prompt-injection. Adding a filter = one struct + one line.
-- `plugins` — execution of external commands via stdin, with timeout.
+- `plugins` — execution of external commands via stdin, with timeout; declared
+  `params` passed as `LAPACHO_PARAM_*` environment variables; built-ins (search
+  and replace) run as `lapacho plugin <id>`.
 
 ### ✅ Desktop backend (`apps/desktop/src-tauri`)
 
@@ -38,7 +40,8 @@ History search implemented; English translation complete. Sensitivity: long hex 
   charges the multi-GB address space against `RLIMIT_MEMLOCK`.
 - Commands: `get_history`, `delete_item`, `clear_history`, `get/set_persist_level`,
   `get/set_sensitive_ttl`, `copy_item` (raw), `export_item` (raw + threats),
-  `list_plugins`, `run_plugin` (operates on raw; output is stored as new item).
+  `list_plugins`, `run_plugin` (operates on raw, takes the plugin's params;
+  output is stored as new item).
 - Live event `clipboard-new` (reactive refresh — old `://` bug is resolved).
 
 ### ✅ Frontend (`apps/desktop/ui` — Leptos 0.7 / WASM, verified build with Trunk)
@@ -47,8 +50,9 @@ History search implemented; English translation complete. Sensitivity: long hex 
   not depend on `lapacho-core`: **mirror types** of the safe projection.
 - Typed bindings over `window.__TAURI__` (`invoke` / `listen`).
 - Live list, copy/delete/clear, persistence and TTL selector.
-- Per-item actions: **maximize** (full view), **export** (shows raw + detected
-  threats before writing), **send to plugin**.
+- Per-item actions: **maximize** (full view, ‹ › to the previous/next clip),
+  **export** (shows raw + detected threats before writing), **send to plugin**
+  (with a field per declared param; a failure is shown next to Run).
 - The original vanilla UI is preserved as reference in `apps/desktop/legacy-ui/`.
 
 ## Pending
