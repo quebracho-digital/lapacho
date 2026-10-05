@@ -230,17 +230,17 @@ History search implemented; English translation complete. Sensitivity: long hex 
   6.0 → 2.1 MB for 0.71 MB of words, build 50 → 45 ms, corrections unchanged,
   swipe ~15 % faster; `tests/memory.rs` holds the heap under 3× the words.
   `MAX_LANGUAGES` 3 → 6. Not measured on a phone yet.
-- [ ] **Mobile: a layout per language, and switching between them** — today
-  the letter rows are one hard-coded QWERTY (`LETTER_ROWS`) whatever the
-  dictionaries, and a dictionary header can only *add* long-press characters.
-  - **Layout from the language:** a header line (`#rows azertyuiop qsdfghjklm
-    wxcvbn`) or a bundled layout per language; the keyboard opens on the
-    default language's (the first active one).
-  - **Switch layouts, not languages.** Languages that share a layout (es, en,
+- [ ] **Mobile: a layout per language, and switching between them** — layouts
+  and 🌐 done (below); other scripts and RTL pending.
+  - [x] **Layout from the language:** `#rows azertyuiop qsdfghjklm wxcvbn` in
+    the header (2–4 rows, ≤ 12 lowercase letters each); none = the built-in
+    QWERTY with ´. The keyboard opens on the first dictionary's layout and
+    then keeps the last one picked.
+  - [x] **Switch layouts, not languages.** Languages that share a layout (es, en,
     pt on QWERTY — ñ is a long press, not another keyboard) stay mixed as
-    today: writing in either needs no switch. The 🌐 key and/or a sideways
-    swipe on the space bar cycle the *layouts* among the active languages,
-    and only show when there is more than one. Suggestions, corrections and
+    today: writing in either needs no switch. The 🌐 key (next to ?123)
+    cycles the *layouts* among the active languages, and only shows when
+    there is more than one; a sideways swipe on the space bar is not done. Suggestions, corrections and
     swipe use every dictionary whose layout is on screen — swipe already reads
     the real key positions.
   - **Other scripts:** `#alternates` only accepts keys `a`–`z`; `fold()` only

@@ -67,6 +67,7 @@ kubectl
 | `#lang <id>` | yes | Identifies it: lowercase letters, digits and `-`, up to 32 (`en`, `pt-br`, `es-medicina`). Also its file name inside the app, so a second file with the same `id` replaces the first. `es` is taken by the bundled one. |
 | `#name <text>` | no | What **LANGUAGES** shows. Defaults to the `id`. |
 | `#alternates <key:chars> …` | no | Characters added to a key's long press, space-separated pairs. The key is one letter `a`–`z`, 1 to 8 characters after it. `#alternates e:éèêë c:ç` makes holding `e` offer é è ê ë. |
+| `#rows <row> <row> …` | no | The letter keys, top row first: 2 to 4 rows of up to 12 lowercase letters, no letter twice. `#rows azertyuiop qsdfghjklm wxcvbn` is French AZERTY. Without it the language types on the keyboard's own QWERTY (with the ´ dead key). See [How dictionaries mix](#how-dictionaries-mix). |
 
 Alternates from every active dictionary are merged, each character once, after
 the ones the keyboard always has (`@` on `a`). Spanish's header is where `ñ`
@@ -93,9 +94,17 @@ suggestion.
 
 ## How dictionaries mix
 
-All active dictionaries are used at once — there is no language switch. Type
-`wh` with English imported and you get `what`, `who`, `why`; type `con` and
-Spanish still answers.
+All active dictionaries **that type on the same keys** are used at once —
+there is no language switch. Type `wh` with English imported and you get
+`what`, `who`, `why`; type `con` and Spanish still answers.
+
+A dictionary with its own `#rows` is a different **layout**, and a 🌐 key
+appears next to ?123 to cycle through them (it stays hidden while there is
+only one). Languages on the same rows share a layout: Spanish, English and
+Portuguese all live on QWERTY, so they never need the key; a French AZERTY
+does. Suggestions, corrections, swipe and long presses come only from the
+dictionaries of the layout on screen. The keyboard starts on the first
+dictionary's layout and keeps the last one picked from one app to the next.
 
 To keep a big corpus from burying a small one, each file's frequencies are
 turned into **shares of that file's total** before mixing. "de" is about 3.5 %

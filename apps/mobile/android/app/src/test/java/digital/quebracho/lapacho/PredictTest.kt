@@ -37,6 +37,29 @@ class PredictTest {
         assertThrows(IllegalArgumentException::class.java) { parseHeader("$DICT_MAGIC\n#lang en\n#alternates n\n") }
     }
 
+    @Test fun readsTheLetterRows() {
+        val h = parseHeader("$DICT_MAGIC\n#lang fr\n#rows azertyuiop qsdfghjklm wxcvbn\nde 10\n")
+        assertEquals(listOf("azertyuiop", "qsdfghjklm", "wxcvbn"), h.rows)
+        // Any script with letters; one without case is fine.
+        assertEquals(listOf("קראטוןםפ", "שדגכעיחלךף", "זסבהנמצתץ"),
+            parseHeader("$DICT_MAGIC\n#lang he\n#rows קראטוןםפ שדגכעיחלךף זסבהנמצתץ\n").rows)
+        assertEquals("no #rows: the keyboard's own", null, parseHeader("$DICT_MAGIC\n#lang es\nde 1").rows)
+    }
+
+    @Test fun refusesRowsTheKeyboardCannotDraw() {
+        for (rows in listOf("qwertyuiop", "a b c d e", "qwerty qwerty", "QWERTY asdf", "qwe1 asd", "qwertyuiopasd zxc")) {
+            assertThrows(rows, IllegalArgumentException::class.java) { parseHeader("$DICT_MAGIC\n#lang xx\n#rows $rows\n") }
+        }
+    }
+
+    @Test fun languagesThatShareRowsShareALayout() {
+        val es = DictHeader("es", "es", emptyMap())
+        val fr = DictHeader("fr", "fr", emptyMap(), listOf("azertyuiop", "qsdfghjklm", "wxcvbn"))
+        val en = DictHeader("en", "en", emptyMap())
+        val be = DictHeader("be", "be", emptyMap(), listOf("azertyuiop", "qsdfghjklm", "wxcvbn"))
+        assertEquals(listOf(listOf(es, en), listOf(fr, be)), layouts(listOf(es, fr, en, be)) { it }.map { it.second })
+    }
+
     @Test fun alternatesMergeInOrderEachOnce() {
         val es = DictHeader("es", "Español", mapOf("n" to "ñ"))
         val pt = DictHeader("pt", "Português", mapOf("n" to "ñ", "a" to "ã"))

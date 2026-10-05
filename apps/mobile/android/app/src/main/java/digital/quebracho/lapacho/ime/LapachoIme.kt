@@ -53,7 +53,9 @@ import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.currentWord
 import digital.quebracho.lapacho.dictionarySignature
 import digital.quebracho.lapacho.installedDictionaries
+import digital.quebracho.lapacho.InstalledDict
 import digital.quebracho.lapacho.keyAlternates
+import digital.quebracho.lapacho.layouts
 import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.isSecret
 import digital.quebracho.lapacho.loadPredictor
@@ -109,14 +111,23 @@ class LapachoIme : InputMethodService() {
     private var clips: List<ClipboardItem> = emptyList()
     // ~600 KB of dictionary parsed on the first word typed, not on the cold
     // start path — the keyboard has to be on screen before that matters.
-    // Dropped when a word is learned, so the next lookup picks it up.
-    private var loadedPredictor: WordPredictor? = null
+    // One per layout, built the first time it is on screen: a layout
+    // suggests from its own languages only. Dropped when a word is learned,
+    // so the next lookup picks it up.
+    private val predictors = HashMap<Int, WordPredictor>()
     private var lexicon: List<String> = emptyList()
-    // Which imported dictionaries the predictor and [longPress] were built
-    // from; null until the first show, so that one always builds them.
+    // Which imported dictionaries the layouts, predictors and [longPress]
+    // were built from; null until the first show, so that one always builds them.
     private var dictSig: String? = null
-    // Long-press alternates: [BASE_LONG_PRESS] plus what every active
-    // dictionary's header adds (ñ comes from Spanish's).
+    // The active dictionaries grouped by their letter rows; see [layouts].
+    // Only the keyboard's own QWERTY until the first show reads them.
+    private var keyLayouts: List<Pair<List<String>?, List<InstalledDict>>> = listOf(null to emptyList())
+    // Which of [keyLayouts] is on screen. Kept from one field to the next:
+    // whoever switched to French is still writing French in the next app.
+    private var layoutIndex = 0
+    private lateinit var globeKey: TextView
+    // Long-press alternates: [BASE_LONG_PRESS] plus what the dictionaries
+    // of the layout on screen add (ñ comes from Spanish's).
     private var longPress: Map<String, String> = BASE_LONG_PRESS
     // Set when a word is learned, shown once, gone on the next keystroke.
     private var justLearned: String? = null
@@ -127,10 +138,9 @@ class LapachoIme : InputMethodService() {
     // so a closing mark typed next can take its place: "hola ," -> "hola, ".
     private var autoSpace = false
     private val predictor: WordPredictor
-        get() = loadedPredictor ?: run {
+        get() = predictors.getOrPut(layoutIndex) {
             val t0 = System.nanoTime()
-            loadPredictor(this, lexicon).also {
-                loadedPredictor = it
+            loadPredictor(this, lexicon, keyLayouts[layoutIndex].second).also {
                 Log.i(TAG, "dictionary: ${it.size()} words in ${(System.nanoTime() - t0) / 1_000_000}ms")
             }
         }
@@ -188,7 +198,7 @@ class LapachoIme : InputMethodService() {
         keyRows = swipeRows()
         root.addView(keyRows)
         root.addView(buildActionRow())
-        showLayer()
+        applyLayout()
         // Targeting API 35 draws edge-to-edge: without this the navigation
         // bar's buttons land on top of the bottom key row.
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
@@ -216,8 +226,11 @@ class LapachoIme : InputMethodService() {
         val sig = dictionarySignature(this)
         if (sig != dictSig) {
             dictSig = sig
-            loadedPredictor = null
-            longPress = keyAlternates(installedDictionaries(this).map { it.header }, BASE_LONG_PRESS)
+            predictors.clear()
+            keyLayouts = layouts(installedDictionaries(this)) { it.header }
+            // The same rows may have moved, or gone: start from the first.
+            layoutIndex = 0
+            applyLayout()
         }
         // Every session starts on the layer the field asks for — numbers for
         // an amount, a PIN, a phone or a date; letters for everything else —
@@ -247,7 +260,7 @@ class LapachoIme : InputMethodService() {
         val stored = repo.lexicon()
         if (stored != lexicon) {
             lexicon = stored
-            loadedPredictor = null
+            predictors.clear()
         }
         val t0 = System.nanoTime()
         clips = repo.loadTopN(TOP_N)
@@ -434,7 +447,7 @@ class LapachoIme : InputMethodService() {
                     repo.learn(word)
                     // Rebuilt on the next lookup, with the new word in it.
                     lexicon = lexicon + word
-                    loadedPredictor = null
+                    predictors.clear()
                     justLearned = word
                     Log.i(TAG, "learned a ${word.length}-letter word")
                     popup.dismiss()
@@ -1039,7 +1052,7 @@ class LapachoIme : InputMethodService() {
          * From one key's centre to the next: the unit the decoder measures
          * in. ponytail: the top row's 10 equal keys, so the width over 10.
          */
-        private fun keyWidth(): Float = width / 10f
+        private fun keyWidth(): Float = width / letterRows()[0].size.toFloat()
 
         private fun decode() {
             val (letters, centres) = keys()
@@ -1129,7 +1142,7 @@ class LapachoIme : InputMethodService() {
         keyRows.removeAllViews()
         relabels.clear()
         val rows = when (layer) {
-            Layer.LETTERS -> LETTER_ROWS
+            Layer.LETTERS -> letterRows()
             Layer.SYMBOLS -> SYMBOL_ROWS
             Layer.EMOJI -> { keyRows.addView(buildEmojiPanel()); return }
         }
@@ -1215,11 +1228,37 @@ class LapachoIme : InputMethodService() {
         }
     }
 
+    /** The letter rows of the layout on screen. */
+    private fun letterRows(): List<List<String>> = keyLayouts[layoutIndex].first?.map(::row) ?: LETTER_ROWS
+
+    /**
+     * Puts the long-press alternates and 🌐 in line with [layoutIndex], and
+     * redraws the keys.
+     */
+    private fun applyLayout() {
+        longPress = keyAlternates(keyLayouts[layoutIndex].second.map { it.header }, BASE_LONG_PRESS)
+        if (!::globeKey.isInitialized) return
+        globeKey.visibility = if (keyLayouts.size > 1) View.VISIBLE else View.GONE
+        showLayer()
+    }
+
+    /** 🌐: the next layout, round. Straight to the letters, which is what changed. */
+    private fun nextLayout() {
+        layoutIndex = (layoutIndex + 1) % keyLayouts.size
+        swiped = null
+        applyLayout()
+        if (layer != Layer.LETTERS) setLayer(Layer.LETTERS)
+        refreshStrip()
+    }
+
     private fun buildActionRow(): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layerToggle = keyButton("?123", 1.4f) { setLayer(layerToggleTarget(layer)) }
             addView(layerToggle)
+            // Only with two layouts or more; see [applyLayout].
+            globeKey = keyButton("🌐", 1f) { nextLayout() }.apply { visibility = View.GONE }
+            addView(globeKey)
             addView(keyButton("☺", 1f) { toggleLayer(Layer.EMOJI) })
             addView(keyButton(",", 1f) { type(",") })
             addView(keyButton(strings.getString(R.string.key_space), 3.7f) { output(" ") })
@@ -1349,6 +1388,7 @@ class LapachoIme : InputMethodService() {
         private const val FAST_TYPING_MS = 350L
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
         private fun row(keys: String) = keys.map(Char::toString)
+        /** The keyboard's own layout, for every dictionary without `#rows`. */
         private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl$DEAD_ACUTE"), row("zxcvbnm"))
         private val SYMBOL_ROWS = listOf(row("1234567890"), row("@#\$%&-+()/"), row("<>[]{}=_|\\"), row("*\"':;!¡?¿"))
         /**

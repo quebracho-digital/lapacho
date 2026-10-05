@@ -71,6 +71,7 @@
     <string name="err_lang">«#lang» is missing or invalid (lowercase letters, digits and dashes, like «en» or «es-medicina»).</string>
     <string name="err_alternates_format">«#alternates»: «%1$s» is not «key:characters».</string>
     <string name="err_alternates_rule">«#alternates»: «%1$s» — the key is a letter a-z, followed by 1 to %2$d characters.</string>
+    <string name="err_rows">«#rows»: 2 to %1$d rows of up to %2$d lowercase letters each, no letter twice.</string>
     <string name="err_cant_read">Could not read the file.</string>
     <string name="err_too_big">The file is over %1$d MB.</string>
     <string name="err_not_utf8">The file is not UTF-8 text.</string>
