@@ -94,7 +94,8 @@ file's counts become shares of its own total, so "de" (3.5 % of Spanish) and
 **The price.** Shared prefixes get crowded: with English imported, `co` offers
 `con, como, come` where Spanish alone offered `cómo` third. Capped at two
 imported dictionaries, for memory (~8.5 MB each in the keyboard's process)
-more than for this.
+more than for this. Since the flat word buffer a list costs ~1.2 MB and the cap is six
+languages in all, bundled or imported.
 
 **When to reopen.** If someone writes two languages that never mix, and the
 crowding bothers them more than switching would.

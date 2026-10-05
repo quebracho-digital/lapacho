@@ -141,7 +141,7 @@ time**; there is no key to switch. `wh` offers *what, who, why* and `con`
 still offers *con, como*. Don't write in one of them? Remove it in
 **IDIOMAS** (tap it → Quitar) and its words stop showing up; **Agregar**
 brings it back without a file. Removing Spanish also takes ñ off the `n`,
-which comes from the Spanish dictionary. Up to three languages at once, and
+which comes from the Spanish dictionary. Up to six languages at once, and
 at least one has to stay.
 
 A dictionary we publish goes straight in and shows as **oficial ✓**. Any other

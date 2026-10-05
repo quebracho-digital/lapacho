@@ -39,8 +39,8 @@ the [format](#format) check.
 and English), then each imported file as *oficial ✓* or *personalizado*,
 with the start of its SHA-256. Tap any of them to remove it, bundled ones
 included; **ADD** offers a removed bundled language back before asking for a
-file. Up to **three** languages at a time (each costs ~8.5 MB of keyboard
-memory), at least one. Importing one whose `#lang` is already there replaces
+file. Up to **six** languages at a time (each costs ~1.2 MB of keyboard
+memory per 50 000 words), at least one. Importing one whose `#lang` is already there replaces
 it — for a bundled language too, so a newer official English replaces the
 one inside the APK.
 
@@ -87,8 +87,9 @@ on `n` comes from.
 
 **Limits.** At most 8 MB — room for a few hundred thousand words; the bundled
 Spanish is 50 000 words in 640 KB. Each 50 000 words cost the keyboard about
-8.5 MB of memory while it is open, which is why at most three languages are
-active at once, bundled ones included.
+1.2 MB of memory while it is open; at most six languages are active at once,
+bundled ones included, because each one more is read before the first
+suggestion.
 
 ## How dictionaries mix
 

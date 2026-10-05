@@ -4,6 +4,13 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — a third of the memory per language, up to six languages
+
+The keyboard kept two separate strings per dictionary word; it now keeps
+every word in one buffer. Spanish and English together went from 6.0 to
+2.1 MB of heap on the laptop, and load slightly faster. With that, up to six
+languages can be active at once (was three).
+
 ### Desktop — "About Lapacho…" in the tray
 
 A tray entry above the version line opens the desktop's own About dialog:
