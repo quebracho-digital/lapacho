@@ -40,8 +40,15 @@ const val MAX_DICT_BYTES = 8 * 1024 * 1024
 /**
  * A dictionary's header: the `#` lines at the top of the file.
  * [alternates] maps a key to the characters its long press offers.
+ * [rows] are the letter keys, top row first; null is the keyboard's own
+ * QWERTY (with its dead acute key).
  */
-data class DictHeader(val lang: String, val name: String, val alternates: Map<String, String>)
+data class DictHeader(
+    val lang: String,
+    val name: String,
+    val alternates: Map<String, String>,
+    val rows: List<String>? = null,
+)
 
 /**
  * Dictionaries we publish, by SHA-256. Their files live in
@@ -88,11 +95,31 @@ fun parseHeader(text: String): DictHeader {
         )
         key to chars
     }
-    return DictHeader(lang, fields["name"] ?: lang, alternates)
+    val rows = fields["rows"]?.split(Regex("\\s+"))?.filter(String::isNotEmpty)?.also { rows ->
+        val keys = rows.joinToString("")
+        refuseUnless(
+            rows.size in 2..MAX_ROWS && rows.all { it.length <= MAX_ROW_KEYS } &&
+                keys.all { it.isLetter() && it.lowercaseChar() == it } && keys.toSet().size == keys.length,
+            R.string.err_rows, MAX_ROWS, MAX_ROW_KEYS,
+        )
+    }
+    return DictHeader(lang, fields["name"] ?: lang, alternates, rows)
 }
 
 private val LANG = Regex("[a-z0-9-]{1,32}")
 private const val MAX_ALTERNATES = 8
+/** Letter rows a layout may have, and keys per row: what fits a phone's width. */
+private const val MAX_ROWS = 4
+private const val MAX_ROW_KEYS = 12
+
+/**
+ * The active dictionaries grouped by the letter rows they type on, in the
+ * order they come (so the first dictionary's layout is the first): Spanish,
+ * English and Portuguese share QWERTY and stay mixed, a French AZERTY is a
+ * second layout. What the keyboard switches between is these, not languages.
+ */
+fun <T> layouts(dicts: List<T>, header: (T) -> DictHeader): List<Pair<List<String>?, List<T>>> =
+    dicts.groupBy { header(it).rows }.toList()
 
 private fun importedDir(context: Context) = File(context.filesDir, DICT_DIR)
 
@@ -164,9 +191,13 @@ fun dictionarySignature(context: Context): String =
  * The engine normalizes each list to its own corpus, so a bigger language
  * does not bury a smaller one.
  */
-fun loadPredictor(context: Context, learned: List<String> = emptyList()): WordPredictor =
+fun loadPredictor(
+    context: Context,
+    learned: List<String> = emptyList(),
+    dicts: List<InstalledDict> = installedDictionaries(context),
+): WordPredictor =
     WordPredictor(
-        installedDictionaries(context).map { d -> d.file?.readText() ?: bundledText(context, d.header.lang) },
+        dicts.map { d -> d.file?.readText() ?: bundledText(context, d.header.lang) },
         learned,
     )
 

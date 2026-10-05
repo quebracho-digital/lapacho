@@ -222,6 +222,7 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 | ¿ ? ¡ ! | **Long press on .**: the four appear above the key, tap one. |
 | ☺ | Emoji: every one your phone can draw, in a scrolling grid. The tabs on top jump to a group (⭐ the common ones, then faces, people, animals, food, places, activities, objects, symbols, flags). **🔍 searches** by name in Spanish or English (`mate`, `bandera argentina`, `thumbs`): type with the letters, tap a result to add it (several in a row if you like), ✕ or ↵ to finish. **Hold an emoji** to add it to ⭐ (your favourites come first there, then the common ones); hold one of your favourites to remove it. Tap ☺ again to come back. |
 | ?123 / abc | Switch between letters and numbers/symbols (`< > [ ] { } = _ \| \` `¡ ¿` and more). |
+| 🌐 | Next keyboard layout. Only there when a dictionary brings its own letter rows (an AZERTY French, say); Spanish and English share QWERTY and never need it. |
 | , and . | Next to the space bar, on both layers. |
 | ⌫ / ↵ | Delete / new line. ⌫ sits at the end of the last row, above ↵, on both layers. **Hold ⌫** and it deletes a word at a time, with a short pause (and a buzz) after each: lift the finger when the right one is gone. |
 

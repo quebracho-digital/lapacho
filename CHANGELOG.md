@@ -4,6 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — a keyboard layout per language, and 🌐 to switch
+
+A dictionary can bring its own letter keys: `#rows azertyuiop qsdfghjklm
+wxcvbn` in its header makes French type on AZERTY. Languages on the same
+keys stay mixed as before (Spanish and English share QWERTY), and when the
+active dictionaries need more than one layout a 🌐 key appears next to ?123
+to cycle through them. Each layout suggests, corrects and swipes with its
+own dictionaries only. Hebrew, Arabic and other scripts are next: their rows
+already load, matching and the strip don't handle them yet.
+
 ### Android — a third of the memory per language, up to six languages
 
 The keyboard kept two separate strings per dictionary word; it now keeps
