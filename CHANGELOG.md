@@ -4,6 +4,13 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — "About Lapacho…" in the tray
+
+A tray entry above the version line opens the desktop's own About dialog:
+version, licence (MIT OR Apache-2.0), authors, and links to the source and
+the releases. It is the toolkit's dialog (GTK on Linux), not a window of ours.
+The workspace's `repository` now points at `quebracho-digital/lapacho`.
+
 ### Android — fast typing no longer turns into swipes (`0.1.36`)
 
 Since swipe typing, a fast tap whose thumb slid most of a key as it lifted was
