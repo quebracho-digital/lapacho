@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use base64::Engine as _;
 use lapacho_core::ingest::sensitive_display;
 use lapacho_core::types::{ClipboardItem, DetectedType, Sensitivity};
-use tauri::menu::{IconMenuItem, Menu, MenuBuilder, MenuItem, PredefinedMenuItem};
+use tauri::menu::{AboutMetadata, IconMenuItem, Menu, MenuBuilder, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
 
@@ -178,14 +178,35 @@ fn build_menu(app: &AppHandle, items: &[ClipboardItem]) -> tauri::Result<Menu<Wr
     // Which build is running, at a glance: installers from three channels
     // (script, .deb, release assets) have been on this machine at once.
     let version = MenuItem::with_id(app, ID_VERSION, crate::version_label(), false, None::<&str>)?;
+    // ponytail: the toolkit's own About dialog (GTK AboutDialog, Windows message
+    // box, macOS panel), no window of ours; credits beyond `authors` only show on macOS.
+    let about = PredefinedMenuItem::about(app, Some("About Lapacho…"), Some(about_metadata(app)))?;
     builder
         .item(&separator)
         .item(&search)
         .item(&open)
         .item(&quit)
         .item(&PredefinedMenuItem::separator(app)?)
+        .item(&about)
         .item(&version)
         .build()
+}
+
+/// What the About dialog shows, straight from the workspace manifest.
+fn about_metadata(app: &AppHandle) -> AboutMetadata<'static> {
+    let repo = env!("CARGO_PKG_REPOSITORY");
+    AboutMetadata {
+        name: Some("Lapacho".into()),
+        version: Some(env!("CARGO_PKG_VERSION").into()),
+        authors: Some(env!("CARGO_PKG_AUTHORS").split(':').map(String::from).collect()),
+        comments: Some(format!("Secure clipboard manager.\nReleases: {repo}/releases")),
+        license: Some(env!("CARGO_PKG_LICENSE").into()),
+        website: Some(repo.into()),
+        website_label: Some("Source code".into()),
+        credits: Some(env!("CARGO_PKG_AUTHORS").replace(':', ", ")),
+        icon: app.default_window_icon().cloned().map(|i| i.to_owned()),
+        ..Default::default()
+    }
 }
 
 /// Rebuilds and installs the tray menu. Menu construction touches the platform
