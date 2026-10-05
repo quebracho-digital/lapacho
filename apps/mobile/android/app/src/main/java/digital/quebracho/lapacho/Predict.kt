@@ -28,11 +28,12 @@ private const val DICT_DIR = "dict"
 /** First line of every dictionary: what tells one from any other text file. */
 const val DICT_MAGIC = "#lapacho-dict 1"
 /**
- * ponytail: ~8.5 MB of native heap per 50 000-word list, all of them loaded
- * in the keyboard's process — hence a cap on how many mix, bundled or not.
- * Raising it is safe once the predictor stores words in one flat buffer.
+ * How many dictionaries mix, bundled or not, all loaded in the keyboard's
+ * process: ~1.2 MB of heap per 50 000 words since the flat word buffer (it was
+ * ~8.5 MB). Six now costs less than two did; past that, what grows is the wait
+ * for the first suggestion, which reads every list.
  */
-const val MAX_LANGUAGES = 3
+const val MAX_LANGUAGES = 6
 /** Ten times the bundled Spanish list: room for a big language, not for a corpus. */
 const val MAX_DICT_BYTES = 8 * 1024 * 1024
 

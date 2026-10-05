@@ -223,14 +223,13 @@ History search implemented; English translation complete. Sensitivity: long hex 
     automatic, never from a private field, never for what the classifier reads
     as a secret. A learned word outranks the dictionary; the keyboard picks up
     what the app forgot the next time it opens.
-- [ ] **Mobile: words in one flat buffer, then lift the language cap** — the
-  predictor keeps two heap strings per word (folded key + word): ~8.5 MB of
-  native heap per 50 000 words against ~1.3 MB of text, in a keyboard process
-  Android kills under memory pressure. One `String` holding every word plus
-  `(start, end)` offsets per entry brings it near the text's size (~6×
-  less), and the first-word load time (~820 ms for es+en on the emulator) with
-  it. Contained in `lapacho-predict`, whose tests pin the behaviour. Then
-  `MAX_LANGUAGES` (3) can go up or away. First, before layouts.
+- [x] **Mobile: words in one flat buffer, then lift the language cap** — every
+  key and word now lives in one `String`, each entry 16 bytes of offsets,
+  lengths, frequency and letter mask (it was 48 plus two allocations), and a
+  word with no accent or capital is stored once. es + en on the laptop: heap
+  6.0 → 2.1 MB for 0.71 MB of words, build 50 → 45 ms, corrections unchanged,
+  swipe ~15 % faster; `tests/memory.rs` holds the heap under 3× the words.
+  `MAX_LANGUAGES` 3 → 6. Not measured on a phone yet.
 - [ ] **Mobile: a layout per language, and switching between them** — today
   the letter rows are one hard-coded QWERTY (`LETTER_ROWS`) whatever the
   dictionaries, and a dictionary header can only *add* long-press characters.

@@ -8,36 +8,32 @@
 //! `docs/DECISIONS.md`); when it lands it adds entries to this list, it does
 //! not turn this into something that watches you type.
 
-/// One dictionary entry. [`key`](Entry::key) is [`fold`]ed so that a prefix
-/// typed without accents still finds the word ("cancion" → "canción").
+/// One dictionary entry, pointing into [`Predictor::text`]: its key, [`fold`]ed
+/// so that a prefix typed without accents still finds the word ("cancion" →
+/// "canción"), then the word itself — unless the word *is* its key (no accent,
+/// no capital, most of them), which is stored once and marked `word_len: 0`.
+/// 16 bytes, against 48 plus two allocations when key and word were boxed.
 struct Entry {
-    key: Box<str>,
-    word: Box<str>,
-    freq: u32,
+    start: u32,
+    key_len: u8,
+    word_len: u8,
     /// `key`'s length in characters, so a correction can skip words of the
-    /// wrong length without decoding them. Sits in the struct's padding.
+    /// wrong length without decoding them.
     chars: u8,
+    freq: u32,
     /// Which letters `key` contains, see [`letter_mask`].
     letters: u32,
 }
 
-impl Entry {
-    fn new(word: &str, freq: u32) -> Self {
-        let key = fold(word);
-        let chars = key.chars().count().min(u8::MAX as usize) as u8;
-        let letters = letter_mask(&key);
-        Entry { key: key.into(), word: word.into(), freq, chars, letters }
-    }
-}
+/// Longer words are dropped: lengths are one byte each. No dictionary word
+/// comes near it; a 255-byte line is not a word.
+const MAX_WORD: usize = u8::MAX as usize;
 
 pub struct Predictor {
-    /// Sorted by `key`, which is what [`Predictor::suggest`] binary searches.
-    ///
-    /// ponytail: two heap allocations per word — measured at ~8.5 MB of native
-    /// heap for the 49 525-word Spanish list, against ~1.3 MB of actual text.
-    /// Fine for a keyboard process that Android kills when it is not on
-    /// screen; if it ever is not, the fix is one flat `String` plus `(start,
-    /// end)` offsets, not a smaller dictionary.
+    /// Every key and word, back to back, in `words` order — a prefix scan
+    /// reads it front to back.
+    text: String,
+    /// Sorted by key, which is what [`Predictor::suggest`] binary searches.
     words: Vec<Entry>,
 }
 
@@ -60,19 +56,74 @@ impl Predictor {
     /// in two of them keeps the higher one. A learned word gets `u32::MAX`:
     /// it was asked for by name, so nothing outranks it.
     pub fn new(dictionaries: &[&str], learned: &[&str]) -> Self {
-        let mut words: Vec<Entry> = Vec::new();
+        let mut p = Predictor { text: String::new(), words: Vec::new() };
         for data in dictionaries {
             let parsed: Vec<(&str, u64)> = data.lines().filter_map(parse_line).collect();
             let total = parsed.iter().map(|(_, f)| f).sum::<u64>().max(1) as f64;
-            words.extend(parsed.into_iter().map(|(word, freq)| {
-                Entry::new(word, ((freq as f64 / total * SCALE) as u32).max(1))
-            }));
+            for (word, freq) in parsed {
+                p.push(word, ((freq as f64 / total * SCALE) as u32).max(1));
+            }
         }
-        words.extend(learned.iter().filter(|w| !w.trim().is_empty()).map(|w| Entry::new(w.trim(), u32::MAX)));
+        for w in learned.iter().map(|w| w.trim()).filter(|w| !w.is_empty()) {
+            p.push(w, u32::MAX);
+        }
         // Highest frequency first within the same word, so dedup keeps it.
-        words.sort_unstable_by(|a, b| (&a.key, &a.word, b.freq).cmp(&(&b.key, &b.word, a.freq)));
-        words.dedup_by(|later, first| later.word == first.word);
-        Predictor { words }
+        let Predictor { text, mut words } = p;
+        // Bytes, not `&str`: the same order, without the char-boundary checks.
+        let bytes = |e: &Entry, from: usize, len: u8| &text.as_bytes()[e.start as usize + from..][..len as usize];
+        let word_bytes = |e: &Entry| match e.word_len {
+            0 => bytes(e, 0, e.key_len),
+            n => bytes(e, e.key_len as usize, n),
+        };
+        words.sort_unstable_by(|a, b| {
+            bytes(a, 0, a.key_len)
+                .cmp(bytes(b, 0, b.key_len))
+                .then_with(|| word_bytes(a).cmp(word_bytes(b)))
+                .then(b.freq.cmp(&a.freq))
+        });
+        words.dedup_by(|later, first| word(&text, later) == word(&text, first));
+
+        // Rewritten in sorted order: drops what dedup left behind, and a
+        // prefix's words end up next to each other.
+        let mut sorted = String::with_capacity(words.iter().map(|e| e.key_len as usize + e.word_len as usize).sum());
+        for e in &mut words {
+            let start = sorted.len() as u32;
+            sorted.push_str(&text[e.start as usize..][..e.key_len as usize + e.word_len as usize]);
+            e.start = start;
+        }
+        words.shrink_to_fit();
+        Predictor { text: sorted, words }
+    }
+
+    fn push(&mut self, w: &str, freq: u32) {
+        let k = fold(w);
+        if w.len() > MAX_WORD || k.len() > MAX_WORD {
+            return;
+        }
+        let start = self.text.len() as u32;
+        self.text.push_str(&k);
+        let word_len = if k == w { 0 } else { self.text.push_str(w); w.len() as u8 };
+        self.words.push(Entry {
+            start,
+            key_len: k.len() as u8,
+            word_len,
+            chars: k.chars().count() as u8,
+            freq,
+            letters: letter_mask(&k),
+        });
+    }
+
+    fn key(&self, e: &Entry) -> &str {
+        key(&self.text, e)
+    }
+
+    fn word(&self, e: &Entry) -> &str {
+        word(&self.text, e)
+    }
+
+    /// Where the keys starting at or after `key` begin.
+    fn find(&self, key: &str) -> usize {
+        self.words.partition_point(|e| self.key(e) < key)
     }
 
     pub fn len(&self) -> usize {
@@ -92,8 +143,7 @@ impl Predictor {
         if key.is_empty() {
             return false;
         }
-        let start = self.words.partition_point(|e| *e.key < *key);
-        self.words.get(start).is_some_and(|e| *e.key == *key)
+        self.words.get(self.find(&key)).is_some_and(|e| self.key(e) == key)
     }
 
     /// The `limit` most frequent words starting with `prefix`, most frequent
@@ -108,11 +158,11 @@ impl Predictor {
             return Vec::new();
         }
         let typed = prefix.to_lowercase();
-        let start = self.words.partition_point(|e| *e.key < *key);
+        let start = self.find(&key);
 
         let mut best: Vec<&Entry> = Vec::with_capacity(limit + 1);
-        for e in self.words[start..].iter().take_while(|e| e.key.starts_with(&key)) {
-            if *e.word == *typed {
+        for e in self.words[start..].iter().take_while(|e| self.key(e).starts_with(&key)) {
+            if self.word(e) == typed {
                 continue;
             }
             let at = best.partition_point(|b| b.freq > e.freq);
@@ -121,7 +171,18 @@ impl Predictor {
                 best.truncate(limit);
             }
         }
-        best.into_iter().map(|e| apply_case(prefix, &e.word)).collect()
+        best.into_iter().map(|e| apply_case(prefix, self.word(e))).collect()
+    }
+}
+
+fn key<'a>(text: &'a str, e: &Entry) -> &'a str {
+    &text[e.start as usize..][..e.key_len as usize]
+}
+
+fn word<'a>(text: &'a str, e: &Entry) -> &'a str {
+    match e.word_len {
+        0 => key(text, e),
+        n => &text[e.start as usize + e.key_len as usize..][..n as usize],
     }
 }
 
@@ -181,15 +242,15 @@ impl Predictor {
         // Every key starting with the same letter.
         let mut start_buf = [0u8; 4];
         let first_str = first.encode_utf8(&mut start_buf);
-        let start = self.words.partition_point(|e| *e.key < *first_str);
-        let range = self.words[start..].iter().take_while(|e| e.key.starts_with(first));
+        let start = self.find(first_str);
+        let range = self.words[start..].iter().take_while(|e| self.key(e).starts_with(first));
 
         let max = if known.is_some() { 1 } else { 2 };
         let mut hits: Vec<(usize, &Entry)> = Vec::new();
         let mut cand: Vec<char> = Vec::new();
         let mut rows = Rows::default();
         for e in range {
-            if *e.key == *key_str
+            if self.key(e) == key_str
                 || (e.chars as usize).abs_diff(key.len()) > max
                 || (e.letters ^ letters).count_ones() as usize > 2 * max
             {
@@ -201,7 +262,7 @@ impl Predictor {
                 continue;
             }
             cand.clear();
-            cand.extend(e.key.chars());
+            cand.extend(self.key(e).chars());
             if let Some(d) = rows.distance(&key, &cand, max) {
                 hits.push((d, e));
             }
@@ -215,19 +276,18 @@ impl Predictor {
         let mut seen: Vec<&str> = Vec::new();
         hits.into_iter()
             .filter(|(_, e)| {
-                let fresh = !seen.contains(&&*e.key);
-                seen.push(&e.key);
+                let fresh = !seen.contains(&self.key(e));
+                seen.push(self.key(e));
                 fresh
             })
             .take(limit)
-            .map(|(_, e)| apply_case(word, &e.word))
+            .map(|(_, e)| apply_case(word, self.word(e)))
             .collect()
     }
 
     /// The highest frequency among the spellings of a folded key, if any.
     fn freq_of(&self, key: &str) -> Option<u32> {
-        let start = self.words.partition_point(|e| *e.key < *key);
-        self.words[start..].iter().take_while(|e| *e.key == *key).map(|e| e.freq).max()
+        self.words[self.find(key)..].iter().take_while(|e| self.key(e) == key).map(|e| e.freq).max()
     }
 }
 
@@ -293,14 +353,13 @@ impl Predictor {
         for first in firsts {
             let mut buf = [0u8; 4];
             let first_str = first.encode_utf8(&mut buf);
-            let start = self.words.partition_point(|e| *e.key < *first_str);
-            for e in self.words[start..].iter().take_while(|e| e.key.starts_with(first)) {
-                if !e.key.chars().last().is_some_and(|c| lasts.contains(&c)) {
+            for e in self.words[self.find(first_str)..].iter().take_while(|e| self.key(e).starts_with(first)) {
+                if !self.key(e).chars().last().is_some_and(|c| lasts.contains(&c)) {
                     continue;
                 }
                 line.clear();
                 let mut prev = None;
-                let spelled = e.key.chars().all(|c| {
+                let spelled = self.key(e).chars().all(|c| {
                     if prev == Some(c) {
                         return true;
                     }
@@ -320,12 +379,12 @@ impl Predictor {
         let mut seen: Vec<&str> = Vec::new();
         hits.into_iter()
             .filter(|(_, e)| {
-                let fresh = !seen.contains(&&*e.key);
-                seen.push(&e.key);
+                let fresh = !seen.contains(&self.key(e));
+                seen.push(self.key(e));
                 fresh
             })
             .take(limit)
-            .map(|(_, e)| e.word.to_string())
+            .map(|(_, e)| self.word(e).to_string())
             .collect()
     }
 }

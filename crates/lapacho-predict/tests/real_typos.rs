@@ -46,6 +46,7 @@ fn a_correction_is_cheap_enough_for_a_keystroke() {
         }
     }
     let per_call_ms = t0.elapsed().as_secs_f64() * 1e3 / 100.0;
+    eprintln!("correct: {per_call_ms:.3} ms each");
     // Generous for a debug build on a loaded CI box; release on the laptop
     // is ~1 ms, and the phone is budgeted at a few times that.
     assert!(per_call_ms < 50.0, "{per_call_ms:.2} ms per correction");
