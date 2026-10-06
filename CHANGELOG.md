@@ -4,6 +4,18 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — Portuguese, French, German and Russian dictionaries
+
+Four more official dictionaries: Brazilian Portuguese and French
+(AZERTY), German (QWERTZ, with ä ö ü as keys and ß on s), and Russian
+(ЙЦУКЕН, ё on е). With Hebrew they bring 🌐 into play. Every official list now
+comes out of one script, `dictionaries/build.py`, which rebuilds the
+existing ones byte for byte. The subtitles' missing accents are mended per
+language (`voce` → `você`, `deja` → `déjà`), with a cut set low enough that
+real pairs (`e`/`é`, `wurde`/`würde`) survive. The engine folds a capital
+accent now (`Á` used to stay accented), and ё as е. A dictionary's long
+press can sit on any lowercase letter, not only a–z.
+
 ### Releases — no `.sha256` next to the dictionaries
 
 A release carried a `.dict.sha256` beside each dictionary, and the phone's file

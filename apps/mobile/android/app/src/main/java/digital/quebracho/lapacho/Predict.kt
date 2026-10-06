@@ -61,6 +61,10 @@ val OFFICIAL_DICTIONARIES = mapOf(
     "f324ba733e869d8a7b541cf3892d6833fccb0783a7a06813a3f9d8d2a9b39d16" to "en",
     "522d00fd9c12172f6b7960a2c660c6273c6ad3f41c514e8cfb57eb104a3d4207" to "he",
     "23e27d78a7d8b5eb8b40c2553a3ce1368469ca3c9eba02dfa411253464ac76df" to "it",
+    "044c637af77b91f99d1724d3365272f620ac5c927d64b3d8108e4105f2ebb084" to "pt-br",
+    "b16bb1e20cf8327d8dbf5bd78cebdf5599141db367dbec2ca3e16fb25e99fa55" to "fr",
+    "4e2bf1f79b94d43fd44e888623a0f4a843b7de05fc53111b81f75e86c32c8e71" to "de",
+    "960d72edb51dd17251d0a45a104e37a6936d21227a00093fcda974b2defec24d" to "ru",
 )
 
 /** One dictionary the keyboard is using. [file] is null for the bundled one. */
@@ -92,7 +96,7 @@ fun parseHeader(text: String): DictHeader {
         val (key, chars) = pair.split(":", limit = 2).takeIf { it.size == 2 }
             ?: throw UserError(R.string.err_alternates_format, pair)
         refuseUnless(
-            key.length == 1 && key[0] in 'a'..'z' && chars.length in 1..MAX_ALTERNATES,
+            key.length == 1 && key[0].isLetter() && key[0].lowercaseChar() == key[0] && chars.length in 1..MAX_ALTERNATES,
             R.string.err_alternates_rule, pair, MAX_ALTERNATES,
         )
         key to chars

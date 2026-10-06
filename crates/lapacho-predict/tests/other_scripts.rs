@@ -37,3 +37,24 @@ fn italian_finds_the_grave_without_typing_it() {
     assert_eq!(p.suggest("perch", 1), vec!["perché"]);
     assert!(p.suggest("citt", 3).contains(&"città".to_string()), "{:?}", p.suggest("citt", 3));
 }
+
+#[test]
+fn russian_reads_yo_as_ye_both_ways() {
+    let p = dict("ru");
+    // Written with е more often than not; either spelling finds the other.
+    assert!(p.suggest("ещ", 3).contains(&"ещё".to_string()), "{:?}", p.suggest("ещ", 3));
+    assert!(p.knows("еще") && p.knows("ещё"));
+    assert_eq!(p.suggest("Прив", 1), vec!["Привет"], "Cyrillic keeps the capital");
+}
+
+#[test]
+fn portuguese_french_and_german_mend_the_missing_accents() {
+    for (lang, typed, want) in [("pt-br", "voc", "você"), ("fr", "deja", "déjà"), ("de", "naturl", "natürlich")] {
+        let p = dict(lang);
+        assert_eq!(p.suggest(typed, 1), vec![want], "{lang}");
+    }
+    // The plain spelling the subtitles carried is gone, the real pair is not.
+    let pt = dict("pt-br");
+    assert!(!pt.suggest("vo", 10).contains(&"voce".to_string()));
+    assert!(pt.knows("e") && pt.suggest("e", 10).contains(&"é".to_string()));
+}

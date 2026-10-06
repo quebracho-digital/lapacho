@@ -60,6 +60,13 @@ class PredictTest {
         assertEquals(listOf(listOf(es, en), listOf(fr, be)), layouts(listOf(es, fr, en, be)) { it }.map { it.second })
     }
 
+    @Test fun alternatesOnAnyLowercaseLetter() {
+        assertEquals(mapOf("е" to "ё"), parseHeader("$DICT_MAGIC\n#lang ru\n#alternates е:ё\n").alternates)
+        // A capital or a digit is not a key the rows can have.
+        assertThrows(IllegalArgumentException::class.java) { parseHeader("$DICT_MAGIC\n#lang xx\n#alternates E:é\n") }
+        assertThrows(IllegalArgumentException::class.java) { parseHeader("$DICT_MAGIC\n#lang xx\n#alternates 1:¹\n") }
+    }
+
     @Test fun alternatesMergeInOrderEachOnce() {
         val es = DictHeader("es", "Español", mapOf("n" to "ñ"))
         val pt = DictHeader("pt", "Português", mapOf("n" to "ñ", "a" to "ã"))
