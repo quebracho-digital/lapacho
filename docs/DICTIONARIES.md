@@ -67,7 +67,8 @@ kubectl
 | `#lang <id>` | yes | Identifies it: lowercase letters, digits and `-`, up to 32 (`en`, `pt-br`, `es-medicina`). Also its file name inside the app, so a second file with the same `id` replaces the first. `es` is taken by the bundled one. |
 | `#name <text>` | no | What **LANGUAGES** shows. Defaults to the `id`. |
 | `#alternates <key:chars> …` | no | Characters added to a key's long press, space-separated pairs. The key is one letter `a`–`z`, 1 to 8 characters after it. `#alternates e:éèêë c:ç` makes holding `e` offer é è ê ë. |
-| `#rows <row> <row> …` | no | The letter keys, top row first: 2 to 4 rows of up to 12 lowercase letters, no letter twice. `#rows azertyuiop qsdfghjklm wxcvbn` is French AZERTY. Without it the language types on the keyboard's own QWERTY (with the ´ dead key). See [How dictionaries mix](#how-dictionaries-mix). |
+| `#rows <row> <row> …` | no | The letter keys, top row first: 2 to 4 rows of up to 12 lowercase letters, no letter twice. `#rows azertyuiop qsdfghjklm wxcvbn` is French AZERTY. Without it the language types on the keyboard's own QWERTY. See [How dictionaries mix](#how-dictionaries-mix). |
+| `#keys <letters>` | no | Up to 3 letters added at the end of the built-in QWERTY's middle row, while this dictionary is active. Spanish's `#keys ñ` puts ñ after l, as every Spanish keyboard does; with Spanish removed the row is back to nine. Ignored with `#rows`, which says where every key goes. |
 
 Alternates from every active dictionary are merged, each character once, after
 the ones the keyboard always has (`@` on `a`). Spanish's header is where `ñ`
