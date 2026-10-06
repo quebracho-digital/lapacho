@@ -19,14 +19,15 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 >
 > **Android** is an early spike, usable day to day: a keyboard with a paste
 > strip, encrypted history, swipe typing, search and replace on a held clip, word suggestions and spelling corrections from
-> on-device dictionaries (Spanish and English bundled, either removable, others imported and mixed), and the
+> on-device dictionaries (Spanish and English bundled, either removable; Italian, Hebrew and your own imported), a layout per language with 🌐 to switch, and the
 > same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
 > The app and the keyboard speak English and Spanish.
 > See [Mobile](#mobile).
 >
 > **Downloads:** [GitHub Releases](https://github.com/quebracho-digital/lapacho/releases)
 > — the Android APK and the desktop installers (`.deb`, `.rpm`, `.AppImage`,
-> `.msi`, `.exe`, `.dmg`), each with its `.sha256`. The desktop installers are
+> `.msi`, `.exe`, `.dmg`), each with its `.sha256`, and the official keyboard
+> dictionaries (`lapacho-dict-<lang>-<hash>.dict`; see [Mobile](#mobile)). The desktop installers are
 > unsigned: Windows shows SmartScreen, and macOS needs right-click → Open the
 > first time. The APK is also on [web.fishman.work](https://web.fishman.work/)
 > ([en español](https://web.fishman.work/es)).
@@ -88,7 +89,8 @@ lapacho/
 │  └─ legacy-ui/   # Original vanilla UI, kept as reference
 └─ apps/mobile/android/
    ├─ app/          # companion app + keyboard (IME), Kotlin
-   │  └─ assets/dict/   # bundled word lists (es)
+   │  └─ assets/dict/   # bundled word lists (es, en)
+   ├─ dictionaries/ # official importable lists (en, it, he) + NOTICEs
    ├─ storage/      # encrypted SQLite history, Kotlin (moving to Rust)
    └─ rust-bridge/  # lapacho-core + lapacho-predict for Android via uniffi
 ```
@@ -147,8 +149,20 @@ word, it offers **corrections** instead (`graicas` → gracias, `thnaks` →
 thanks) — offered in the strip, applied only if tapped. A suggestion comes
 with its space, and a `, . ? ! : ;` typed right after takes that space's place
 (`hola, ` rather than `hola ,`). Other languages and custom word
-lists are imported from a file and **mixed** with Spanish, no switch key
-([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md)).
+lists are imported from a file and **mixed** with Spanish when they type on
+the same keys; one with its own letter rows (Hebrew) is a second layout, and
+a 🌐 key appears to switch ([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md)).
+
+**Importing a dictionary on the phone.** Download the `.dict` file from the
+[release](https://github.com/quebracho-digital/lapacho/releases) with the
+phone's browser, then **LANGUAGES → ADD** in the app and pick it in the
+Download folder. Official ones (Italian, Hebrew, English) go straight in;
+anything else asks first. The picker is Android's own: the app chooses only
+the folder it opens on, not the order, and on some phones it goes back to
+sorting by name every time even after you pick "date modified". The files
+all start with `lapacho-dict-`, so they sit together; releases up to 0.1.37
+also carry a `.dict.sha256` next to each one, which is not a dictionary and
+is refused with *Not a Lapacho dictionary*.
 
 **It only learns what it is handed.** The dictionary is fixed and identical
 for everyone who has it; nothing typed is stored, counted or modelled. The one
