@@ -166,6 +166,18 @@ History search implemented; English translation complete. Sensitivity: long hex 
   jurisdiction, changes without notice, the licence over your content. Each
   point quotes the clause it comes from. The report is saved as a new clip,
   and the original stays.
+  - **First step, the simplest: hand it to an assistant the phone already
+    has.** Holding a clip offers "Analyse terms…": Lapacho builds the request
+    (a fixed prompt listing the points above, then the text, fenced with
+    `spotlight_text` so the terms cannot pass for instructions) and opens
+    Android's share sheet (`ACTION_SEND`, `text/plain`). The user picks
+    Gemini, ChatGPT, Claude, Perplexity, or an on-device model app, and the
+    answer stays in that app. Lapacho needs no network permission, no API
+    keys and no client to maintain. Desktop does the same by copying the
+    request to the clipboard. The price: the text goes wherever the chosen
+    app sends it (the share sheet is the user's explicit choice, every time),
+    and Lapacho can't check the answer's quotes against the text. Sensitive
+    clips don't get the option. If that's enough, the rest below waits.
   - **When it runs:** Lapacho never sees the page with the "I accept" box.
     It only sees what gets copied. So it works two ways: on any clip by hand,
     like every plugin; or the classifier recognises a clip shaped like terms
@@ -173,7 +185,7 @@ History search implemented; English translation complete. Sensitivity: long hex 
     "arbitration", "we may share") and *offers* the plugin on it, in the
     window, tray and strip. It never runs by itself. An accessibility service
     that watches screens for accept buttons is out: it would read everything.
-  - **Engine:** rules first, offline and deterministic, in `lapacho-core`, one
+  - **Engine, if sharing falls short:** rules first, offline and deterministic, in `lapacho-core`, one
     detector per kind of clause (the `threats::REGISTRY` pattern), es + en.
     That is the free core and needs no network. An LLM summary is optional,
     through an OpenAI-compatible endpoint the user configures, local by
