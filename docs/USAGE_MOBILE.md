@@ -140,8 +140,8 @@ Spanish and English both come with the app and are used **at the same
 time**; there is no key to switch. `wh` offers *what, who, why* and `con`
 still offers *con, como*. Don't write in one of them? Remove it in
 **IDIOMAS** (tap it → Quitar) and its words stop showing up; **Agregar**
-brings it back without a file. Removing Spanish also takes ñ off the `n`,
-which comes from the Spanish dictionary. Up to six languages at once, and
+brings it back without a file. Removing Spanish also takes the ñ key away,
+since it comes from the Spanish dictionary. Up to six languages at once, and
 at least one has to stay.
 
 A dictionary we publish goes straight in and shows as **oficial ✓**. Any other
@@ -216,8 +216,8 @@ deleted yet — **Borrar historial** in the app wipes all of it.
 | Key | What it does |
 |-----|--------------|
 | ⇧ | Next letter in uppercase. **Hold it** for caps lock — or double tap, if you are quick. Tap again to release. The key changes colour: grey for one letter, green while locked. |
-| ´ | Accent for the next vowel: ´ then a → á (with ⇧: Á). At the end of the middle row. Shows **[´]** while waiting. |
-| ñ | **Long press on n** (with ⇧: Ñ). It is no longer a key of its own. |
+| ñ | Its own key, after **l**, while Spanish is active (with ⇧: Ñ). |
+| á é í ó ú ü | **Long press on the vowel** (with ⇧: Á…). Or type it plain: the strip offers the word with its accent (`cancion` → canción). |
 | @ | **Long press on a**. Also in the symbols layer. |
 | ¿ ? ¡ ! | **Long press on .**: the four appear above the key, tap one. |
 | ☺ | Emoji: every one your phone can draw, in a scrolling grid. The tabs on top jump to a group (⭐ the common ones, then faces, people, animals, food, places, activities, objects, symbols, flags). **🔍 searches** by name in Spanish or English (`mate`, `bandera argentina`, `thumbs`): type with the letters, tap a result to add it (several in a row if you like), ✕ or ↵ to finish. **Hold an emoji** to add it to ⭐ (your favourites come first there, then the common ones); hold one of your favourites to remove it. Tap ☺ again to come back. |
