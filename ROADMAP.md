@@ -216,7 +216,8 @@ History search implemented; English translation complete. Sensitivity: long hex 
     `SWIPE_SIGMA` wants retuning against real ones from a phone, and the
     shape channel is the next step if swipes drawn small or off-centre fail.
   - [ ] **Publish official dictionaries** next to the APKs on `/lapacho`
-    (English is committed and listed in the app; not uploaded yet).
+    — English, Italian and Hebrew are committed and official in the app
+    (`0.1.37`); `publish.sh` uploads every file in `dictionaries/`.
   - [x] **Explicit learning** — long-press the word you typed → a chip offers
     to learn it → stored as one word in the encrypted store (`lexicon` table,
     DB v2), listed and deletable under **PALABRAS** in the companion. Never
@@ -243,7 +244,10 @@ History search implemented; English translation complete. Sensitivity: long hex 
     there is more than one; a sideways swipe on the space bar is not done. Suggestions, corrections and
     swipe use every dictionary whose layout is on screen — swipe already reads
     the real key positions.
-  - **Other scripts:** `#alternates` only accepts keys `a`–`z`; `fold()` only
+  - **Other scripts:** Hebrew without niqqud works (`0.1.37`: official
+    `he.txt` with its own `#rows`; `fold()` maps the five final letters to
+    their regular forms, and swipe tells ם and מ apart as two keys). Still:
+    `#alternates` only accepts keys `a`–`z`; `fold()` only
     strips Latin accents, so Hebrew niqqud and Arabic harakat aren't ignored
     when matching; `currentWord()` stops at a combining mark (`isLetter`), so
     a word typed with harakat is cut. Shift does nothing for scripts without

@@ -59,6 +59,8 @@ data class DictHeader(
  */
 val OFFICIAL_DICTIONARIES = mapOf(
     "f324ba733e869d8a7b541cf3892d6833fccb0783a7a06813a3f9d8d2a9b39d16" to "en",
+    "522d00fd9c12172f6b7960a2c660c6273c6ad3f41c514e8cfb57eb104a3d4207" to "he",
+    "23e27d78a7d8b5eb8b40c2553a3ce1368469ca3c9eba02dfa411253464ac76df" to "it",
 )
 
 /** One dictionary the keyboard is using. [file] is null for the bundled one. */
