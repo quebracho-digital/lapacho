@@ -266,7 +266,9 @@ History search implemented; English translation complete. Sensitivity: long hex 
   and 🌐 done (below); other scripts and RTL pending.
   - [x] **Layout from the language:** `#rows azertyuiop qsdfghjklm wxcvbn` in
     the header (2–4 rows, ≤ 12 lowercase letters each); none = the built-in
-    QWERTY with ´. The keyboard opens on the first dictionary's layout and
+    QWERTY, whose middle row ends in the active dictionaries' `#keys` (ñ for
+    Spanish). The ´ dead key is gone (`0.1.38`): accents are on each vowel's
+    long press, as on Gboard, SwiftKey and AOSP's Spanish layout. The keyboard opens on the first dictionary's layout and
     then keeps the last one picked.
   - [x] **Switch layouts, not languages.** Languages that share a layout (es, en,
     pt on QWERTY — ñ is a long press, not another keyboard) stay mixed as

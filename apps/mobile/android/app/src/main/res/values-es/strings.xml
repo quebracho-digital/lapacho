@@ -72,6 +72,7 @@
     <string name="err_alternates_format">«#alternates»: «%1$s» no es «tecla:caracteres».</string>
     <string name="err_alternates_rule">«#alternates»: «%1$s» — la tecla es una letra minúscula y van de 1 a %2$d caracteres.</string>
     <string name="err_rows">«#rows»: de 2 a %1$d filas de hasta %2$d letras minúsculas, sin repetir ninguna.</string>
+    <string name="err_keys">«#keys»: hasta %1$d letras minúsculas, sin repetir ninguna.</string>
     <string name="err_cant_read">No se pudo leer el archivo.</string>
     <string name="err_too_big">El archivo pasa de %1$d MB.</string>
     <string name="err_not_utf8">El archivo no es texto UTF-8.</string>

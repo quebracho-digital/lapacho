@@ -60,6 +60,29 @@ class PredictTest {
         assertEquals(listOf(listOf(es, en), listOf(fr, be)), layouts(listOf(es, fr, en, be)) { it }.map { it.second })
     }
 
+    @Test fun extraKeysForTheBuiltInRows() {
+        assertEquals("ñ", parseHeader("$DICT_MAGIC\n#lang es\n#keys ñ\n").keys)
+        assertEquals("", parseHeader("$DICT_MAGIC\n#lang en\n").keys)
+        for (keys in listOf("Ñ", "1", "ñçßæ", "ññ")) {
+            assertThrows(keys, IllegalArgumentException::class.java) { parseHeader("$DICT_MAGIC\n#lang xx\n#keys $keys\n") }
+        }
+    }
+
+    @Test fun theMiddleRowGetsTheLayoutsExtraKeysOnce() {
+        val es = DictHeader("es", "es", emptyMap(), keys = "ñ")
+        val en = DictHeader("en", "en", emptyMap())
+        assertEquals(listOf("qwertyuiop", "asdfghjklñ", "zxcvbnm"), builtInRows(listOf(es, en, es)))
+        assertEquals(listOf("qwertyuiop", "asdfghjkl", "zxcvbnm"), builtInRows(listOf(en)))
+    }
+
+    /** The bundled Spanish puts ñ on its own key and the accents on the vowels, as every phone keyboard does. */
+    @Test fun spanishTypesLikeAPhoneKeyboard() {
+        val es = parseHeader(java.io.File("src/main/assets/dict/es.txt").readText())
+        assertEquals("ñ", es.keys)
+        assertEquals("á", es.alternates["a"]?.take(1))
+        assertEquals("ü", es.alternates["u"]?.takeLast(1))
+    }
+
     @Test fun alternatesOnAnyLowercaseLetter() {
         assertEquals(mapOf("е" to "ё"), parseHeader("$DICT_MAGIC\n#lang ru\n#alternates е:ё\n").alternates)
         // A capital or a digit is not a key the rows can have.

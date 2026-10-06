@@ -55,6 +55,7 @@ import digital.quebracho.lapacho.dictionarySignature
 import digital.quebracho.lapacho.installedDictionaries
 import digital.quebracho.lapacho.InstalledDict
 import digital.quebracho.lapacho.keyAlternates
+import digital.quebracho.lapacho.builtInRows
 import digital.quebracho.lapacho.layouts
 import digital.quebracho.lapacho.isMasked
 import digital.quebracho.lapacho.isSecret
@@ -93,7 +94,6 @@ class LapachoIme : InputMethodService() {
     private lateinit var layerToggle: TextView
     private var shift = Shift.OFF
     private var lastShiftTapMs = 0L
-    private var accentPending = false
     private var privateField = false
     private var secretOnClipboard = false
     // Search mode: non-null while searching. The keys edit [query] instead of
@@ -245,7 +245,6 @@ class LapachoIme : InputMethodService() {
         // back to the letters after every digit typed on the numbers layer.
         if (!restarting) {
             shift = Shift.OFF
-            accentPending = false
             if (::layerToggle.isInitialized) setLayer(initialLayer(info?.inputType ?: 0))
         }
         val clip = readClip()
@@ -900,14 +899,6 @@ class LapachoIme : InputMethodService() {
                 )
             }
             for (c in keys) {
-                if (c == DEAD_ACUTE) {
-                    addView(
-                        keyButton("", 1f) { accentPending = !accentPending; relabel() }.also { key ->
-                            relabels += { key.text = if (accentPending) "[´]" else "´" }
-                        },
-                    )
-                    continue
-                }
                 val alternates = longPress[c]
                 // Shift is read when the key is typed, not when it was drawn.
                 addView(
@@ -1014,7 +1005,7 @@ class LapachoIme : InputMethodService() {
         }
 
         /**
-         * Whether the finger came down on ⇧, ´ or ⌫: a word starts on a
+         * Whether the finger came down on ⇧ or ⌫: a word starts on a
          * letter, and a held ⌫ whose finger drifts must keep deleting, not
          * turn into a swipe.
          */
@@ -1083,9 +1074,8 @@ class LapachoIme : InputMethodService() {
         val gap = if (before.isNullOrEmpty() || before.last().isWhitespace()) "" else " "
         commitText("$gap$word ")
         autoSpace = true
-        if (shift == Shift.ONCE || accentPending) {
-            if (shift == Shift.ONCE) shift = Shift.OFF
-            accentPending = false
+        if (shift == Shift.ONCE) {
+            shift = Shift.OFF
             relabel()
         }
         swiped = if (words.size > 1) word to words.drop(1) else null
@@ -1115,10 +1105,9 @@ class LapachoIme : InputMethodService() {
     }
 
     private fun type(key: String) {
-        output(if (accentPending) withAcute(key) else key)
-        if (shift == Shift.ONCE || accentPending) {
-            shift = if (shift == Shift.ONCE) Shift.OFF else shift
-            accentPending = false
+        output(key)
+        if (shift == Shift.ONCE) {
+            shift = Shift.OFF
             relabel()
         }
     }
@@ -1229,7 +1218,8 @@ class LapachoIme : InputMethodService() {
     }
 
     /** The letter rows of the layout on screen. */
-    private fun letterRows(): List<List<String>> = keyLayouts[layoutIndex].first?.map(::row) ?: LETTER_ROWS
+    private fun letterRows(): List<List<String>> =
+        (keyLayouts[layoutIndex].first ?: builtInRows(keyLayouts[layoutIndex].second.map { it.header })).map(::row)
 
     /**
      * Puts the long-press alternates and 🌐 in line with [layoutIndex], and
@@ -1280,18 +1270,6 @@ class LapachoIme : InputMethodService() {
             return before.length - i
         }
 
-        /**
-         * Dead-key acute accent, as on a Spanish physical keyboard: ´ then a
-         * vowel gives the accented vowel; anything else comes out unchanged.
-         */
-        fun withAcute(key: String): String {
-            val i = PLAIN_VOWELS.indexOf(key)
-            return if (key.length == 1 && i >= 0) ACUTE_VOWELS[i].toString() else key
-        }
-
-        private const val PLAIN_VOWELS = "aeiouAEIOU"
-        private const val ACUTE_VOWELS = "áéíóúÁÉÍÓÚ"
-        private const val DEAD_ACUTE = "´"
         /** Tap: shift for one letter. Double tap: caps lock. Tap again: off. */
         fun nextShift(current: Shift, msSinceLastTap: Long): Shift = when (current) {
             Shift.OFF -> Shift.ONCE
@@ -1388,8 +1366,6 @@ class LapachoIme : InputMethodService() {
         private const val FAST_TYPING_MS = 350L
         private const val KEYBOARD_BG = 0xFF1E1E1E.toInt()
         private fun row(keys: String) = keys.map(Char::toString)
-        /** The keyboard's own layout, for every dictionary without `#rows`. */
-        private val LETTER_ROWS = listOf(row("qwertyuiop"), row("asdfghjkl$DEAD_ACUTE"), row("zxcvbnm"))
         private val SYMBOL_ROWS = listOf(row("1234567890"), row("@#\$%&-+()/"), row("<>[]{}=_|\\"), row("*\"':;!¡?¿"))
         /**
          * The emoji layer's first tab, after the user's own favourites: the

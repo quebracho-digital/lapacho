@@ -4,7 +4,18 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — Portuguese, French, German and Russian dictionaries
+### Android — ñ next to l, accents on the vowels, no dead key (`0.1.38`)
+
+The ´ key at the end of the middle row is gone. It was a physical Spanish
+keyboard's dead key, and it ended up where every phone keyboard puts ñ (AOSP's
+Spanish layout, Gboard, SwiftKey, iOS). ñ is a key again, after l, and
+accents are on each vowel's long press (á on a, ü with ú on u). The
+dictionary decides: Spanish's header says `#keys ñ`, so with Spanish removed
+the row goes back to nine keys, and English, Italian and Portuguese still
+share the layout with it. Typing a word without its accent still works, and
+the strip offers it accented.
+
+### Android — Portuguese, French, German and Russian dictionaries (`0.1.38`)
 
 Four more official dictionaries: Brazilian Portuguese and French
 (AZERTY), German (QWERTZ, with ä ö ü as keys and ß on s), and Russian
@@ -16,7 +27,7 @@ real pairs (`e`/`é`, `wurde`/`würde`) survive. The engine folds a capital
 accent now (`Á` used to stay accented), and ё as е. A dictionary's long
 press can sit on any lowercase letter, not only a–z.
 
-### Releases — no `.sha256` next to the dictionaries
+### Releases — no `.sha256` next to the dictionaries (`0.1.38`)
 
 A release carried a `.dict.sha256` beside each dictionary, and the phone's file
 picker, which sorts by name, put it right under the `.dict`; picking it gave

@@ -1,7 +1,8 @@
 #lapacho-dict 1
 #lang es
 #name Español
-#alternates n:ñ
+#keys ñ
+#alternates a:á e:é i:í o:ó u:úü
 de 14459520
 que 14421005
 no 12379505

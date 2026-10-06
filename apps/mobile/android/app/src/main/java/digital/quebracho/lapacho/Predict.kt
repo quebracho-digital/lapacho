@@ -41,13 +41,14 @@ const val MAX_DICT_BYTES = 8 * 1024 * 1024
  * A dictionary's header: the `#` lines at the top of the file.
  * [alternates] maps a key to the characters its long press offers.
  * [rows] are the letter keys, top row first; null is the keyboard's own
- * QWERTY (with its dead acute key).
+ * QWERTY, to whose middle row [keys] adds letters of the language's own (ñ).
  */
 data class DictHeader(
     val lang: String,
     val name: String,
     val alternates: Map<String, String>,
     val rows: List<String>? = null,
+    val keys: String = "",
 )
 
 /**
@@ -109,8 +110,24 @@ fun parseHeader(text: String): DictHeader {
             R.string.err_rows, MAX_ROWS, MAX_ROW_KEYS,
         )
     }
-    return DictHeader(lang, fields["name"] ?: lang, alternates, rows)
+    val keys = fields["keys"].orEmpty()
+    refuseUnless(
+        keys.length <= MAX_EXTRA_KEYS && keys.all { it.isLetter() && it.lowercaseChar() == it } && keys.toSet().size == keys.length,
+        R.string.err_keys, MAX_EXTRA_KEYS,
+    )
+    return DictHeader(lang, fields["name"] ?: lang, alternates, rows, keys)
 }
+
+/** Letters a language may add to the built-in middle row: it holds 12 at most. */
+private const val MAX_EXTRA_KEYS = 3
+
+/**
+ * The keyboard's own QWERTY, for dictionaries without `#rows`: the middle
+ * row ends in what their `#keys` add, each once — ñ after l, as every Spanish
+ * keyboard has it, and only while a dictionary that wants it is active.
+ */
+fun builtInRows(dicts: List<DictHeader>): List<String> =
+    listOf("qwertyuiop", "asdfghjkl" + dicts.joinToString("") { it.keys }.toList().distinct().joinToString(""), "zxcvbnm")
 
 private val LANG = Regex("[a-z0-9-]{1,32}")
 private const val MAX_ALTERNATES = 8
