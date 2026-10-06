@@ -142,26 +142,48 @@ layout lacks (`#alternates c:ç a:ãáàâ o:õóô e:éê`). The filter matters
 raw lists carry names, numbers and subtitle noise, and every word in the file
 is one the keyboard may offer.
 
-**Official Italian** (`it.txt`) also mends the subtitles' missing accents.
-They write `perche` more often than `perché`, and `piu`, `cosi` and `gia`
-about as often as the right spelling. A word whose last vowel lost its accent
-and is **less than twice as common** as the accented one gives its count to
-the accented spelling and is dropped. Real pairs survive, because the plain
-word is far more common in them: `e`/`è` 2.9×, `si`/`sì` 3.2×, `la`/`là` 89×.
+### The official ones
 
-The script is `apps/mobile/android/dictionaries/it_recipe.awk`
-(`gawk -f it_recipe.awk it_50k.txt`, then the header on top). It keeps plain lowercase words with à è é ì í ò ó ù ú, and of
-the one-letter ones a e i o è. It then merges each mistyped accent into the
-most common accented spelling of that word. The header is
-`#alternates e:èé a:à i:ì o:ò u:ù`.
+Every official dictionary is built by
+`apps/mobile/android/dictionaries/build.py`, one recipe per language: the
+header, which entries count as words, which one-letter words to keep, and how
+to mend the subtitles' missing accents.
 
-**Official Hebrew** (`he.txt`) keeps entries made only of the 27 letters (22
-plus the 5 final forms) and longer than one letter:
-`gawk '$1 ~ /^[א-ת]+$/ && length($1) > 1'` under a UTF-8 locale. Its `#rows` is
-the Israeli standard layout without its punctuation keys. The engine treats a
-final letter and its regular form as one (ם = מ, as `ó` = `o`), so `שלומ`
-completes to `שלום`. Niqqud is not folded yet: the list has none, and a word
-typed with it won't match.
+```sh
+curl -sfLO https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/fr/fr_50k.txt
+python3 build.py fr fr_50k.txt > fr.txt
+```
+
+It reproduces the committed files byte for byte, so a change to a recipe shows
+up as a new hash, and the official-hash test catches it.
+
+| Lang | Layout | Long press | Missing accents |
+|------|--------|------------|-----------------|
+| `en` | QWERTY | — | — |
+| `it` | QWERTY | è é à ì ò ù | merged if under 2× (final vowel only) |
+| `pt-br` | QWERTY | ç ã á â à õ ó ô é ê í ú | merged if under 0.1× |
+| `fr` | AZERTY | é è ê ë à â æ ç î ï ô œ ù û ü ÿ | merged if under 0.1× |
+| `de` | QWERTZ (ä ö ü are keys) | ß on s | merged if under 0.1× |
+| `ru` | ЙЦУКЕН | ё on е | none: е for ё is normal spelling, the engine folds them |
+| `he` | Israeli standard | — | none (no accents); final letters fold to regular |
+
+**Why two cuts.** The subtitles drop accents. Italian drops the final one so
+often that `perche` beats `perché`, and `piu`, `cosi` and `gia` about match
+the right spelling. Real Italian pairs have the plain word far more common
+(`e`/`è` 2.9×, `si`/`sì` 3.2×, `la`/`là` 89×). So a plain word **under 2×**
+the accented one is a typo: it gives its count to the accented spelling and is
+dropped. In Portuguese, French and German the typos are rare (`voce`, `ca`,
+`fur`, about 1 % of the right spelling) and the real pairs are close to even
+(`e`/`é` 0.85, `a`/`à` 0.89, `wurde`/`würde` 0.81). Italian's cut would
+delete real words there, so they merge only **under 0.1×**.
+
+**Hebrew** keeps entries made only of the 27 letters (22 plus the 5 final
+forms) and longer than one letter. The engine treats a final letter and its
+regular form as one (ם = מ, as `ó` = `o`), so `שלומ` completes to `שלום`;
+swipe still tells them apart as two keys. Niqqud is not folded yet: the list
+has none, and a word typed with it won't match. **German**'s source list is
+lowercased, so nouns come without their capital. **Arabic** is not offered
+yet: it needs the strip read right to left and harakat folded.
 
 ## Making one from your own texts
 

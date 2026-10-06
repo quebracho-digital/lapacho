@@ -157,6 +157,35 @@ History search implemented; English translation complete. Sensitivity: long hex 
       `state.last_seen` prevents re-capture. Manual test: copy something, click tray
       item → paste. Works end-to-end from locked arena.
 
+### 🧩 Plugins
+
+- [ ] **Read the terms before accepting them** (idea, 2026-10-06) — a plugin
+  that turns a copied terms-and-conditions or privacy-policy text into a short
+  report: what data is collected, shared or sold and with whom, retention,
+  auto-renewal and how to cancel, arbitration and class-action waivers,
+  jurisdiction, changes without notice, the licence over your content. Each
+  point quotes the clause it comes from. The report is saved as a new clip,
+  and the original stays.
+  - **When it runs:** Lapacho never sees the page with the "I accept" box.
+    It only sees what gets copied. So it works two ways: on any clip by hand,
+    like every plugin; or the classifier recognises a clip shaped like terms
+    (length, legal headings, "Terms of Service" / "Términos y condiciones",
+    "arbitration", "we may share") and *offers* the plugin on it, in the
+    window, tray and strip. It never runs by itself. An accessibility service
+    that watches screens for accept buttons is out: it would read everything.
+  - **Engine:** rules first, offline and deterministic, in `lapacho-core`, one
+    detector per kind of clause (the `threats::REGISTRY` pattern), es + en.
+    That is the free core and needs no network. An LLM summary is optional,
+    through an OpenAI-compatible endpoint the user configures, local by
+    default (llama.cpp). There is no cloud default, the text goes out only on
+    an explicit run, and sensitive clips never go.
+  - **Open:** often what you get is only a link ("acepto los *términos*"), not
+    the text. Fetching it needs network: the desktop can, but the keyboard has
+    no network permission and should not get one. Real terms run 5–20 k
+    words, more than a small local model's context, so it would summarise in
+    chunks with the rules picking the clauses. On Android this needs plugins
+    beyond the built-in ones (today only search and replace).
+
 ### 📦 Project
 
 - [x] `LICENSE-APACHE` — full standard text present with copyright line filled in.
@@ -216,8 +245,10 @@ History search implemented; English translation complete. Sensitivity: long hex 
     `SWIPE_SIGMA` wants retuning against real ones from a phone, and the
     shape channel is the next step if swipes drawn small or off-centre fail.
   - [ ] **Publish official dictionaries** next to the APKs on `/lapacho`
-    — English, Italian and Hebrew are committed and official in the app
-    (`0.1.37`); `publish.sh` uploads every file in `dictionaries/`.
+    — English, Italian, Hebrew (`0.1.37`), Brazilian Portuguese, French,
+    German and Russian are committed, built by `dictionaries/build.py`, and
+    official in the app; every release attaches them and `publish.sh`
+    uploads them. Arabic waits for an RTL strip and folded harakat.
   - [x] **Explicit learning** — long-press the word you typed → a chip offers
     to learn it → stored as one word in the encrypted store (`lexicon` table,
     DB v2), listed and deletable under **PALABRAS** in the companion. Never
@@ -247,7 +278,8 @@ History search implemented; English translation complete. Sensitivity: long hex 
   - **Other scripts:** Hebrew without niqqud works (`0.1.37`: official
     `he.txt` with its own `#rows`; `fold()` maps the five final letters to
     their regular forms, and swipe tells ם and מ apart as two keys). Still:
-    `#alternates` only accepts keys `a`–`z`; `fold()` only
+    Russian too (ЙЦУКЕН rows, ё folds to е and is the long press on е; any
+    lowercase letter can now take `#alternates`). `fold()` only
     strips Latin accents, so Hebrew niqqud and Arabic harakat aren't ignored
     when matching; `currentWord()` stops at a combining mark (`isLetter`), so
     a word typed with harakat is cut. Shift does nothing for scripts without

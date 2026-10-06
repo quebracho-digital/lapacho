@@ -70,7 +70,7 @@
     <string name="err_not_dict">No es un diccionario de Lapacho: falta «%1$s» en la primera línea.</string>
     <string name="err_lang">«#lang» falta o no es válido (minúsculas, dígitos y guiones, como «en» o «es-medicina»).</string>
     <string name="err_alternates_format">«#alternates»: «%1$s» no es «tecla:caracteres».</string>
-    <string name="err_alternates_rule">«#alternates»: «%1$s» — la tecla es una letra a-z y van de 1 a %2$d caracteres.</string>
+    <string name="err_alternates_rule">«#alternates»: «%1$s» — la tecla es una letra minúscula y van de 1 a %2$d caracteres.</string>
     <string name="err_rows">«#rows»: de 2 a %1$d filas de hasta %2$d letras minúsculas, sin repetir ninguna.</string>
     <string name="err_cant_read">No se pudo leer el archivo.</string>
     <string name="err_too_big">El archivo pasa de %1$d MB.</string>

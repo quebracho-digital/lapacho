@@ -492,30 +492,30 @@ impl Rows {
 /// missing accent.
 ///
 /// ponytail: a table, not Unicode NFD — it covers Spanish, English,
-/// Portuguese, French, German, Italian and Hebrew without niqqud. A language
+/// Portuguese, French, German, Italian, Russian and Hebrew without niqqud. A language
 /// with other marks (Polish, Czech, Arabic harakat) needs
 /// `unicode-normalization` here, not more rows.
 pub fn fold(s: &str) -> String {
+    // Lowercase first, so the table needs only the small letters: Á → á → a.
     s.chars()
-        .flat_map(|c| {
-            let folded = match c {
-                'á' | 'à' | 'ä' | 'â' => 'a',
-                'é' | 'è' | 'ë' | 'ê' => 'e',
-                'í' | 'ì' | 'ï' | 'î' => 'i',
-                'ó' | 'ò' | 'ö' | 'ô' => 'o',
-                'ú' | 'ù' | 'ü' | 'û' => 'u',
-                'ã' => 'a',
-                'õ' => 'o',
-                'ç' => 'c',
-                'ñ' => 'n',
-                'ם' => 'מ',
-                'ן' => 'נ',
-                'ץ' => 'צ',
-                'ף' => 'פ',
-                'ך' => 'כ',
-                other => other,
-            };
-            folded.to_lowercase()
+        .flat_map(char::to_lowercase)
+        .map(|c| match c {
+            'á' | 'à' | 'ä' | 'â' | 'ã' => 'a',
+            'é' | 'è' | 'ë' | 'ê' => 'e',
+            'í' | 'ì' | 'ï' | 'î' => 'i',
+            'ó' | 'ò' | 'ö' | 'ô' | 'õ' => 'o',
+            'ú' | 'ù' | 'ü' | 'û' => 'u',
+            'ÿ' => 'y',
+            'ç' => 'c',
+            'ñ' => 'n',
+            // Russian writes ё as е more often than not.
+            'ё' => 'е',
+            'ם' => 'מ',
+            'ן' => 'נ',
+            'ץ' => 'צ',
+            'ף' => 'פ',
+            'ך' => 'כ',
+            other => other,
         })
         .collect()
 }
@@ -632,6 +632,8 @@ mod tests {
         assert_eq!(fold("Français"), "francais");
         assert_eq!(fold("não"), "nao");
         assert_eq!(fold("שלום"), "שלומ", "a final letter is its regular form");
+        assert_eq!(fold("ÁRBOL"), "arbol", "a capital accent folds too");
+        assert_eq!(fold("ЁЛКА"), "елка");
     }
 
     #[test]
