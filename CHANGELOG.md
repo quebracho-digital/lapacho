@@ -4,7 +4,18 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — a keyboard layout per language, and 🌐 to switch
+### Android — Italian and Hebrew dictionaries (`0.1.37`)
+
+Two new official dictionaries, from the same subtitle frequency lists as
+Spanish and English. Import them from the download page under LANGUAGES →
+ADD. **Italian** types on QWERTY next to Spanish and English, with è é à ì ò ù
+on long press. The list's missing accents are mended: `perche` becomes
+`perché`, `piu` becomes `più`. **Hebrew** brings its own layout, the Israeli
+standard, so 🌐 shows up. The engine reads a final letter as its regular form
+(`שלומ` completes to `שלום`), and swipe treats ם and מ as two different keys.
+The strip still reads left to right.
+
+### Android — a keyboard layout per language, and 🌐 to switch (`0.1.37`)
 
 A dictionary can bring its own letter keys: `#rows azertyuiop qsdfghjklm
 wxcvbn` in its header makes French type on AZERTY. Languages on the same
@@ -14,14 +25,14 @@ to cycle through them. Each layout suggests, corrects and swipes with its
 own dictionaries only. Hebrew, Arabic and other scripts are next: their rows
 already load, matching and the strip don't handle them yet.
 
-### Android — a third of the memory per language, up to six languages
+### Android — a third of the memory per language, up to six languages (`0.1.37`)
 
 The keyboard kept two separate strings per dictionary word; it now keeps
 every word in one buffer. Spanish and English together went from 6.0 to
 2.1 MB of heap on the laptop, and load slightly faster. With that, up to six
 languages can be active at once (was three).
 
-### Desktop — "About Lapacho…" in the tray
+### Desktop — "About Lapacho…" in the tray (`0.1.37`)
 
 A tray entry above the version line opens the desktop's own About dialog:
 version, licence (MIT OR Apache-2.0), authors, and links to the source and

@@ -335,10 +335,17 @@ impl Predictor {
             return Vec::new();
         }
         let scale = |x: f32, y: f32| (x / key_width, y / key_width);
-        let keys: Vec<(char, (f32, f32))> = keys
+        // Each key as typed and folded: a word's letters find their key by
+        // the first (ם and מ are two keys) and fall back to the second (ó is
+        // drawn through o).
+        let keys: Vec<(char, (f32, f32), char)> = keys
             .iter()
-            .filter_map(|&(c, x, y)| Some((fold(&c.to_string()).chars().next()?, scale(x, y))))
+            .filter_map(|&(c, x, y)| {
+                let raw = c.to_lowercase().next()?;
+                Some((fold(&c.to_string()).chars().next()?, scale(x, y), raw))
+            })
             .collect();
+        let key_of = |c: char| keys.iter().find(|k| k.2 == c).or_else(|| keys.iter().find(|k| k.0 == fold_char(c)));
         let drawn = resample(&path.iter().map(|&(x, y)| scale(x, y)).collect::<Vec<_>>());
         let near = |p: (f32, f32)| -> Vec<char> {
             let nearest = keys.iter().map(|k| dist(k.1, p)).fold(f32::MAX, f32::min);
@@ -359,12 +366,12 @@ impl Predictor {
                 }
                 line.clear();
                 let mut prev = None;
-                let spelled = self.key(e).chars().all(|c| {
+                let spelled = self.word(e).chars().flat_map(char::to_lowercase).all(|c| {
                     if prev == Some(c) {
                         return true;
                     }
                     prev = Some(c);
-                    keys.iter().find(|k| k.0 == c).map(|k| line.push(k.1)).is_some()
+                    key_of(c).map(|k| line.push(k.1)).is_some()
                 });
                 // A word with a letter that is not on the keys, or one a tap types.
                 if !spelled || line.len() < 2 {
@@ -480,9 +487,14 @@ impl Rows {
 /// Lowercase, with diacritics removed, so that the dictionary can be
 /// searched by what is easiest to type.
 ///
+/// Hebrew's five final letters fold to their regular forms (ם → מ): the same
+/// letter at the end of a word, and typing the wrong one is a slip like a
+/// missing accent.
+///
 /// ponytail: a table, not Unicode NFD — it covers Spanish, English,
-/// Portuguese, French and German. A language with other marks (Polish, Czech)
-/// needs `unicode-normalization` here, not more rows.
+/// Portuguese, French, German, Italian and Hebrew without niqqud. A language
+/// with other marks (Polish, Czech, Arabic harakat) needs
+/// `unicode-normalization` here, not more rows.
 pub fn fold(s: &str) -> String {
     s.chars()
         .flat_map(|c| {
@@ -496,11 +508,21 @@ pub fn fold(s: &str) -> String {
                 'õ' => 'o',
                 'ç' => 'c',
                 'ñ' => 'n',
+                'ם' => 'מ',
+                'ן' => 'נ',
+                'ץ' => 'צ',
+                'ף' => 'פ',
+                'ך' => 'כ',
                 other => other,
             };
             folded.to_lowercase()
         })
         .collect()
+}
+
+fn fold_char(c: char) -> char {
+    let mut buf = [0u8; 4];
+    fold(c.encode_utf8(&mut buf)).chars().next().unwrap_or(c)
 }
 
 /// Gives `word` the capitalization of `prefix`: `Que` → `Querido`. Only the
@@ -609,6 +631,7 @@ mod tests {
     fn folds_the_marks_of_the_other_supported_languages() {
         assert_eq!(fold("Français"), "francais");
         assert_eq!(fold("não"), "nao");
+        assert_eq!(fold("שלום"), "שלומ", "a final letter is its regular form");
     }
 
     #[test]
