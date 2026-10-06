@@ -4,6 +4,13 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Releases — no `.sha256` next to the dictionaries
+
+A release carried a `.dict.sha256` beside each dictionary, and the phone's file
+picker, which sorts by name, put it right under the `.dict`; picking it gave
+*Not a Lapacho dictionary*. The dictionary's name already carries its hash and
+the app checks the full one on import, so only the APK keeps its `.sha256`.
+
 ### Android — Italian and Hebrew dictionaries (`0.1.37`)
 
 Two new official dictionaries, from the same subtitle frequency lists as

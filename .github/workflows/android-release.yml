@@ -126,7 +126,10 @@ jobs:
             case "$(basename "$dict")" in NOTICE-*) continue ;; esac
             cp "$dict" "$RUNNER_TEMP/out/lapacho-dict-$(basename "$dict" .txt)-$(sha256sum "$dict" | cut -c1-8).dict"
           done
-          cd "$RUNNER_TEMP/out" && for f in *; do sha256sum "$f" > "$f.sha256"; done
+          # The APK only: a dictionary's name already carries its hash, and the
+          # app checks the full SHA-256 on import. A .dict.sha256 next to it was
+          # picked by mistake in the phone's file picker, which sorts by name.
+          cd "$RUNNER_TEMP/out" && for f in *.apk; do sha256sum "$f" > "$f.sha256"; done
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - if: github.ref_type == 'tag'
