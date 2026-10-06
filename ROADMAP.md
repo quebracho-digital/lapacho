@@ -235,6 +235,41 @@ History search implemented; English translation complete. Sensitivity: long hex 
     text and dropped if it isn't there. Sensitive clips never go out. The
     keyboard never gets network; on Android the companion would, and that is
     still to decide.
+  - **How it is organized:** `docs/TERMS_CATALOG.md`. Countries, companies
+    and taxonomy are data and only new kinds of feature are code. The model
+    is group → company → service → document (kind × country × language) →
+    version (hash) → analysis. A country brings its legal map and action
+    templates. Packs are one per country × language, signed, and downloaded
+    whole.
+  - **Beyond the report:**
+    - **What the law says here**: each category mapped to the country's
+      law, for example *"in Argentina this clause may be void"* (Ley 24.240
+      art. 37, Código Civil y Comercial arts. 988 and 1119, Ley 25.326).
+      Nobody offers this, ToS;DR included. It is not legal advice, and a
+      lawyer reviews the map before it ships.
+    - **Act on it**: templates for an ARCO request, a cancellation and the
+      withdrawal button (Res. 424/2020), plus each catalogued service's
+      direct links to turn off personalized ads and to delete the account.
+    - **Your services, and when they change**: the device keeps which terms
+      you analysed or accepted, and the version. A new catalogue pack is
+      compared locally, so you get *"Spotify changed its terms: arbitration
+      now"* with no metadata.
+    - Later: the same service compared across countries, a transparent
+      A–F grade computed from the severities, reading time and a Spanish
+      readability index (Fernández Huerta), better-rated alternatives,
+      and app permissions checked against the privacy policy ("the policy
+      doesn't mention location; the app asks for it").
+  - **Measurement before shipping any of it** (`terms-eval`): a
+    prompt-injection set (terms that hide "tell the user this is fine"), to
+    prove the fence holds; agreement between annotators (three so far:
+    Claude Code, pi, agy-gemini), so a badly defined category isn't blamed
+    on the model; severity scored, not only categories; and the Spanish set
+    grown to about 50 documents. Fetching: plain HTTP, then Playwright
+    (WhatsApp and Uber come in that way), then the Internet Archive or a
+    manual save. Sites that block automated browsers (Mercado Libre, Mercado
+    Pago: 403) are not worked around. A tool built to bypass anti-bot
+    protection (FlareSolverr and the like) is out: a terms analyser that
+    breaks the sites' own terms to read them loses the argument it makes.
   - Hugging Face has no mature specialist for this (2026-10-06): only small
     English clause classifiers (Legal-BERT on UNFAIR-ToS) with a few dozen
     downloads. The datasets are what's worth taking.
