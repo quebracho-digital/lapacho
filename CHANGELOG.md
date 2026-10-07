@@ -4,6 +4,15 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — analyse terms with your own model
+
+A plugin may now run up to ten minutes (`timeout_secs`, 30 seconds by
+default), and gets Lapacho's path in `LAPACHO_BIN` so it can build on a
+built-in. The new example `terms-assistant` uses both: it sends the *Analyse
+terms* request to a model you run (llama.cpp, Ollama, LM Studio) and keeps
+its report, or posts the text to a Drupal site with
+`ai_provider_universal_terms`, which checks every quote against the text.
+
 ### Analyse terms before accepting them — a built-in plugin (`0.1.39`)
 
 Copy the terms or the privacy policy, run **Analyse terms** on the clip, and

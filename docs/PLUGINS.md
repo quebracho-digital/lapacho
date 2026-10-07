@@ -51,6 +51,7 @@ copy one into the folder and it shows up the next time you open a clip.
 | `command` | yes | The program to run, looked up in `PATH`. `@lapacho` means Lapacho itself (that is how the built-ins run). |
 | `args` | yes | Its arguments, fixed. The clip never goes here. |
 | `params` | no | Values asked before running, see below. |
+| `timeout_secs` | no | Longest it may run, in seconds: 30 if omitted, at most 600. A plugin that asks a model about a whole document needs minutes. |
 | `max_chars`, `max_words`, `applies_to` | no | **Read but not enforced yet**: a plugin gets any text clip. Don't rely on them. |
 
 ### The contract
@@ -64,6 +65,9 @@ copy one into the folder and it shows up the next time you open a clip.
   `"text"` (the default) or `"flag"`, a checkbox that arrives as `1` or `0`.
   Only declared params are passed. A value can't contain a NUL character.
 - **Working directory:** the plugins folder.
+- **`LAPACHO_BIN`:** the path to Lapacho itself, so a plugin can run a
+  built-in and build on it: `"$LAPACHO_BIN" plugin terms < clip` prints the
+  request the *Analyse terms* plugin would make.
 - **Output:** standard output, read as UTF-8 (invalid bytes become `�`). It
   goes through the same pipeline as anything copied: it is sanitized,
   classified (a plugin that outputs a password gets a masked clip), and saved
@@ -71,7 +75,8 @@ copy one into the folder and it shows up the next time you open a clip.
   is sanitized as SVG.
 - **Failure:** a non-zero exit code. Whatever the plugin wrote on standard
   error is shown next to the Run button, so write the reason there.
-- **Time limit:** 30 seconds, then the process is killed.
+- **Time limit:** 30 seconds, or the plugin's `timeout_secs`, then the
+  process is killed.
 
 ### Testing one without the app
 

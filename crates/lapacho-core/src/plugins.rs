@@ -7,8 +7,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// Maximum time a plugin process may run before being killed.
+/// How long a plugin process may run before being killed, unless it sets
+/// `timeout_secs` (up to [`MAX_TIMEOUT_SECS`]).
 const PLUGIN_TIMEOUT: Duration = Duration::from_secs(30);
+const MAX_TIMEOUT_SECS: u64 = 600;
 
 /// A plugin `command` that means "this program". The built-in plugins run as
 /// `<lapacho> plugin <id>` ([`run_builtin`]), across the same process
@@ -29,6 +31,7 @@ pub fn builtin_plugins() -> Vec<PluginDefinition> {
         max_words: None,
         applies_to: None,
         params,
+        timeout_secs: None,
     };
     vec![
         builtin(
@@ -142,6 +145,7 @@ pub fn init_plugins_dir(plugins_dir: &Path) -> Result<(), String> {
         max_words: None,
         applies_to: None,
         params: Vec::new(),
+        timeout_secs: None,
     };
     let content = serde_json::to_string_pretty(&example).map_err(|e| e.to_string())?;
     fs::write(plugins_dir.join("uppercase.json"), content).map_err(|e| e.to_string())?;
@@ -205,6 +209,12 @@ pub fn execute_plugin(
         command.env(param_env(&p.name), value);
     }
 
+    // Where Lapacho is, so a plugin can run a built-in (`$LAPACHO_BIN plugin
+    // terms`) and build on it.
+    if let Ok(exe) = std::env::current_exe() {
+        command.env("LAPACHO_BIN", exe);
+    }
+    let timeout = plugin.timeout_secs.map_or(PLUGIN_TIMEOUT, |s| Duration::from_secs(s.clamp(1, MAX_TIMEOUT_SECS)));
     let mut child = command
         .args(&plugin.args)
         .current_dir(plugins_dir)
@@ -245,13 +255,13 @@ pub fn execute_plugin(
         match child.try_wait().map_err(|e| e.to_string())? {
             Some(s) => break s,
             None => {
-                if start.elapsed() >= PLUGIN_TIMEOUT {
+                if start.elapsed() >= timeout {
                     let _ = child.kill();
                     let _ = child.wait();
                     return Err(format!(
                         "Plugin '{}' timed out after {}s",
                         plugin.name,
-                        PLUGIN_TIMEOUT.as_secs()
+                        timeout.as_secs()
                     ));
                 }
                 std::thread::sleep(Duration::from_millis(50));
@@ -322,6 +332,30 @@ mod tests {
         let resp = execute_plugin(&dir, "uppercase", "hola", &HashMap::new()).unwrap();
         assert!(resp.success);
         assert_eq!(resp.result_raw_content.trim(), "HOLA");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_plugin_sets_its_own_time_limit() {
+        let dir = std::env::temp_dir().join(format!("lp_plugins_timeout_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("slow.json"), r#"{"id":"slow","name":"Slow","description":"","command":"sleep","args":["3"],"timeout_secs":1}"#).unwrap();
+        let err = execute_plugin(&dir, "slow", "x", &HashMap::new()).unwrap_err();
+        assert!(err.contains("timed out after 1s"), "{err}");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_plugin_can_find_lapacho_to_run_a_built_in() {
+        let dir = std::env::temp_dir().join(format!("lp_plugins_bin_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("bin.json"), r#"{"id":"bin","name":"Bin","description":"","command":"sh","args":["-c","printf %s \"$LAPACHO_BIN\""]}"#).unwrap();
+        let resp = execute_plugin(&dir, "bin", "", &HashMap::new()).unwrap();
+        assert_eq!(resp.result_raw_content, std::env::current_exe().unwrap().to_string_lossy());
         let _ = fs::remove_dir_all(&dir);
     }
 

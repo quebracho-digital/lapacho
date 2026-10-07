@@ -167,6 +167,11 @@ pub struct PluginDefinition {
     /// or a second command.
     #[serde(default)]
     pub params: Vec<PluginParam>,
+    /// Longest the plugin may run, in seconds: 30 if omitted, at most 600.
+    /// A plugin that asks a language model about a whole document needs
+    /// minutes, not seconds.
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
 }
 
 /// One value a plugin asks for. `name` is `[a-z][a-z0-9_]*`.
