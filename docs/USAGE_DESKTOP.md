@@ -101,6 +101,16 @@ search with a pattern, and use its groups in the replacement: search
 `(\d+)-(\d+)-(\d+)`, replace with `$3/$2/$1`, and `2026-10-02` becomes
 `02/10/2026`. If nothing matches it says so instead of making a copy.
 
+### Analyse terms
+
+Built in. Copy the terms and conditions or the privacy policy you are about
+to accept, open that clip, pick **Analyse terms**, **Run**. The new clip is a
+request ready to paste into the AI assistant you use (Gemini, ChatGPT,
+Claude, Lumo, a local model): what to look for, how to rate it, and the text
+inside a fence the assistant is told never to take instructions from. Lapacho
+sends nothing anywhere; you choose where to paste it. It is not legal advice,
+and the request says so.
+
 ### Plugins that ask for values
 
 A plugin can declare `params`; the window shows a field for each before it
@@ -121,6 +131,9 @@ into a flag or a second command:
 
 `name` is lowercase letters, digits and `_`. `kind` is `"text"` (the default)
 or `"flag"`, a checkbox that arrives as `1` or `0`.
+
+Writing your own: [PLUGINS.md](PLUGINS.md), with examples in
+[`plugins/examples/`](../plugins/examples/).
 
 ## Where things live (Linux)
 

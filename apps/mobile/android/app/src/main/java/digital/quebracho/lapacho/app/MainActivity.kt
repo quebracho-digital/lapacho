@@ -254,10 +254,24 @@ class MainActivity : AppCompatActivity() {
                     p.name to if (field is CheckBox) (if (field.isChecked) "1" else "0") else (field as EditText).text.toString()
                 }
                 try {
-                    save(runPlugin(plugin.id, item.rawContent, values))
+                    val result = runPlugin(plugin.id, item.rawContent, values)
+                    save(result)
                     refresh()
-                    Toast.makeText(this, R.string.plugin_done, Toast.LENGTH_SHORT).show()
-                    backToKeyboard()
+                    if (plugin.id == "terms") {
+                        // The request goes to an assistant the user picks, every
+                        // time: Lapacho has no network and analyses nothing itself.
+                        // It is also first in the strip, to paste by hand instead.
+                        Toast.makeText(this, R.string.plugin_terms_done, Toast.LENGTH_LONG).show()
+                        startActivity(
+                            Intent.createChooser(
+                                Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, result),
+                                getString(R.string.plugin_terms_share),
+                            ),
+                        )
+                    } else {
+                        Toast.makeText(this, R.string.plugin_done, Toast.LENGTH_SHORT).show()
+                        backToKeyboard()
+                    }
                 } catch (e: MobileException.Plugin) {
                     Toast.makeText(this, pluginRefusal(e.reason), Toast.LENGTH_LONG).show()
                     askParams(item, plugin, values)
@@ -272,6 +286,7 @@ class MainActivity : AppCompatActivity() {
     // ones this app knows how to say in its own language.
     private fun pluginName(p: PluginInfo): String = when (p.id) {
         "replace" -> getString(R.string.plugin_replace)
+        "terms" -> getString(R.string.plugin_terms)
         else -> p.name
     }
 
@@ -285,6 +300,7 @@ class MainActivity : AppCompatActivity() {
     private fun pluginRefusal(reason: String): String = when (reason) {
         "No matches" -> getString(R.string.plugin_no_matches)
         "Nothing to search for" -> getString(R.string.plugin_nothing_to_search)
+        "Nothing to analyse" -> getString(R.string.plugin_nothing_to_analyse)
         else -> reason
     }
 

@@ -93,6 +93,10 @@
     <string name="plugin_run">Aplicar</string>
     <string name="plugin_done">Guardado como clip nuevo</string>
     <string name="plugin_replace">Buscar y reemplazar</string>
+    <string name="plugin_terms">Analizar términos…</string>
+    <string name="plugin_terms_done">Pedido listo: elegí tu asistente, o pegalo desde la tira.</string>
+    <string name="plugin_terms_share">Mandar a tu asistente</string>
+    <string name="plugin_nothing_to_analyse">No hay texto para analizar.</string>
     <string name="param_search">Buscar</string>
     <string name="param_replace">Reemplazar por</string>
     <string name="param_regex">Expresión regular</string>
