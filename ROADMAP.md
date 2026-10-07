@@ -159,44 +159,120 @@ History search implemented; English translation complete. Sensitivity: long hex 
 
 ### 🧩 Plugins
 
-- [ ] **Read the terms before accepting them** (idea, 2026-10-06) — a plugin
-  that turns a copied terms-and-conditions or privacy-policy text into a short
-  report: what data is collected, shared or sold and with whom, retention,
-  auto-renewal and how to cancel, arbitration and class-action waivers,
-  jurisdiction, changes without notice, the licence over your content. Each
-  point quotes the clause it comes from. The report is saved as a new clip,
-  and the original stays.
-  - **First step, the simplest: hand it to an assistant the phone already
-    has.** Holding a clip offers "Analyse terms…": Lapacho builds the request
-    (a fixed prompt listing the points above, then the text, fenced with
-    `spotlight_text` so the terms cannot pass for instructions) and opens
-    Android's share sheet (`ACTION_SEND`, `text/plain`). The user picks
-    Gemini, ChatGPT, Claude, Perplexity, or an on-device model app, and the
-    answer stays in that app. Lapacho needs no network permission, no API
-    keys and no client to maintain. Desktop does the same by copying the
-    request to the clipboard. The price: the text goes wherever the chosen
-    app sends it (the share sheet is the user's explicit choice, every time),
-    and Lapacho can't check the answer's quotes against the text. Sensitive
-    clips don't get the option. If that's enough, the rest below waits.
-  - **When it runs:** Lapacho never sees the page with the "I accept" box.
-    It only sees what gets copied. So it works two ways: on any clip by hand,
-    like every plugin; or the classifier recognises a clip shaped like terms
-    (length, legal headings, "Terms of Service" / "Términos y condiciones",
-    "arbitration", "we may share") and *offers* the plugin on it, in the
-    window, tray and strip. It never runs by itself. An accessibility service
-    that watches screens for accept buttons is out: it would read everything.
-  - **Engine, if sharing falls short:** rules first, offline and deterministic, in `lapacho-core`, one
-    detector per kind of clause (the `threats::REGISTRY` pattern), es + en.
-    That is the free core and needs no network. An LLM summary is optional,
-    through an OpenAI-compatible endpoint the user configures, local by
-    default (llama.cpp). There is no cloud default, the text goes out only on
-    an explicit run, and sensitive clips never go.
-  - **Open:** often what you get is only a link ("acepto los *términos*"), not
-    the text. Fetching it needs network: the desktop can, but the keyboard has
-    no network permission and should not get one. Real terms run 5–20 k
-    words, more than a small local model's context, so it would summarise in
-    chunks with the rules picking the clauses. On Android this needs plugins
-    beyond the built-in ones (today only search and replace).
+- [ ] **Read the terms before accepting them** (idea and plan, 2026-10-06) — turns a terms-and-conditions or privacy-policy text into a
+  short report: what data is collected, shared or sold and with whom,
+  retention, auto-renewal and how to cancel, arbitration and class-action
+  waivers, jurisdiction, changes without notice, the licence over your
+  content. Each point quotes the clause it comes from. Saved as a new clip;
+  the original stays. **Not legal advice**, and the report says so.
+  - **Where an analysis comes from, most private first:**
+    1. **The catalogue.** The terms of the most used sites (global plus
+       Argentina, Spain and LatAm), analysed in advance and **downloaded
+       whole**, like the dictionaries: one versioned file, looked up on the
+       device by domain and by hash of the normalized text. Nobody learns
+       which one you looked at.
+    2. **Not in the catalogue:** a local model (desktop, or the phone if one
+       fits), or the phone's own assistant through the share sheet. Holding
+       a clip offers "Analyse terms…": a fixed prompt plus the text, fenced
+       with `spotlight_text`, sent with `ACTION_SEND`. On desktop it is
+       copied to the clipboard. The user picks the app every time, and
+       Lapacho can't check that app's quotes.
+    3. **Later, and only if the numbers work:** a hosted service. First a
+       beta on minisforum for trusted testers, behind Authentik; then rented
+       GPUs fit for production. It is looked up by hash prefix (the
+       Have I Been Pwned pattern: the server can't tell which document), and
+       a new document's analysis is stored by document hash, never with the
+       account, with no request logs kept. Blind tokens (Privacy Pass) could
+       let it check payment without knowing who paid.
+  - **Keeping the catalogue current is the real cost.** A scheduled job (on
+    SER5) re-fetches each catalogued URL, normalizes and hashes the text, and
+    re-analyses only what changed. It keeps every version, which makes
+    *"what changed since you accepted"* a feature: the old and new clauses
+    side by side. A new catalogue goes out as a release, like a dictionary.
+    The catalogue's quotes are short excerpts; check how quoting stands
+    legally before publishing it.
+  - **When it runs:** Lapacho never sees the page with the "I accept" box,
+    only what gets copied. So it runs by hand on any clip, or the classifier
+    recognises a clip shaped like terms (length, legal headings, "Terms of
+    Service" / "Términos y condiciones") and *offers* it. It never runs by
+    itself. A screen-watching accessibility service is out.
+  - **Models, under one rule: OSI-permissive licences only** (Apache-2.0,
+    MIT), irrevocable and with no acceptable-use policy the vendor can
+    rewrite later. Licences checked on Hugging Face, 2026-10-06:
+    - Teachers (big, on minisforum): Qwen3.5 / Qwen3.6 35B-A3B (Apache-2.0),
+      Mistral Small 3.2 24B (Apache-2.0, FR), GLM-4.5-Air (MIT).
+    - Students (small, for a phone or a laptop): Salamandra 2B / 7B (BSC,
+      Apache-2.0, strong Spanish), EuroLLM 1.7B / 9B (Apache-2.0, EU),
+      Ministral 3 3B / 8B (Apache-2.0), Qwen3.5 0.8B / 2B / 4B (Apache-2.0),
+      SmolLM3 3B (Apache-2.0). Gemma 4 E2B / E4B are Apache-2.0 too, but last
+      in line: Gemma 1–3 shipped under a licence Google could tighten.
+    - Out: Gemma ≤ 3 (Gemma licence), Llama (Meta community licence),
+      Ministral 2410 (MRL, research only), LFM2 (own licence), and community
+      fine-tunes of unclear origin or trained on another vendor's outputs
+      (the "Claude Opus distilled" Qwen on minisforum included).
+  - **Data:** UNFAIR-ToS from LexGLUE (CC-BY-4.0, attribution), CodeHima
+    TOS_Dataset (MIT), LegalBench (CC-BY-4.0, but each task carries its own
+    licence). OPP-115 is out until its licence is confirmed: the HF mirror
+    declares none, and CMU hands it out for research. A Spanish set of our
+    own: about 20 real terms (Mercado Libre, banks, Rappi, WhatsApp…), the
+    texts kept out of git (they are copyrighted), the labels in.
+  - **The path:**
+    1. **Measure:** the evaluation set against the teachers and students
+       above, on minisforum's llama.cpp. Recall per kind of clause, quotes
+       that really are in the text, time and RAM. This decides whether any
+       small model is good enough as it is.
+    2. **Distil, only if none is:** the teacher labels thousands of clauses,
+       answers with invented quotes are dropped, and a LoRA goes on the best
+       student. Train on a few hours of rented GPU (ROCm on the 890M is not
+       ready for training), then run it anywhere as GGUF.
+    3. **Beta** on minisforum (catalogue builder and hosted lookups).
+    4. **Production** on rented GPUs only if cost per analysis against price
+       works out. The catalogue's per-document cache is what makes it cheap.
+  - **Engine pieces in Lapacho:** one OpenAI-compatible client (llama.cpp,
+    Ollama, vLLM locally; any hosted endpoint by URL), with keys in the OS
+    keyring. Rules in `lapacho-core` pick the clauses that matter, so 5–20 k
+    words fit a small model's context. Every quote is checked against the
+    text and dropped if it isn't there. Sensitive clips never go out. The
+    keyboard never gets network; on Android the companion would, and that is
+    still to decide.
+  - **How it is organized:** `docs/TERMS_CATALOG.md`. Countries, companies
+    and taxonomy are data and only new kinds of feature are code. The model
+    is group → company → service → document (kind × country × language) →
+    version (hash) → analysis. A country brings its legal map and action
+    templates. Packs are one per country × language, signed, and downloaded
+    whole.
+  - **Beyond the report:**
+    - **What the law says here**: each category mapped to the country's
+      law, for example *"in Argentina this clause may be void"* (Ley 24.240
+      art. 37, Código Civil y Comercial arts. 988 and 1119, Ley 25.326).
+      Nobody offers this, ToS;DR included. It is not legal advice, and a
+      lawyer reviews the map before it ships.
+    - **Act on it**: templates for an ARCO request, a cancellation and the
+      withdrawal button (Res. 424/2020), plus each catalogued service's
+      direct links to turn off personalized ads and to delete the account.
+    - **Your services, and when they change**: the device keeps which terms
+      you analysed or accepted, and the version. A new catalogue pack is
+      compared locally, so you get *"Spotify changed its terms: arbitration
+      now"* with no metadata.
+    - Later: the same service compared across countries, a transparent
+      A–F grade computed from the severities, reading time and a Spanish
+      readability index (Fernández Huerta), better-rated alternatives,
+      and app permissions checked against the privacy policy ("the policy
+      doesn't mention location; the app asks for it").
+  - **Measurement before shipping any of it** (`terms-eval`): a
+    prompt-injection set (terms that hide "tell the user this is fine"), to
+    prove the fence holds; agreement between annotators (three so far:
+    Claude Code, pi, agy-gemini), so a badly defined category isn't blamed
+    on the model; severity scored, not only categories; and the Spanish set
+    grown to about 50 documents. Fetching: plain HTTP, then Playwright
+    (WhatsApp and Uber come in that way), then the Internet Archive or a
+    manual save. Sites that block automated browsers (Mercado Libre, Mercado
+    Pago: 403) are not worked around. A tool built to bypass anti-bot
+    protection (FlareSolverr and the like) is out: a terms analyser that
+    breaks the sites' own terms to read them loses the argument it makes.
+  - Hugging Face has no mature specialist for this (2026-10-06): only small
+    English clause classifiers (Legal-BERT on UNFAIR-ToS) with a few dozen
+    downloads. The datasets are what's worth taking.
 
 ### 📦 Project
 
