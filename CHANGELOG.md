@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — plugin apps, and Lapacho Terms
+### Android — plugin apps, and Lapacho Terms (`0.1.40`)
 
 A plugin that needs what Lapacho must not have, the network above all, is now
 an app of its own. Lapacho lists installed plugin apps next to the built-ins,
@@ -16,7 +16,7 @@ progress while it works. Releases ship it as a second APK, signed with the
 same key. The request's words moved to `lapacho-core/src/terms_request.txt`,
 shared by the built-in and the app, unchanged.
 
-### Desktop — analyse terms with your own model
+### Desktop — analyse terms with your own model (`0.1.40`)
 
 A plugin may now run up to ten minutes (`timeout_secs`, 30 seconds by
 default), and gets Lapacho's path in `LAPACHO_BIN` so it can build on a

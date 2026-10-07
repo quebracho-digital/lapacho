@@ -2414,7 +2414,7 @@ dependencies = [
 
 [[package]]
 name = "lapacho-core"
-version = "0.1.39"
+version = "0.1.40"
 dependencies = [
  "aes-gcm",
  "ammonia",
@@ -2432,7 +2432,7 @@ dependencies = [
 
 [[package]]
 name = "lapacho-desktop"
-version = "0.1.39"
+version = "0.1.40"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -2453,7 +2453,7 @@ dependencies = [
 
 [[package]]
 name = "lapacho-mobile-bridge"
-version = "0.1.39"
+version = "0.1.40"
 dependencies = [
  "lapacho-core",
  "lapacho-predict",
@@ -2466,14 +2466,14 @@ dependencies = [
 
 [[package]]
 name = "lapacho-predict"
-version = "0.1.39"
+version = "0.1.40"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "lapacho-sync"
-version = "0.1.39"
+version = "0.1.40"
 dependencies = [
  "lapacho-core",
  "serde",
