@@ -171,6 +171,12 @@ History search implemented; English translation complete. Sensitivity: long hex 
     of `terms-eval`, quotes asked verbatim, the text fenced with
     `spotlight_text`. On Android it opens the share sheet and leaves the
     request first in the strip; on desktop it is a new clip to paste.
+  - [x] **A model you run (`0.1.40`, untested on a phone):** desktop through
+    the example plugin `terms-assistant`; Android through *Lapacho Terms*,
+    a separate plugin app that holds the network permission Lapacho and its
+    keyboard don't have. Both reach an OpenAI-compatible server or a Drupal
+    site with `ai_provider_universal_terms`. Tested on desktop against
+    llama.cpp on minisforum (Qwen3.6-35B-A3B, 58 s for Netflix's terms).
   - **Where an analysis comes from, most private first:**
     1. **The catalogue.** The terms of the most used sites (global plus
        Argentina, Spain and LatAm), analysed in advance and **downloaded

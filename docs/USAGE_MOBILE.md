@@ -71,6 +71,15 @@ also first in the strip, to paste by hand into a chat that is already open.
 Lapacho sends nothing by itself; the keyboard has no network. Not legal
 advice.
 
+**Lapacho Terms (separate app)**: if you'd rather have a model you run
+answer (llama.cpp or Ollama on your own machine, or a Drupal site), install
+`lapacho-terms-plugin-….apk` from the release. It is a separate app because it
+needs internet, which Lapacho and its keyboard don't have. Open it once, set
+the endpoint (e.g. `http://192.168.1.150:8080`) and the model, then hold a
+clip in Lapacho and pick *Lapacho Terms (separate app)*: it shows that it is
+working (a minute or two for a whole document) and the report comes back as
+a new clip.
+
 **Search and replace**: type what to look
 for and what to put instead, tick **Regular expression** to search with a
 pattern (its groups go in the replacement as `$1`, `$2`…), and **RUN**. The

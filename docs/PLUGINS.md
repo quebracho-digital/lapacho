@@ -11,7 +11,7 @@ There are two kinds:
 |---|---|---|
 | What it is | Any program, declared by a JSON file | Rust in `lapacho-core`, shipped with the app |
 | Desktop | ✅ | ✅ |
-| Android | ❌ (an Android app can't run programs of its own) | ✅ |
+| Android | ❌ (an Android app can't run programs of its own); a **plugin app** instead, below | ✅ |
 | Where | the plugins folder (below) | `crates/lapacho-core/src/plugins.rs` |
 
 ## External plugins (desktop)
@@ -85,6 +85,35 @@ The contract is stdin to stdout, so a shell is enough:
 ```sh
 printf 'hola\nmundo\n' | LAPACHO_PARAM_TEXT='> ' sh -c 'while IFS= read -r l; do printf "%s%s\n" "$LAPACHO_PARAM_TEXT" "$l"; done'
 ```
+
+## Plugin apps (Android)
+
+Lapacho on Android has no network permission, and its keyboard is part of the
+same app, so it can't have one without the keyboard having it too. A plugin
+that needs the network, or anything else Lapacho must not have, is an
+**app of its own**. The user installs it, Android shows what it asks for,
+and uninstalling it takes all of that away again. The contract:
+
+- **Discovery:** an activity with an intent filter for
+  `digital.quebracho.lapacho.action.RUN_PLUGIN` (category `DEFAULT`),
+  exported. Lapacho lists it under the built-ins as *"<its label> (separate
+  app)"*.
+- **Input:** the clip's raw text in the extra
+  `digital.quebracho.lapacho.extra.TEXT`. Masked clips (credentials,
+  secrets) are never offered to plugins, apps included.
+- **Output:** `RESULT_OK` with the new text in the same extra; Lapacho saves
+  it as a new clip. Anything else is a failure; put the reason for the user
+  in `digital.quebracho.lapacho.extra.ERROR`.
+- **Time:** there is no limit on Lapacho's side. The app shows its own
+  progress and lets the user cancel.
+
+`apps/mobile/android/plugin-terms` is the first one, *Lapacho Terms*: the
+Android twin of `plugins/examples/terms-assistant`. It sends the *Analyse
+terms* request to an OpenAI-compatible server, or the text to a Drupal site
+with `ai_provider_universal_terms`, configured in its own settings screen.
+It builds the request from `crates/lapacho-core/src/terms_request.txt`, the
+same file the built-in uses, copied in as an asset at build time. Releases
+ship it as `lapacho-terms-plugin-<version>.apk`, signed with the same key.
 
 ## Built-in plugins
 

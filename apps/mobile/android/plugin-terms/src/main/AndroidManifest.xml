@@ -1,0 +1,38 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The reason this is an app of its own: it needs the network, and
+         Lapacho (and its keyboard) must not have it. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- usesCleartextTraffic: the server is the user's own, often a home
+         machine reached by IP over plain http (llama.cpp on the LAN).
+         allowBackup=false: the token stays on this phone. -->
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:icon="@android:drawable/ic_menu_search"
+        android:usesCleartextTraffic="true"
+        android:theme="@android:style/Theme.DeviceDefault">
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- How Lapacho finds and runs it (Contract.ACTION). Exported: Lapacho
+             is another app. The text arrives in an Intent extra, never stored. -->
+        <activity
+            android:name=".RunActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            <intent-filter>
+                <action android:name="digital.quebracho.lapacho.action.RUN_PLUGIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

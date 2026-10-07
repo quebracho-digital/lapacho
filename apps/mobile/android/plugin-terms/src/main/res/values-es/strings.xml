@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Lapacho Términos</string>
+    <string name="settings_intro">Adónde manda el texto «Analizar términos» de Lapacho. Un servidor compatible con OpenAI (llama.cpp, Ollama, LM Studio): su URL base, por ejemplo http://192.168.1.150:8080, y el modelo. Un sitio Drupal con ai_provider_universal_terms: su URL …/api/terms/analyze. Esta app solo manda un clip cuando la elegís en Lapacho.</string>
+    <string name="hint_endpoint">Endpoint (http:// o https://)</string>
+    <string name="hint_model">Modelo (servidores compatibles con OpenAI)</string>
+    <string name="hint_token">Token o usuario:contraseña (opcional)</string>
+    <string name="save">Guardar</string>
+    <string name="saved">Guardado</string>
+    <string name="working">Analizando con %1$s…\nUn documento entero tarda uno o dos minutos.</string>
+    <string name="err_endpoint">El endpoint tiene que empezar con http:// o https://</string>
+    <string name="err_not_configured">Primero configurá el endpoint en Lapacho Términos.</string>
+    <string name="err_nothing">No hay texto para analizar.</string>
+    <string name="err_cancelled">Cancelado</string>
+    <string name="err_answer">%1$s respondió algo que no es un informe.</string>
+</resources>

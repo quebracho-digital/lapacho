@@ -1,5 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Plugins that need what Lapacho must not have (the network) are apps
+         of their own. Since Android 11 an app sees another only if it says
+         which: here, the ones that answer Lapacho's plugin action. -->
+    <queries>
+        <intent>
+            <action android:name="digital.quebracho.lapacho.action.RUN_PLUGIN" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:localeConfig="@xml/locales_config"
