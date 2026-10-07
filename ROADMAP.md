@@ -279,6 +279,7 @@ History search implemented; English translation complete. Sensitivity: long hex 
   - Hugging Face has no mature specialist for this (2026-10-06): only small
     English clause classifiers (Legal-BERT on UNFAIR-ToS) with a few dozen
     downloads. The datasets are what's worth taking.
+
 ### 📦 Project
 
 - [x] `LICENSE-APACHE` — full standard text present with copyright line filled in.
