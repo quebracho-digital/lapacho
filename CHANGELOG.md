@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Analyse terms before accepting them — a built-in plugin
+### Analyse terms before accepting them — a built-in plugin (`0.1.39`)
 
 Copy the terms or the privacy policy, run **Analyse terms** on the clip, and
 Lapacho builds a request for the AI assistant you already use: 19 kinds of
@@ -15,7 +15,7 @@ take instructions from it. On Android the share menu opens to pick the
 assistant; on desktop it is a new clip to paste. Lapacho sends nothing
 itself. The categories come from a separate evaluation set, `terms-eval`.
 
-### Plugins — a guide, and examples
+### Plugins — a guide, and examples (`0.1.39`)
 
 `docs/PLUGINS.md` explains how to write one (the JSON fields, standard input
 and output, parameters as environment variables, the 30-second limit, what
