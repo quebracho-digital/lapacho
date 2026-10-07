@@ -60,7 +60,18 @@ Scroll the strip sideways for older ones (the 20 most recent are shown).
 ## Plugins
 
 Hold a clip — in the keyboard's strip, or in the app's list — and pick what to
-do with it. Today there is one, **Search and replace**: type what to look
+do with it. There are two.
+
+**Analyse terms…**: copy the terms or the privacy policy you are about to
+accept, hold that clip, pick it, **RUN**. Lapacho builds a request for an AI
+assistant (what to look for, how grave each clause is, and the text fenced so
+the assistant won't take instructions from it) and opens Android's **share**
+menu: pick Gemini, ChatGPT, Claude, Lumo or whatever you use. The request is
+also first in the strip, to paste by hand into a chat that is already open.
+Lapacho sends nothing by itself; the keyboard has no network. Not legal
+advice.
+
+**Search and replace**: type what to look
 for and what to put instead, tick **Regular expression** to search with a
 pattern (its groups go in the replacement as `$1`, `$2`…), and **RUN**. The
 result is saved as a new clip; the original stays.

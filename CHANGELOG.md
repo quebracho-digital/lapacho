@@ -4,6 +4,25 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Analyse terms before accepting them — a built-in plugin
+
+Copy the terms or the privacy policy, run **Analyse terms** on the clip, and
+Lapacho builds a request for the AI assistant you already use: 19 kinds of
+clause to look for (arbitration, unilateral changes, data sharing, the
+licence over your content…), a severity for each, quotes copied verbatim,
+and the text fenced with a random token so the assistant is told never to
+take instructions from it. On Android the share menu opens to pick the
+assistant; on desktop it is a new clip to paste. Lapacho sends nothing
+itself. The categories come from a separate evaluation set, `terms-eval`.
+
+### Plugins — a guide, and examples
+
+`docs/PLUGINS.md` explains how to write one (the JSON fields, standard input
+and output, parameters as environment variables, the 30-second limit, what
+happens to the output) and how to add a built-in. `plugins/examples/` has
+three to copy. It also says plainly that `max_chars`, `max_words` and
+`applies_to` are read but not enforced.
+
 ### Android — ñ next to l, accents on the vowels, no dead key (`0.1.38`)
 
 The ´ key at the end of the middle row is gone. It was a physical Spanish

@@ -1,0 +1,7 @@
+{
+  "id": "word-count",
+  "name": "Count words and lines",
+  "description": "Replaces the text with how many words, lines and characters it has",
+  "command": "sh",
+  "args": ["-c", "wc -wlm | awk '{ printf \"%s words, %s lines, %s characters\\n\", $2, $1, $3 }'"]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "prefix",
+  "name": "Prefix every line",
+  "description": "Puts a text before each line",
+  "command": "sh",
+  "args": ["-c", "while IFS= read -r l; do printf '%s%s\\n' \"$LAPACHO_PARAM_TEXT\" \"$l\"; done"],
+  "params": [{ "name": "text", "label": "Prefix" }]
+}

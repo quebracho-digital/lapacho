@@ -93,6 +93,10 @@
     <string name="plugin_run">Run</string>
     <string name="plugin_done">Saved as a new clip</string>
     <string name="plugin_replace">Search and replace</string>
+    <string name="plugin_terms">Analyse terms…</string>
+    <string name="plugin_terms_done">Request ready: pick your AI assistant, or paste it from the strip.</string>
+    <string name="plugin_terms_share">Send to your assistant</string>
+    <string name="plugin_nothing_to_analyse">There is no text to analyse.</string>
     <string name="param_search">Search</string>
     <string name="param_replace">Replace with</string>
     <string name="param_regex">Regular expression</string>

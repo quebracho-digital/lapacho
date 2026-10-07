@@ -165,6 +165,12 @@ History search implemented; English translation complete. Sensitivity: long hex 
   waivers, jurisdiction, changes without notice, the licence over your
   content. Each point quotes the clause it comes from. Saved as a new clip;
   the original stays. **Not legal advice**, and the report says so.
+  - [x] **First step, built (`0.1.39`, untested on a phone):** the built-in
+    plugin `terms` (`lapacho-core/src/terms.rs`) turns a clip into a request
+    for the user's own assistant: the 19 categories and the severity scale
+    of `terms-eval`, quotes asked verbatim, the text fenced with
+    `spotlight_text`. On Android it opens the share sheet and leaves the
+    request first in the strip; on desktop it is a new clip to paste.
   - **Where an analysis comes from, most private first:**
     1. **The catalogue.** The terms of the most used sites (global plus
        Argentina, Spain and LatAm), analysed in advance and **downloaded

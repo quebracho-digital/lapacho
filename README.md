@@ -40,6 +40,8 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
   enabling the keyboard, capture and paste, how passwords are handled,
   suggestions and corrections. Dictionaries — format, mixing, making your own:
   [`docs/DICTIONARIES.md`](docs/DICTIONARIES.md).
+- Plugins — writing your own, the built-ins, and examples:
+  [`docs/PLUGINS.md`](docs/PLUGINS.md), [`plugins/examples/`](plugins/examples/).
 
 ## Features
 

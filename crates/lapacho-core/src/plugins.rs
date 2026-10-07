@@ -19,21 +19,35 @@ pub const SELF_COMMAND: &str = "@lapacho";
 /// The plugins that ship with Lapacho, listed before the user's.
 pub fn builtin_plugins() -> Vec<PluginDefinition> {
     let param = |name: &str, label: &str, kind| PluginParam { name: name.into(), label: label.into(), kind };
-    vec![PluginDefinition {
-        id: "replace".to_string(),
-        name: "Search and replace".to_string(),
-        description: "Replaces every match of a text, or of a regular expression".to_string(),
+    let builtin = |id: &str, name: &str, description: &str, params| PluginDefinition {
+        id: id.to_string(),
+        name: name.to_string(),
+        description: description.to_string(),
         command: SELF_COMMAND.to_string(),
-        args: vec!["plugin".to_string(), "replace".to_string()],
+        args: vec!["plugin".to_string(), id.to_string()],
         max_chars: None,
         max_words: None,
         applies_to: None,
-        params: vec![
-            param("search", "Search", ParamKind::Text),
-            param("replace", "Replace with", ParamKind::Text),
-            param("regex", "Regular expression", ParamKind::Flag),
-        ],
-    }]
+        params,
+    };
+    vec![
+        builtin(
+            "replace",
+            "Search and replace",
+            "Replaces every match of a text, or of a regular expression",
+            vec![
+                param("search", "Search", ParamKind::Text),
+                param("replace", "Replace with", ParamKind::Text),
+                param("regex", "Regular expression", ParamKind::Flag),
+            ],
+        ),
+        builtin(
+            "terms",
+            "Analyse terms",
+            "Turns terms and conditions or a privacy policy into a request to paste into your AI assistant",
+            Vec::new(),
+        ),
+    ]
 }
 
 /// The environment variable a parameter reaches the plugin as.
@@ -75,6 +89,8 @@ pub fn replace(text: &str, search: &str, with: &str, regex: bool) -> Result<Stri
 pub fn run_builtin_with(id: &str, input: &str, param: impl Fn(&str) -> String) -> Result<String, String> {
     match id {
         "replace" => replace(input, &param("search"), &param("replace"), param("regex") == "1"),
+        "terms" if input.trim().is_empty() => Err("Nothing to analyse".to_string()),
+        "terms" => Ok(crate::terms::assistant_request(input)),
         other => Err(format!("No built-in plugin '{other}'")),
     }
 }
