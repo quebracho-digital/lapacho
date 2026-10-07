@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
@@ -216,14 +217,51 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** The plugins [item] can go through; one tap picks one. */
+    /**
+     * Plugin apps the user installed: Lapacho has no network, so a plugin that
+     * needs one is an app of its own, which answers [PLUGIN_ACTION].
+     */
+    private fun pluginApps(): List<ResolveInfo> =
+        packageManager.queryIntentActivities(Intent(PLUGIN_ACTION), 0)
+            .filter { it.activityInfo.packageName != packageName }
+
+    /** What a plugin app hands back: a new clip, or why not. */
+    private val runPluginApp = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val out = r.data?.getStringExtra(PLUGIN_EXTRA_TEXT)
+        if (r.resultCode == RESULT_OK && !out.isNullOrBlank()) {
+            save(out)
+            refresh()
+            Toast.makeText(this, R.string.plugin_done, Toast.LENGTH_SHORT).show()
+        } else {
+            val why = r.data?.getStringExtra(PLUGIN_EXTRA_ERROR)
+            Toast.makeText(this, why ?: getString(R.string.plugin_app_cancelled), Toast.LENGTH_LONG).show()
+        }
+        backToKeyboard()
+    }
+
+    /** The plugins [item] can go through: the built-ins, then the plugin apps. One tap picks one. */
     private fun choosePlugin(item: ClipboardItem) {
         val plugins = builtinPlugins()
+        val apps = pluginApps()
+        val names = plugins.map(::pluginName) + apps.map { getString(R.string.plugin_app_entry, it.loadLabel(packageManager)) }
         AlertDialog.Builder(this)
             .setTitle(R.string.plugins)
-            .setItems(plugins.map(::pluginName).toTypedArray()) { _, i -> askParams(item, plugins[i]) }
+            .setItems(names.toTypedArray()) { _, i ->
+                if (i < plugins.size) askParams(item, plugins[i]) else runApp(item, apps[i - plugins.size])
+            }
             .setOnCancelListener { backToKeyboard() }
             .show()
+    }
+
+    /** Hands [item]'s text to a plugin app; it never gets a masked clip (see the callers). */
+    private fun runApp(item: ClipboardItem, app: ResolveInfo) {
+        val intent = Intent(PLUGIN_ACTION)
+            .setClassName(app.activityInfo.packageName, app.activityInfo.name)
+            .putExtra(PLUGIN_EXTRA_TEXT, item.rawContent)
+        runCatching { runPluginApp.launch(intent) }.onFailure {
+            Toast.makeText(this, R.string.plugin_app_cancelled, Toast.LENGTH_LONG).show()
+            backToKeyboard()
+        }
     }
 
     /**
@@ -561,5 +599,9 @@ class MainActivity : AppCompatActivity() {
     companion object {
         /** The id of a clip the keyboard wants run through a plugin. */
         const val EXTRA_PLUGIN_ITEM = "digital.quebracho.lapacho.PLUGIN_ITEM"
+        /** The plugin-app contract (plugin-terms answers it): find by action, text in, text or error out. */
+        const val PLUGIN_ACTION = "digital.quebracho.lapacho.action.RUN_PLUGIN"
+        const val PLUGIN_EXTRA_TEXT = "digital.quebracho.lapacho.extra.TEXT"
+        const val PLUGIN_EXTRA_ERROR = "digital.quebracho.lapacho.extra.ERROR"
     }
 }

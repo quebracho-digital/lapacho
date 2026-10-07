@@ -93,6 +93,8 @@
     <string name="plugin_run">Aplicar</string>
     <string name="plugin_done">Guardado como clip nuevo</string>
     <string name="plugin_replace">Buscar y reemplazar</string>
+    <string name="plugin_app_entry">%1$s (app aparte)</string>
+    <string name="plugin_app_cancelled">La app del plugin no devolvió nada.</string>
     <string name="plugin_terms">Analizar términos…</string>
     <string name="plugin_terms_done">Pedido listo: elegí tu asistente, o pegalo desde la tira.</string>
     <string name="plugin_terms_share">Mandar a tu asistente</string>

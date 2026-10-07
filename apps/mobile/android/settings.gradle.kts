@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "lapacho-mobile"
-include(":app", ":storage")
+include(":app", ":storage", ":plugin-terms")

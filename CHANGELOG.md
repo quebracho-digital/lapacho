@@ -4,6 +4,18 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — plugin apps, and Lapacho Terms
+
+A plugin that needs what Lapacho must not have, the network above all, is now
+an app of its own. Lapacho lists installed plugin apps next to the built-ins,
+hands them the clip's text and keeps what they return as a new clip; masked
+clips never reach them. The first one is *Lapacho Terms*: it sends the
+*Analyse terms* request to a model you run (llama.cpp, Ollama, LM Studio) or
+the text to a Drupal site with `ai_provider_universal_terms`, and shows its
+progress while it works. Releases ship it as a second APK, signed with the
+same key. The request's words moved to `lapacho-core/src/terms_request.txt`,
+shared by the built-in and the app, unchanged.
+
 ### Desktop — analyse terms with your own model
 
 A plugin may now run up to ten minutes (`timeout_secs`, 30 seconds by

@@ -91,20 +91,23 @@ jobs:
           keytool -list -v -keystore "$RUNNER_TEMP/debug.keystore" -storepass android | grep -m1 SHA256
 
       - name: Build and test
-        run: gradle --no-daemon :app:assembleRelease :app:testReleaseUnitTest
+        run: gradle --no-daemon :app:assembleRelease :app:testReleaseUnitTest :plugin-terms:assembleRelease :plugin-terms:testReleaseUnitTest
 
       # The certificate every published APK carries. A mismatch means an APK
       # that would not install over the previous ones: stop before publishing.
       - name: Check signing certificate
         run: |
           aapt="$(ls "$ANDROID_SDK_ROOT"/build-tools/*/aapt | sort -V | tail -1)"
-          if "$aapt" dump badging app/build/outputs/apk/release/app-release.apk | grep -q application-debuggable; then
-            echo "::error::APK is debuggable"; exit 1
-          fi
           apksigner="$(ls "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)"
-          got="$("$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk | sed -n 's/.*certificate SHA-256 digest: //p')"
           want=beeb0d4c61e5b8d94f717ce9bf78eeb273af41c8c6b06dbeb44de80d6309d266
-          [ "$got" = "$want" ] || { echo "::error::APK signed with $got, expected $want"; exit 1; }
+          # Lapacho and its plugin apps: same key, never debuggable.
+          for apk in app/build/outputs/apk/release/app-release.apk plugin-terms/build/outputs/apk/release/plugin-terms-release.apk; do
+            if "$aapt" dump badging "$apk" | grep -q application-debuggable; then
+              echo "::error::$apk is debuggable"; exit 1
+            fi
+            got="$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate SHA-256 digest: //p')"
+            [ "$got" = "$want" ] || { echo "::error::$apk signed with $got, expected $want"; exit 1; }
+          done
 
       - name: Package
         run: |
@@ -122,6 +125,9 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/out"
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/out/lapacho-$version.apk"
+          # The plugin app keeps its own version (plugin-terms/build.gradle.kts).
+          plugin="$(sed -n 's/.*versionName = "\(.*\)"/\1/p' plugin-terms/build.gradle.kts)"
+          cp plugin-terms/build/outputs/apk/release/plugin-terms-release.apk "$RUNNER_TEMP/out/lapacho-terms-plugin-$plugin.apk"
           for dict in dictionaries/*.txt; do
             case "$(basename "$dict")" in NOTICE-*) continue ;; esac
             cp "$dict" "$RUNNER_TEMP/out/lapacho-dict-$(basename "$dict" .txt)-$(sha256sum "$dict" | cut -c1-8).dict"

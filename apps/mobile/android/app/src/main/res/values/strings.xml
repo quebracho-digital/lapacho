@@ -93,6 +93,8 @@
     <string name="plugin_run">Run</string>
     <string name="plugin_done">Saved as a new clip</string>
     <string name="plugin_replace">Search and replace</string>
+    <string name="plugin_app_entry">%1$s (separate app)</string>
+    <string name="plugin_app_cancelled">The plugin app returned nothing.</string>
     <string name="plugin_terms">Analyse terms…</string>
     <string name="plugin_terms_done">Request ready: pick your AI assistant, or paste it from the strip.</string>
     <string name="plugin_terms_share">Send to your assistant</string>

@@ -14,65 +14,18 @@
 
 use crate::llm::spotlight_text;
 
-/// What the assistant looks for, in the user's words: the 19 categories of
-/// `terms-eval/taxonomy.json` (8 from UNFAIR-ToS, 11 consumer and privacy).
-const POINTS: &[(&str, &str)] = &[
-    ("Límite de responsabilidad", "la empresa limita o excluye su responsabilidad por daños o fallas"),
-    ("Baja unilateral", "puede suspender o cerrar tu cuenta a su criterio, sin causa o sin aviso"),
-    ("Cambios unilaterales", "puede cambiar los términos, el precio o el servicio por su cuenta"),
-    ("Borrado de contenido", "puede borrar o bloquear lo que subís a su criterio"),
-    ("Aceptación por el uso", "usar el servicio, sin más, ya cuenta como aceptar los términos"),
-    ("Ley aplicable", "qué ley rige el contrato"),
-    ("Tribunales", "qué tribunales o qué país resuelven los conflictos"),
-    ("Arbitraje", "los conflictos van a arbitraje en vez de a un tribunal, o renunciás a demandas colectivas"),
-    ("Renovación automática", "la suscripción o el cobro se renueva solo hasta que canceles"),
-    ("Cancelación y reembolsos", "cómo se cancela y qué pasa con lo que pagaste"),
-    ("Licencia sobre tu contenido", "le das a la empresa una licencia sobre lo que subís o creás"),
-    ("Renuncia a derechos", "renunciás a derechos propios: morales, de privacidad, de imagen"),
-    ("Indemnización", "tenés que pagar los juicios, daños o abogados de la empresa"),
-    ("Datos compartidos", "comparten tus datos con terceros, socios, empresas del grupo o autoridades"),
-    ("Publicidad", "usan tus datos para publicidad personalizada o perfiles comerciales, o los venden"),
-    ("Rastreo", "registran tu ubicación, tu dispositivo, cookies o tu navegación"),
-    ("Conservación de datos", "cuánto tiempo guardan tus datos"),
-    ("Transferencia internacional", "tus datos se mandan o se guardan en otros países"),
-    ("Tus derechos sobre los datos", "acceso, rectificación, supresión, portabilidad, oposición"),
-];
+/// The request's text, with `{fence_rules}` and `{fenced}` where the fence
+/// goes: the 19 categories of `terms-eval/taxonomy.json` (8 from UNFAIR-ToS,
+/// 11 consumer and privacy), in the user's words, and the severity scale.
+/// A plain file so the Android plugin app ships the same words as an asset
+/// instead of a copy that drifts.
+pub const REQUEST_TEMPLATE: &str = include_str!("terms_request.txt");
 
 /// The request for an assistant: the instructions, the fence's rules, and
 /// `text` inside the fence.
 pub fn assistant_request(text: &str) -> String {
     let fenced = spotlight_text(text);
-    let points: String = POINTS.iter().map(|(name, what)| format!("- {name}: {what}.\n")).collect();
-    format!(
-        "Analizá estos términos y condiciones o esta política de privacidad desde el lado \
-del consumidor. No es asesoramiento legal, y no lo presentes como tal.
-
-Estos son los tipos de cláusula que buscamos. Un documento suele tener solo algunos: \
-el informe lleva únicamente los que encuentres, y los demás no se nombran.
-{points}
-Para cada uno que encuentres:
-1. Explicá en una oración qué dice, en lenguaje simple.
-2. Copiá entre comillas la cláusula exacta de la que sale. Si no podés copiarla \
-textual, decilo; no la reconstruyas.
-3. Marcá la gravedad para el usuario:
-   - alta: a criterio exclusivo de la empresa, sin aviso o irrevocable; ley, tribunales \
-o arbitraje en el exterior; renuncia a derechos; el usuario indemniza a la empresa; \
-datos combinados con terceros o vendidos; sin reembolso.
-   - media: unilateral pero con aviso, con causa o con límites; prácticas comunes que \
-el usuario puede controlar o desactivar.
-   - baja: neutral o favorable al usuario.
-
-No escribas nada sobre los tipos que no encontraste: ni «no aparece», ni «no aplica». \
-Terminá con las tres cosas más graves, en tres líneas. Respondé en el idioma en que te \
-escribo.
-
-{system}
-
-{content}
-",
-        system = fenced.system,
-        content = fenced.content,
-    )
+    REQUEST_TEMPLATE.replace("{fence_rules}", &fenced.system).replace("{fenced}", &fenced.content)
 }
 
 #[cfg(test)]
@@ -80,13 +33,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_request_names_every_point_and_carries_the_text() {
+    fn the_request_lists_the_nineteen_points_and_carries_the_text() {
         let req = assistant_request("Podemos cambiar estos términos cuando queramos.");
-        for (name, _) in POINTS {
-            assert!(req.contains(name), "{name}");
-        }
+        let points = REQUEST_TEMPLATE.lines().filter(|l| l.starts_with("- ") && l.contains(':')).count();
+        assert_eq!(points, 19, "the taxonomy of terms-eval");
+        assert!(req.contains("Arbitraje") && req.contains("Tus derechos sobre los datos"));
         assert!(req.contains("Podemos cambiar estos términos cuando queramos."));
-        assert_eq!(POINTS.len(), 19, "the taxonomy of terms-eval");
+        assert!(!req.contains("{fence_rules}") && !req.contains("{fenced}"));
     }
 
     #[test]
