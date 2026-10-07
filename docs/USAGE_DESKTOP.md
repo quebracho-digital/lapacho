@@ -111,6 +111,12 @@ inside a fence the assistant is told never to take instructions from. Lapacho
 sends nothing anywhere; you choose where to paste it. It is not legal advice,
 and the request says so.
 
+To skip the pasting and have **a model you run** answer (llama.cpp, Ollama,
+LM Studio, or a Drupal site with `ai_provider_universal_terms`), copy
+`terms-assistant.json` and `terms-assistant.py` from
+[`plugins/examples/`](../plugins/examples/) into your plugins folder: it
+asks for the endpoint and keeps the model's report as a new clip.
+
 ### Plugins that ask for values
 
 A plugin can declare `params`; the window shows a field for each before it

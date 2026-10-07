@@ -1,0 +1,13 @@
+{
+  "id": "terms-assistant",
+  "name": "Analyse terms with my model",
+  "description": "Sends terms or a privacy policy to a model you run (llama.cpp, Ollama, LM Studio) or to a Drupal terms analyzer, and keeps its report",
+  "command": "python3",
+  "args": ["terms-assistant.py"],
+  "timeout_secs": 600,
+  "params": [
+    { "name": "endpoint", "label": "Endpoint (base URL, or …/api/terms/analyze)" },
+    { "name": "model", "label": "Model (OpenAI-compatible servers)" },
+    { "name": "token", "label": "Token or user:password (optional)" }
+  ]
+}
