@@ -47,9 +47,10 @@ pub fn assistant_request(text: &str) -> String {
         "Analizá estos términos y condiciones o esta política de privacidad desde el lado \
 del consumidor. No es asesoramiento legal, y no lo presentes como tal.
 
-Revisá estos puntos:
+Estos son los tipos de cláusula que buscamos. Un documento suele tener solo algunos: \
+el informe lleva únicamente los que encuentres, y los demás no se nombran.
 {points}
-Para cada punto que aparezca en el texto:
+Para cada uno que encuentres:
 1. Explicá en una oración qué dice, en lenguaje simple.
 2. Copiá entre comillas la cláusula exacta de la que sale. Si no podés copiarla \
 textual, decilo; no la reconstruyas.
@@ -61,8 +62,9 @@ datos combinados con terceros o vendidos; sin reembolso.
 el usuario puede controlar o desactivar.
    - baja: neutral o favorable al usuario.
 
-No menciones los puntos que no aparecen. Terminá con las tres cosas más graves, en \
-tres líneas. Respondé en el idioma en que te escribo.
+No escribas nada sobre los tipos que no encontraste: ni «no aparece», ni «no aplica». \
+Terminá con las tres cosas más graves, en tres líneas. Respondé en el idioma en que te \
+escribo.
 
 {system}
 
