@@ -61,11 +61,11 @@ class SettingsActivity : Activity() {
         root.addView(TextView(this).apply { setText(R.string.settings_intro) })
         val endpoint = field(R.string.hint_endpoint, s.endpoint)
         val model = field(R.string.hint_model, s.model)
+        val token = field(R.string.hint_token, s.token, secret = true)
         root.addView(Button(this).apply {
             setText(R.string.choose_model)
             setOnClickListener { chooseModel(endpoint.text.toString().trim(), token.text.toString().trim(), model) }
         })
-        val token = field(R.string.hint_token, s.token, secret = true)
         root.addView(Button(this).apply {
             setText(R.string.save)
             setOnClickListener {
