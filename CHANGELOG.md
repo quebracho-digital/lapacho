@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Lapacho Terms 0.1.1 — pick the model from the server's list
+### Lapacho Terms 0.1.1 — pick the model from the server's list (`0.1.41`)
 
 **Choose from the server**, next to the model field, asks the server for the
 models it serves (`/v1/models`, which llama.cpp, Ollama and LM Studio answer)
