@@ -49,10 +49,21 @@ object Terms {
     fun nonce(): String = ByteArray(8).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
 
     /** Where an OpenAI-compatible server takes a chat: `<base>/v1/chat/completions`. */
-    fun chatUrl(endpoint: String): String {
+    fun chatUrl(endpoint: String) = apiUrl(endpoint, "chat/completions")
+
+    /** Where it lists the models it serves: `<base>/v1/models`. */
+    fun modelsUrl(endpoint: String) = apiUrl(endpoint, "models")
+
+    private fun apiUrl(endpoint: String, path: String): String {
         val base = endpoint.trimEnd('/')
-        return if (base.endsWith("/v1")) "$base/chat/completions" else "$base/v1/chat/completions"
+        return if (base.endsWith("/v1")) "$base/$path" else "$base/v1/$path"
     }
+
+    /** The model ids in a `/v1/models` answer (llama.cpp, Ollama, LM Studio), sorted; null when it isn't one. */
+    fun modelIds(json: String): List<String>? = runCatching {
+        val data = JSONObject(json).getJSONArray("data")
+        (0 until data.length()).map { data.getJSONObject(it).getString("id") }.sortedBy { it.lowercase() }
+    }.getOrNull()
 
     fun chatBody(request: String, model: String): String = JSONObject().apply {
         put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", request)))
