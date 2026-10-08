@@ -73,7 +73,8 @@ wiped from memory when they leave it. The vault (💾) is the per-item exception
 
 ## Plugins
 
-Plugins transform a clip with an external command. Each is a JSON file in
+Plugins transform a clip. Two come built in (below); the rest are external
+commands, each declared by a JSON file in
 `~/.local/share/digital.quebracho.lapacho/plugins/`:
 
 ```json

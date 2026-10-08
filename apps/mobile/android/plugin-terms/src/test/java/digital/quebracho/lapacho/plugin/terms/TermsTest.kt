@@ -32,6 +32,7 @@ class TermsTest {
         assertTrue(!Terms.isDrupal("http://192.168.1.150:8080"))
         assertEquals("http://h:8080/v1/chat/completions", Terms.chatUrl("http://h:8080/"))
         assertEquals("http://h:8080/v1/chat/completions", Terms.chatUrl("http://h:8080/v1"))
+        assertEquals("http://h:8080/v1/models", Terms.modelsUrl("http://h:8080/"))
         assertEquals("Basic bGVvOnNlY3JldA==", Terms.authHeader("leo:secret"))
         assertEquals("Bearer abc", Terms.authHeader("abc"))
         assertNull(Terms.authHeader("  "))
@@ -44,6 +45,13 @@ class TermsTest {
         assertEquals(false, body.getJSONObject("chat_template_kwargs").getBoolean("enable_thinking"))
         assertEquals("informe", Terms.chatAnswer("""{"choices":[{"message":{"content":" informe "}}]}"""))
         assertNull(Terms.chatAnswer("""{"error":"nope"}"""))
+    }
+
+    @Test fun modelList() {
+        val json = """{"object":"list","data":[{"id":"unsloth/Qwen3.5-4B-GGUF:Q4_K_M","object":"model"},{"id":"ggml-org/gemma-4-26B-A4B-it-GGUF:Q4_K_M"}]}"""
+        assertEquals(listOf("ggml-org/gemma-4-26B-A4B-it-GGUF:Q4_K_M", "unsloth/Qwen3.5-4B-GGUF:Q4_K_M"), Terms.modelIds(json))
+        assertEquals(emptyList<String>(), Terms.modelIds("""{"data":[]}"""))
+        assertNull(Terms.modelIds("<html>not found</html>"))
     }
 
     @Test fun drupalFindingsBecomeAReport() {

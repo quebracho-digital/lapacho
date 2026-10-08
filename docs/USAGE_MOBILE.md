@@ -60,7 +60,7 @@ Scroll the strip sideways for older ones (the 20 most recent are shown).
 ## Plugins
 
 Hold a clip — in the keyboard's strip, or in the app's list — and pick what to
-do with it. There are two.
+do with it.
 
 **Analyse terms…**: copy the terms or the privacy policy you are about to
 accept, hold that clip, pick it, **RUN**. Lapacho builds a request for an AI
@@ -75,7 +75,8 @@ advice.
 answer (llama.cpp or Ollama on your own machine, or a Drupal site), install
 `lapacho-terms-plugin-….apk` from the release. It is a separate app because it
 needs internet, which Lapacho and its keyboard don't have. Open it once, set
-the endpoint (e.g. `http://192.168.1.150:8080`) and the model, then hold a
+the endpoint (e.g. `http://192.168.1.150:8080`) and the model (**Choose from the server** lists
+the ones it serves), then hold a
 clip in Lapacho and pick *Lapacho Terms (separate app)*: it shows that it is
 working (a minute or two for a whole document) and the report comes back as
 a new clip.

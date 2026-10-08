@@ -12,4 +12,8 @@
     <string name="err_nothing">No hay texto para analizar.</string>
     <string name="err_cancelled">Cancelado</string>
     <string name="err_answer">%1$s respondió algo que no es un informe.</string>
+    <string name="choose_model">Elegir del servidor</string>
+    <string name="loading_models">Pidiendo al servidor sus modelos…</string>
+    <string name="err_no_models">El servidor no tiene modelos.</string>
+    <string name="err_drupal_models">Un sitio Drupal elige su propio modelo.</string>
 </resources>

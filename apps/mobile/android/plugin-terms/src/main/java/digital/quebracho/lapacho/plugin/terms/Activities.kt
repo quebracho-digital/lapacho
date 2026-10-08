@@ -1,6 +1,7 @@
 package digital.quebracho.lapacho.plugin.terms
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -62,6 +63,10 @@ class SettingsActivity : Activity() {
         val model = field(R.string.hint_model, s.model)
         val token = field(R.string.hint_token, s.token, secret = true)
         root.addView(Button(this).apply {
+            setText(R.string.choose_model)
+            setOnClickListener { chooseModel(endpoint.text.toString().trim(), token.text.toString().trim(), model) }
+        })
+        root.addView(Button(this).apply {
             setText(R.string.save)
             setOnClickListener {
                 val e = endpoint.text.toString().trim()
@@ -76,6 +81,34 @@ class SettingsActivity : Activity() {
             }
         })
         setContentView(root)
+    }
+
+    /** Asks the server which models it serves and puts the one picked in [into]. */
+    private fun chooseModel(endpoint: String, token: String, into: EditText) {
+        if (!endpoint.startsWith("http://") && !endpoint.startsWith("https://")) {
+            return Toast.makeText(this, R.string.err_endpoint, Toast.LENGTH_LONG).show()
+        }
+        if (Terms.isDrupal(endpoint)) return Toast.makeText(this, R.string.err_drupal_models, Toast.LENGTH_LONG).show()
+        Toast.makeText(this, R.string.loading_models, Toast.LENGTH_SHORT).show()
+        Thread {
+            val result = runCatching {
+                Terms.modelIds(http(Terms.modelsUrl(endpoint), token, timeoutMs = 15_000))
+                    ?: throw IOException(getString(R.string.err_answer, endpoint))
+            }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                result.fold(
+                    onSuccess = { ids ->
+                        if (ids.isEmpty()) return@fold Toast.makeText(this, R.string.err_no_models, Toast.LENGTH_LONG).show()
+                        AlertDialog.Builder(this)
+                            .setTitle(R.string.choose_model)
+                            .setItems(ids.toTypedArray()) { _, i -> into.setText(ids[i]) }
+                            .show()
+                    },
+                    onFailure = { e -> Toast.makeText(this, e.message ?: e.javaClass.simpleName, Toast.LENGTH_LONG).show() },
+                )
+            }
+        }.start()
     }
 }
 
@@ -133,33 +166,36 @@ class RunActivity : Activity() {
 
     private fun analyse(text: String, template: String, s: Settings): String =
         if (Terms.isDrupal(s.endpoint)) {
-            Terms.drupalReport(post(s.endpoint, Terms.drupalBody(text), s.token))
+            Terms.drupalReport(http(s.endpoint, s.token, Terms.drupalBody(text)))
                 ?: throw IOException(getString(R.string.err_answer, s.endpoint))
         } else {
-            val answer = Terms.chatAnswer(post(Terms.chatUrl(s.endpoint), Terms.chatBody(Terms.request(template, text), s.model), s.token))
+            val answer = Terms.chatAnswer(http(Terms.chatUrl(s.endpoint), s.token, Terms.chatBody(Terms.request(template, text), s.model)))
                 ?: throw IOException(getString(R.string.err_answer, s.endpoint))
             "$answer\n\n(${s.model.ifBlank { "model" }}, ${s.endpoint})"
         }
+}
 
-    private fun post(url: String, body: String, token: String): String {
-        val c = URL(url).openConnection() as HttpURLConnection
-        try {
+/** A POST of [body] as JSON, or a GET without one; the reply, or an IOException with the server's reason. */
+private fun http(url: String, token: String, body: String? = null, timeoutMs: Int = 600_000): String {
+    val c = URL(url).openConnection() as HttpURLConnection
+    try {
+        c.connectTimeout = 15_000
+        // A whole document on a home server takes a minute or two.
+        c.readTimeout = timeoutMs
+        c.setRequestProperty("Accept", "application/json")
+        Terms.authHeader(token)?.let { c.setRequestProperty("Authorization", it) }
+        if (body != null) {
             c.requestMethod = "POST"
-            c.connectTimeout = 15_000
-            // A whole document on a home server takes a minute or two.
-            c.readTimeout = 600_000
             c.doOutput = true
             c.setRequestProperty("Content-Type", "application/json")
-            c.setRequestProperty("Accept", "application/json")
-            Terms.authHeader(token)?.let { c.setRequestProperty("Authorization", it) }
             c.outputStream.use { it.write(body.toByteArray()) }
-            val code = c.responseCode
-            val stream = if (code in 200..299) c.inputStream else c.errorStream
-            val reply = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (code !in 200..299) throw IOException("HTTP $code: ${Terms.serverError(reply)}")
-            return reply
-        } finally {
-            c.disconnect()
         }
+        val code = c.responseCode
+        val stream = if (code in 200..299) c.inputStream else c.errorStream
+        val reply = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        if (code !in 200..299) throw IOException("HTTP $code: ${Terms.serverError(reply)}")
+        return reply
+    } finally {
+        c.disconnect()
     }
 }
