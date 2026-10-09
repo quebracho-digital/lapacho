@@ -5,12 +5,18 @@ clips sits above the keys, and tapping one types it into whatever field you are
 in. Your history is encrypted on the phone and never leaves it — the app has no
 internet permission at all.
 
-> **Status:** early (P0 spike). It works day to day, but it is a debug build
-> installed by hand, and the keyboard is deliberately basic (suggestions and
+> **Status:** early. It works day to day, but it is installed by hand (Lapacho
+> is not on Google Play, and won't register with Google — see the
+> [README](../README.md#android-without-googles-permission)), and the keyboard is deliberately basic (suggestions and
 > corrections you tap, swipe typing, but nothing rewritten by itself, and emoji without skin tones or
 > recents — favourites, yes).
 
 ## Install
+
+The easy way is [Obtainium](https://obtainium.imranr.dev/): install it, then
+open the "add Lapacho" link in the
+[README](../README.md#android-without-googles-permission) on the phone. It
+installs from GitHub Releases and tells you when there is a new version. By hand:
 
 1. Download the APK on the phone from the download page —
    [web.fishman.work](https://web.fishman.work/) in English,
