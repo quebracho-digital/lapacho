@@ -407,36 +407,63 @@ History search implemented; English translation complete. Sensitivity: long hex 
   - **Out of scope here:** Chinese and Japanese are not a layout problem — they
     need a conversion engine (pinyin/kana → characters, with a candidate list)
     and have no spaces to find a word by. A separate project if ever.
-- [ ] **Speech to text, sovereign, in every language** (idea, 2026-10-09) —
-  dictate instead of typing, recognized on the device: no audio and no text
-  leave it, nothing from Google (Android's `SpeechRecognizer` sends audio to
-  whatever service the phone has, usually Google's, so it is out).
-  - **Where it lives:** the keyboard has no permission at all today, and that
-    is the argument. Two ways, to decide:
-    1. **A separate app**, like *Lapacho Terms*: *Lapacho Voice* holds
-       `RECORD_AUDIO` and the models, the keyboard's 🎤 key hands over to it
-       and types what comes back. The keyboard stays permission-free, and
-       whoever doesn't want a microphone doesn't install it. Preferred.
-    2. In the keyboard, with `RECORD_AUDIO` asked on first use of 🎤.
-  - **Rules:** hold-to-talk (records only while the key is down), the audio
-    lives in memory and is dropped after recognition, never in a password or
-    private field, and the text is offered in the strip before it is typed,
-    like a correction.
-  - **Models, same rule as the terms analyser: OSI-permissive only**, one per
-    language, imported like the dictionaries (official hashes in the APK, file
-    picker, no network). Candidates, licences to check on Hugging Face:
-    Whisper (MIT weights, multilingual; tiny/base fit a phone) through
-    whisper.cpp (MIT); Vosk (Apache-2.0 toolkit, small per-language models);
-    sherpa-onnx (Apache-2.0 runtime for several model families). Moonshine
-    only where its licence is MIT.
-  - **Engine in Rust** next to `lapacho-predict`, through the uniffi bridge;
-    Kotlin only for `AudioRecord`. Desktop could dictate into a clip later
-    with the same engine.
+- [ ] **Speech to text, sovereign, in every language** (idea 2026-10-09,
+  research the same day) — dictate instead of typing, recognized on the
+  device or on your own server: no audio and no text go anywhere else.
+  - **Lapacho Voice, a plugin app** like *Lapacho Terms* (decided): it holds
+    `RECORD_AUDIO` and the models; the keyboard's 🎤 key hands over to it and
+    types what comes back. The keyboard keeps no permission at all, and
+    whoever doesn't want a microphone doesn't install it.
+  - **The phone's own voice service, only if the user opts in**: a setting in
+    Lapacho Voice, off by default, that says what it does — it opens
+    Android's recognizer (`RecognizerIntent`), which sends the audio to
+    whichever service the phone has, usually Google's.
+  - **Rules:** hold-to-talk (records only while the key is down), audio only
+    in memory and dropped after recognition, never in a password or private
+    field, the text offered in the strip before it is typed.
+  - **Engines, OSI-permissive only (MIT / Apache-2.0)**; licences checked on
+    Hugging Face 2026-10-09:
+    - **Qwen3-ASR 0.6B / 1.7B** (Apache-2.0, Jan 2026): 30 languages
+      (es, en, it, pt, fr, de, ru, ar… — not Hebrew), offline and streaming,
+      state of the art among open models by its report. The main candidate;
+      **Qwen3-ForcedAligner 0.6B** (Apache-2.0) adds word timestamps in 11.
+    - **Moonshine streaming** tiny / small / medium (MIT, 2026): built for
+      live, on-device use; English plus es, de, ja, ar, zh, vi, tl. Only the
+      2026 streaming models: the earlier non-English ones carry another
+      licence.
+    - **Voxtral Mini 4B Realtime** (Mistral, Apache-2.0, Feb 2026): 13
+      languages, sub-200 ms. Heavy for a phone; fits a home server.
+    - **Whisper large-v3-turbo** (MIT) and **ivrit-ai**'s Hebrew fine-tunes
+      (Apache-2.0): the route for Hebrew.
+    - Out, by licence: NVIDIA Parakeet / Canary and Kyutai STT (CC-BY-4.0),
+      SenseVoice / Fun-ASR (own licence).
+  - **Runtime: sherpa-onnx** (Apache-2.0, active, Android, Kotlin and Rust
+    bindings): runs Qwen3-ASR, Moonshine, Whisper, voice activity detection
+    and diarization, so one engine covers dictation and conversations.
+    Models imported per language like the dictionaries (official hashes in
+    the APK, no network in the app unless a server is configured).
+  - **Conversations, several people talking** — a second mode of the same
+    app, or its own: record, cut by voice activity, transcribe, tell the
+    speakers apart, and save a transcript with speakers and timestamps as a
+    clip.
+    - On the phone: sherpa-onnx diarization with pyannote segmentation-3.0
+      (MIT) and 3D-Speaker embeddings (Apache-2.0 toolkit; check each
+      model). Not pyannote's WeSpeaker embeddings or the community-1
+      pipeline (CC-BY-4.0), Rev's (non-commercial) or NVIDIA Sortformer.
+    - On your own server, like Lapacho Terms: **VibeVoice-ASR** (Microsoft,
+      MIT, Jan 2026, ~9B) transcribes, separates speakers and timestamps up
+      to an hour in one pass; GGUF builds exist. Its 0.3B BitNet variant
+      runs on edge CPUs but covers no Spanish and doesn't diarize.
+    - Android: a long recording needs a foreground service with a visible
+      notification. The audio is kept only if the user says so, encrypted
+      like the history.
+    - **Consent:** a visible "recording" state and a reminder to tell the
+      others. Whether everyone must consent differs by country; check
+      before shipping, and say it in the app.
   - **Measure first**, as with `terms-eval`: word error rate per language on
-    open test sets (Common Voice, FLEURS), latency and RAM on a real phone,
-    for each of the bundled and official languages (es, en, it, he, pt-br,
-    fr, de, ru). A language ships when its model clears a bar we set, not
-    before.
+    Common Voice and FLEURS, diarization error on an open meeting set (AMI),
+    latency, RAM and battery on a real phone, for es, en, it, he, pt-br, fr,
+    de and ru. A language ships when its model clears a bar we set.
 - [ ] **Multi-client sync (optional, E2E, per-item)** — design: `docs/ARQUITECTURA_MOBILE_ANDROID.md` §5
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
   hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;
