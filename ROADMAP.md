@@ -312,7 +312,7 @@ History search implemented; English translation complete. Sensitivity: long hex 
   service in its own `:ime` process) — **written blind, not yet built or run**
   (no Android SDK/NDK in this environment; needs verification on a machine
   with Android Studio). P1 done: `rust-bridge` exposes `MobileCore` (uniffi).
-- [ ] **Mobile: delete the Kotlin `storage` module** — `HistoryRepo.kt` + `Types.kt`
+- [x] **Mobile: delete the Kotlin `storage` module** (2026-10-09: gone; the app's `History.kt` wraps `MobileCore`, the old store is imported once) — `HistoryRepo.kt` + `Types.kt`
   (225 lines) duplicate `MobileCore` and have already diverged: no
   `title`/`pinned`/`vaulted`, no search, no `get_by_id`, and a plain SHA-256
   `contentId` instead of the keyed hash — so mobile and desktop compute

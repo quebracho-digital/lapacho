@@ -58,16 +58,14 @@ import digital.quebracho.lapacho.keyAlternates
 import digital.quebracho.lapacho.builtInRows
 import digital.quebracho.lapacho.layouts
 import digital.quebracho.lapacho.isMasked
+import digital.quebracho.lapacho.ClipboardItem
+import digital.quebracho.lapacho.HISTORY_MAX
+import digital.quebracho.lapacho.History
+import digital.quebracho.lapacho.Sensitivity
 import digital.quebracho.lapacho.isSecret
 import digital.quebracho.lapacho.loadPredictor
 import uniffi.lapacho_mobile_bridge.WordPredictor
 import digital.quebracho.lapacho.matchesQuery
-import digital.quebracho.lapacho.storage.ClipboardItem
-import digital.quebracho.lapacho.storage.HISTORY_MAX
-import digital.quebracho.lapacho.storage.HistoryRepo
-import digital.quebracho.lapacho.storage.PersistLevel
-import digital.quebracho.lapacho.storage.Sensitivity
-import digital.quebracho.lapacho.storage.contentId
 
 /**
  * P0 spike IME. Deliberately NOT a full Gboard replacement — per the
@@ -81,13 +79,11 @@ import digital.quebracho.lapacho.storage.contentId
  * key rows entirely) is a P2+ decision once adoption data exists.
  *
  * Thin Kotlin shell: no classification, no encryption logic here — both
- * live in [digital.quebracho.lapacho.storage] today and move into
- * `lapacho-core` behind uniffi at P1 (docs §"IME: no existe Rust IME —
- * cáscara Kotlin fina").
+ * live in `lapacho-core`, behind uniffi (classify, [History]).
  */
 class LapachoIme : InputMethodService() {
 
-    private lateinit var repo: HistoryRepo
+    private lateinit var repo: History
     private lateinit var pasteStrip: LinearLayout
     private lateinit var keyRows: LinearLayout
     private var layer = Layer.LETTERS
@@ -161,7 +157,7 @@ class LapachoIme : InputMethodService() {
         createdAtNanos = System.nanoTime()
         // Same DB the companion writes to (app-private storage, shared by
         // both processes under this app's UID) — no IPC needed to read it.
-        repo = HistoryRepo(applicationContext)
+        repo = History(applicationContext)
     }
 
     /**
@@ -249,7 +245,7 @@ class LapachoIme : InputMethodService() {
         }
         val clip = readClip()
         val secret = clip != null && clip.sensitivity.isSecret()
-        if (clip != null && !secret && !privateField) capture(clip.text, clip.sensitivity)
+        if (clip != null && !secret && !privateField) capture(clip.text)
         secretOnClipboard = clip != null && (secret || privateField)
         searchPool = null
         emojiSearch = false
@@ -262,8 +258,8 @@ class LapachoIme : InputMethodService() {
             predictors.clear()
         }
         val t0 = System.nanoTime()
-        clips = repo.loadTopN(TOP_N)
-        Log.i(TAG, "loadTopN($TOP_N) took ${(System.nanoTime() - t0) / 1_000_000}ms, ${clips.size} items")
+        clips = repo.recent(TOP_N)
+        Log.i(TAG, "recent($TOP_N) took ${(System.nanoTime() - t0) / 1_000_000}ms, ${clips.size} items")
         refreshStrip()
     }
 
@@ -306,30 +302,17 @@ class LapachoIme : InputMethodService() {
      * has focus. Both can still be pasted from the clipboard itself, see
      * [refreshPasteStrip].
      *
-     * ponytail: what is stored goes in as [PersistLevel.ALL] with no TTL; the
-     * persistence levels arrive with the rest of the lapacho-core migration
-     * (docs/MIGRACION_MOBILE_RUST.md).
+     * ponytail: what is stored goes in as `All` with no TTL (see [History]);
+     * the phone has no persistence levels yet.
      */
-    private fun capture(raw: String, sensitivity: Sensitivity) {
-        val id = contentId(raw)
+    private fun capture(raw: String) {
+        val id = repo.contentId(raw)
         // Seeing the same clip again on every keyboard show is not a re-copy:
         // skipping it keeps the item's timestamp at when it was really copied.
         if (id == lastCapturedId) return
         lastCapturedId = id
 
-        repo.save(
-            ClipboardItem(
-                id = id,
-                rawContent = raw,
-                displayContent = raw,
-                contentType = "text",
-                sensitivity = sensitivity,
-                detectedType = "Text",
-                timestamp = System.currentTimeMillis() / 1000,
-            ),
-            PersistLevel.ALL,
-        )
-        repo.cleanup(sensitiveTtlSecs = null, maxItems = HISTORY_MAX)
+        repo.save(raw)
         Log.i(TAG, "captured clipboard item ${id.take(8)}… (${raw.length} chars)")
     }
 
@@ -509,7 +492,7 @@ class LapachoIme : InputMethodService() {
     }
 
     private fun startSearch() {
-        searchPool = repo.loadTopN(HISTORY_MAX).filterNot { it.isMasked() }
+        searchPool = repo.recent(HISTORY_MAX).filterNot { it.isMasked() }
         query = ""
         refreshStrip()
     }
@@ -622,7 +605,7 @@ class LapachoIme : InputMethodService() {
         // Paste = commit the RAW content, intact — same rule as desktop's
         // copy_item: masking is a display-only concern, never applied to
         // what actually gets typed.
-        commitText(item.rawContent)
+        repo.raw(item)?.let(::commitText)
     }
 
     private fun commitText(text: String) {

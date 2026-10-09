@@ -4,6 +4,17 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — the history in lapacho-core
+
+The phone's history, learned words and keyboard preferences now live in
+lapacho-core's store (Rust, the same code as desktop) instead of a store
+written in Kotlin, which is gone. Items get the keyed content id desktop uses,
+so the same clip has the same id on both — what sync will need. The master key
+is wrapped by the Android Keystore key, as the rows used to be. On first start
+the old store is imported once (items with their times, learned words,
+favourite emoji) and deleted. A clip's raw content is no longer held in memory
+for the strip: it is read from the store when pasted.
+
 ### Android — a release key, and no registration with Google (`0.1.42`)
 
 **The APKs are now signed with a release key** (`CN=Quebracho Digital`,
