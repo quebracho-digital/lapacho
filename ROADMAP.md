@@ -407,6 +407,36 @@ History search implemented; English translation complete. Sensitivity: long hex 
   - **Out of scope here:** Chinese and Japanese are not a layout problem — they
     need a conversion engine (pinyin/kana → characters, with a candidate list)
     and have no spaces to find a word by. A separate project if ever.
+- [ ] **Speech to text, sovereign, in every language** (idea, 2026-10-09) —
+  dictate instead of typing, recognized on the device: no audio and no text
+  leave it, nothing from Google (Android's `SpeechRecognizer` sends audio to
+  whatever service the phone has, usually Google's, so it is out).
+  - **Where it lives:** the keyboard has no permission at all today, and that
+    is the argument. Two ways, to decide:
+    1. **A separate app**, like *Lapacho Terms*: *Lapacho Voice* holds
+       `RECORD_AUDIO` and the models, the keyboard's 🎤 key hands over to it
+       and types what comes back. The keyboard stays permission-free, and
+       whoever doesn't want a microphone doesn't install it. Preferred.
+    2. In the keyboard, with `RECORD_AUDIO` asked on first use of 🎤.
+  - **Rules:** hold-to-talk (records only while the key is down), the audio
+    lives in memory and is dropped after recognition, never in a password or
+    private field, and the text is offered in the strip before it is typed,
+    like a correction.
+  - **Models, same rule as the terms analyser: OSI-permissive only**, one per
+    language, imported like the dictionaries (official hashes in the APK, file
+    picker, no network). Candidates, licences to check on Hugging Face:
+    Whisper (MIT weights, multilingual; tiny/base fit a phone) through
+    whisper.cpp (MIT); Vosk (Apache-2.0 toolkit, small per-language models);
+    sherpa-onnx (Apache-2.0 runtime for several model families). Moonshine
+    only where its licence is MIT.
+  - **Engine in Rust** next to `lapacho-predict`, through the uniffi bridge;
+    Kotlin only for `AudioRecord`. Desktop could dictate into a clip later
+    with the same engine.
+  - **Measure first**, as with `terms-eval`: word error rate per language on
+    open test sets (Common Voice, FLEURS), latency and RAM on a real phone,
+    for each of the bundled and official languages (es, en, it, he, pt-br,
+    fr, de, ru). A language ships when its model clears a bar we set, not
+    before.
 - [ ] **Multi-client sync (optional, E2E, per-item)** — design: `docs/ARQUITECTURA_MOBILE_ANDROID.md` §5
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
   hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;
