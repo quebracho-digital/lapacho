@@ -289,6 +289,18 @@ History search implemented; English translation complete. Sensitivity: long hex 
 ### 📦 Project
 
 - [x] `LICENSE-APACHE` — full standard text present with copyright line filled in.
+- [x] **Android distribution without Google** (2026-10-09) — Lapacho won't
+  register with Google's developer verification (certified phones, 2027).
+  APKs signed with a release key instead of the debug key (one forced
+  reinstall); Obtainium links in the README.
+- [ ] **Own F-Droid repository** — `fdroidserver` builds the index from the
+  APKs we already sign and publish; host it on web.fishman.work, so F-Droid,
+  Droid-ify or Neo Store users add one URL and get updates. Sidesteps
+  F-Droid's main repo (it would rebuild and re-sign, and is still fighting
+  the verification rule) and IzzyOnDroid (refuses apps substantially written
+  with generative AI). Needs: fastlane metadata (descriptions, icon,
+  screenshots), the repo's own signing key for the index, and a step in
+  `release.sh`/CI that adds each release's APKs and re-signs the index.
 - [ ] Decide whether to version `apps/desktop/src-tauri/gen/` (generated capabilities).
 - [ ] **Mobile (Android-first)** — design in `docs/ARQUITECTURA_MOBILE_ANDROID.md` +
   the internal mobile design debate. Decided: **no fork** of an existing

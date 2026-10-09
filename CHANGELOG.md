@@ -4,6 +4,20 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — a release key, and no registration with Google
+
+**The APKs are now signed with a release key** (`CN=Quebracho Digital`,
+certificate SHA-256 `9979b925…489a`, full in the README) instead of the debug
+key every build carried until now. Android installs an update only over the
+same key, so **this one does not install on top of 0.1.41 or earlier:
+uninstall first** — which wipes the history and the learned words, once. The
+Lapacho Terms plugin changes key too.
+
+The README says why Lapacho won't register with Google's developer
+verification (an ID, a fee and the signing key's details, required on
+certified phones from 2027), and how to install it anyway: Obtainium, the APK
+by hand, phones without Google's certification, or Android's advanced flow.
+
 ### Lapacho Terms 0.1.1 — pick the model from the server's list (`0.1.41`)
 
 **Choose from the server**, next to the model field, asks the server for the

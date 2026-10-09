@@ -99,14 +99,21 @@ whatever builds the PR triggered all passed. Tags are cut from a green `main`.
   publishes to the download page, and creates the release at `HEAD` through
   `gh`. The tag's workflow run then finds the release and does nothing.
 
-Both publish the release build (not debuggable), signed with the debug key: the workflow reads it from the secret
-`ANDROID_DEBUG_KEYSTORE` (base64 of `~/.android/debug.keystore`), hands it to
-Gradle through `LAPACHO_DEBUG_KEYSTORE`, and refuses to publish an APK whose
-certificate is not this one (SHA-256):
+Both publish the release build (not debuggable), signed with the release key
+(`CN=Quebracho Digital`, PKCS12, alias `lapacho`). Gradle takes it from
+`LAPACHO_RELEASE_KEYSTORE` and `LAPACHO_RELEASE_KEYSTORE_PASSWORD`: the
+workflow fills them from the secrets `ANDROID_RELEASE_KEYSTORE` (base64 of the
+`.p12`) and `ANDROID_RELEASE_KEYSTORE_PASSWORD`, minisforum from
+`~/.android-env.sh` (key in `~/.android/release/`). Without them a release
+build is signed with the debug key, fine for your own phone; the workflow
+refuses to publish an APK whose certificate is not this one (SHA-256):
 
 ```
-beeb0d4c61e5b8d94f717ce9bf78eeb273af41c8c6b06dbeb44de80d6309d266
+9979b925a4a522d2dfeb60d9784a161b792994b4be7d24329ef16c0af007489a
 ```
+
+Up to 0.1.41 the APKs carried the debug key (`beeb0d4c…d266`); 0.1.42 does
+not install over those.
 
 Check a downloaded APK with `apksigner verify --print-certs lapacho-….apk`. An APK signed
 with any other key does not install over an existing one, and uninstalling

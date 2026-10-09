@@ -21,23 +21,28 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
-    // Every published APK is signed with one debug key (certificate SHA-256
-    // in the README): Android installs an update only over the same key.
-    // CI points here explicitly instead of trusting where the Android
-    // tooling looks for ~/.android/debug.keystore on a runner.
+    // Every published APK is signed with the release key (certificate SHA-256
+    // in the README): Android installs an update only over the same key. CI
+    // and minisforum hand it over in LAPACHO_RELEASE_KEYSTORE(_PASSWORD).
+    // Without them a release build falls back to the debug key, fine for your
+    // own phone; CI refuses to publish one.
     signingConfigs {
-        getByName("debug") {
-            System.getenv("LAPACHO_DEBUG_KEYSTORE")?.let { storeFile = file(it) }
+        System.getenv("LAPACHO_RELEASE_KEYSTORE")?.let { path ->
+            create("release") {
+                storeFile = file(path)
+                storePassword = System.getenv("LAPACHO_RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = "lapacho"
+                keyPassword = storePassword
+            }
         }
     }
 
     // Published APKs are release builds: a debuggable one lets anyone with USB
     // access `run-as` into the app's data or attach a debugger and read the
-    // clipboard in memory. Still the debug key, so it updates over the older
-    // debug-built APKs without a reinstall.
+    // clipboard in memory.
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

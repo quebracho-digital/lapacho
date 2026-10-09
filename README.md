@@ -60,9 +60,10 @@ will still work, and stay yours to decide:
   apps from unregistered developers, once per phone (developer options, a
   restart and a 24-hour wait), or `adb install`. That is the price.
 
-Every APK is signed with the same key (SHA-256 of the certificate:
-`beeb0d4c61e5b8d94f717ce9bf78eeb273af41c8c6b06dbeb44de80d6309d266`), so an
-update installs only if it really comes from here. Details:
+Every APK since 0.1.42 is signed with the Quebracho Digital release key
+(SHA-256 of the certificate: `9979b925a4a522d2dfeb60d9784a161b792994b4be7d24329ef16c0af007489a`), so an update installs only if it really
+comes from here. Earlier APKs carried a debug key: going from one of those to
+0.1.42 means uninstalling first, which wipes the history and the learned words. Details:
 [`docs/USAGE_MOBILE.md`](docs/USAGE_MOBILE.md#install).
 
 ## Usage
