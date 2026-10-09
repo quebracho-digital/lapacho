@@ -1,5 +1,11 @@
 # Plan de migración mobile Kotlin → Rust
 
+> **Hecho (2026-10-09).** El módulo `storage` no existe más. `app/…/History.kt`
+> envuelve `MobileCore` (historial, palabras aprendidas, preferencias) con el
+> diseño envelope de abajo: la master key la genera Rust y la envuelve la clave
+> del Keystore (`filesDir/master.key`). El store viejo se importa una vez y se
+> borra. Lo que sigue es registro del plan.
+
 **Objetivo:** borrar `apps/mobile/android/storage/` (~225 líneas Kotlin) y usar `lapacho-core` vía `uniffi`.
 
 **Estado actual:** P0 spike Kotlin (sin Rust aún), implementado en `apps/mobile/android/` (Kotlin-only).

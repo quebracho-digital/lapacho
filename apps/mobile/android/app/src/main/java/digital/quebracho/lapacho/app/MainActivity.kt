@@ -41,18 +41,15 @@ import digital.quebracho.lapacho.UserError
 import digital.quebracho.lapacho.installDictionary
 import digital.quebracho.lapacho.readDictionary
 import digital.quebracho.lapacho.installedDictionaries
-import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.isMasked
+import digital.quebracho.lapacho.ClipboardItem
+import digital.quebracho.lapacho.HISTORY_MAX
+import digital.quebracho.lapacho.History
 import digital.quebracho.lapacho.loadPredictor
 import digital.quebracho.lapacho.removeDictionary
 import digital.quebracho.lapacho.removedBundled
 import digital.quebracho.lapacho.restoreBundled
 import digital.quebracho.lapacho.matchesQuery
-import digital.quebracho.lapacho.storage.ClipboardItem
-import digital.quebracho.lapacho.storage.HISTORY_MAX
-import digital.quebracho.lapacho.storage.HistoryRepo
-import digital.quebracho.lapacho.storage.PersistLevel
-import digital.quebracho.lapacho.storage.contentId
 
 private const val TAG = "LapachoApp"
 
@@ -85,12 +82,11 @@ private class OpenInDownloads : ActivityResultContracts.OpenDocument() {
  *
  * Items are classified by `lapacho-core` (through the uniffi bridge) and
  * credentials/secrets are shown masked, but everything saved here is
- * [PersistLevel.ALL]: no persistence levels or TTL settings UI yet — those
- * arrive with the rest of the P1 migration.
+ * `All` (see [History]): no persistence levels or TTL settings UI yet.
  */
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var repo: HistoryRepo
+    private lateinit var repo: History
     // Opened by the keyboard on a held clip: go back to it when done.
     private var fromKeyboard = false
     private lateinit var adapter: ArrayAdapter<String>
@@ -151,7 +147,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        repo = HistoryRepo(applicationContext)
+        repo = History(applicationContext)
 
         val input = findViewById<EditText>(R.id.input)
         val historyList = findViewById<ListView>(R.id.history_list)
@@ -257,7 +253,7 @@ class MainActivity : AppCompatActivity() {
     private fun runApp(item: ClipboardItem, app: ResolveInfo) {
         val intent = Intent(PLUGIN_ACTION)
             .setClassName(app.activityInfo.packageName, app.activityInfo.name)
-            .putExtra(PLUGIN_EXTRA_TEXT, item.rawContent)
+            .putExtra(PLUGIN_EXTRA_TEXT, repo.raw(item) ?: return)
         runCatching { runPluginApp.launch(intent) }.onFailure {
             Toast.makeText(this, R.string.plugin_app_cancelled, Toast.LENGTH_LONG).show()
             backToKeyboard()
@@ -292,7 +288,7 @@ class MainActivity : AppCompatActivity() {
                     p.name to if (field is CheckBox) (if (field.isChecked) "1" else "0") else (field as EditText).text.toString()
                 }
                 try {
-                    val result = runPlugin(plugin.id, item.rawContent, values)
+                    val result = runPlugin(plugin.id, repo.raw(item) ?: return@setPositiveButton, values)
                     save(result)
                     refresh()
                     if (plugin.id == "terms") {
@@ -342,22 +338,10 @@ class MainActivity : AppCompatActivity() {
         else -> reason
     }
 
-    private fun save(text: String) {
-        val item = ClipboardItem(
-            id = contentId(text),
-            rawContent = text,
-            displayContent = text,
-            contentType = "text",
-            sensitivity = classify(text),
-            detectedType = "Text",
-            timestamp = System.currentTimeMillis() / 1000,
-        )
-        repo.save(item, PersistLevel.ALL)
-        repo.cleanup(sensitiveTtlSecs = null, maxItems = HISTORY_MAX)
-    }
+    private fun save(text: String) = repo.save(text)
 
     private fun refresh() {
-        all = repo.loadTopN(HISTORY_MAX)
+        all = repo.recent(HISTORY_MAX)
         applyFilter()
     }
 
@@ -585,7 +569,7 @@ class MainActivity : AppCompatActivity() {
      * off here.
      */
     private fun copy(item: ClipboardItem) {
-        val clip = ClipData.newPlainText("lapacho", item.rawContent)
+        val clip = ClipData.newPlainText("lapacho", repo.raw(item) ?: return)
         if (item.isMasked()) {
             clip.description.extras = PersistableBundle().apply { putBoolean(EXTRA_IS_SENSITIVE, true) }
         }

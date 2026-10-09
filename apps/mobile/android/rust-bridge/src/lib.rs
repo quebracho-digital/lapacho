@@ -2,7 +2,7 @@
 
 use lapacho_core::crypto::SecretKey;
 use lapacho_core::ingest::process_text as core_process_text;
-use lapacho_core::storage::{HistoryRepo, SqliteRepo};
+use lapacho_core::storage::{HistoryRepo, RetentionPolicy, SqliteRepo};
 use lapacho_core::types::PersistLevel;
 use std::sync::Arc;
 
@@ -109,6 +109,13 @@ pub fn classify_sensitivity(text: String) -> String {
     format!("{:?}", core_process_text(&text).sensitivity)
 }
 
+/// A new master key, base64. The phone keeps it wrapped by the Android
+/// Keystore (the app's `MasterKey`) and hands it back to [`MobileCore::new`].
+#[uniffi::export]
+pub fn generate_master_key() -> Result<String> {
+    Ok(SecretKey::generate()?.to_base64())
+}
+
 #[derive(uniffi::Object)]
 pub struct MobileCore {
     repo: Arc<SqliteRepo>,
@@ -126,9 +133,14 @@ impl MobileCore {
         }))
     }
 
-    /// Process a new text payload from clipboard and save it.
-    pub fn ingest_text(&self, raw: String, persist_level: String) -> Result<MobileItem> {
+    /// Process a new text payload from clipboard and save it. `timestamp`
+    /// (Unix seconds) keeps an item's original time when importing; `None`
+    /// is now.
+    pub fn ingest_text(&self, raw: String, persist_level: String, timestamp: Option<u64>) -> Result<MobileItem> {
         let mut item = core_process_text(&raw);
+        if let Some(ts) = timestamp {
+            item.timestamp = ts;
+        }
         // Keyed content hash, same as desktop's main.rs: dedups re-copies and
         // gives the same id on every device sharing the master key.
         item.id = self.repo.content_id(&item.raw_content);
@@ -142,9 +154,53 @@ impl MobileCore {
         Ok(item.into())
     }
 
-    /// Load recent history for the IME strip / companion list.
-    pub fn get_recent_items(&self) -> Result<Vec<MobileItem>> {
-        Ok(self.repo.load()?.into_iter().map(MobileItem::from).collect())
+    /// The newest `limit` items, for the IME strip and the companion list.
+    /// Without their raw content: that is fetched by id when pasted.
+    pub fn get_recent_items(&self, limit: u32) -> Result<Vec<MobileItem>> {
+        Ok(self.repo.load()?.into_iter().take(limit as usize).map(MobileItem::from).collect())
+    }
+
+    /// The id an item with this content has (or would have): the keyed hash
+    /// desktop uses too.
+    pub fn content_id(&self, raw: String) -> String {
+        self.repo.content_id(&raw)
+    }
+
+    /// Keeps the newest `max_items`. No TTL here: the phone never stores
+    /// credentials or secrets in the first place.
+    pub fn trim(&self, max_items: u32) -> Result<()> {
+        let policy = RetentionPolicy { sensitive_ttl_secs: None, max_items: max_items as usize };
+        Ok(self.repo.cleanup(&policy)?)
+    }
+
+    pub fn clear(&self) -> Result<()> {
+        Ok(self.repo.clear()?)
+    }
+
+    /// A word the user taught the keyboard; twice is once.
+    pub fn learn(&self, word: String) -> Result<()> {
+        Ok(self.repo.learn(&word)?)
+    }
+
+    /// The learned words, oldest first.
+    pub fn lexicon(&self) -> Result<Vec<String>> {
+        Ok(self.repo.lexicon()?)
+    }
+
+    pub fn forget(&self, word: String) -> Result<()> {
+        Ok(self.repo.forget(&word)?)
+    }
+
+    pub fn forget_all(&self) -> Result<()> {
+        Ok(self.repo.forget_all()?)
+    }
+
+    pub fn get_preference(&self, key: String) -> Result<Option<String>> {
+        Ok(self.repo.get_preference(&key)?)
+    }
+
+    pub fn set_preference(&self, key: String, value: String) -> Result<()> {
+        Ok(self.repo.set_preference(&key, &value)?)
     }
 
     /// Get raw content for a specific item to paste it. Single-row lookup: the
@@ -255,11 +311,11 @@ mod tests {
         let key_b64 = crypto::SecretKey::generate().unwrap().to_base64();
         
         let core = MobileCore::new(db_dir.to_str().unwrap().to_string(), key_b64).unwrap();
-        let item = core.ingest_text("hola lapacho mobile".into(), "All".into()).unwrap();
+        let item = core.ingest_text("hola lapacho mobile".into(), "All".into(), None).unwrap();
         
         assert_eq!(item.display_content, "hola lapacho mobile");
         
-        let recent = core.get_recent_items().unwrap();
+        let recent = core.get_recent_items(100).unwrap();
         assert_eq!(recent.len(), 1);
         
         let raw = core.get_raw_content(item.id.clone()).unwrap();
@@ -279,14 +335,45 @@ mod tests {
             crypto::SecretKey::generate().unwrap().to_base64(),
         )
         .unwrap();
-        let a = core.ingest_text("mismo texto".into(), "All".into()).unwrap();
-        let b = core.ingest_text("mismo texto".into(), "All".into()).unwrap();
+        let a = core.ingest_text("mismo texto".into(), "All".into(), None).unwrap();
+        let b = core.ingest_text("mismo texto".into(), "All".into(), None).unwrap();
 
         // Same id scheme as desktop (main.rs sets item.id = repo.content_id(raw)),
         // so re-copying moves to top instead of duplicating, and sync can dedup.
         assert_eq!(a.id, b.id);
         assert_eq!(a.id, core.repo.content_id("mismo texto"));
-        assert_eq!(core.get_recent_items().unwrap().len(), 1);
+        assert_eq!(core.get_recent_items(100).unwrap().len(), 1);
+    }
+
+    /// What the Kotlin storage did, now here: the cap, the learned words,
+    /// the preferences, an imported item keeping its time.
+    #[test]
+    fn everything_the_phone_stored_in_kotlin() {
+        let db = std::env::temp_dir().join(format!("mobile_all_{}.db", uuid::Uuid::new_v4()));
+        let core = MobileCore::new(db.to_str().unwrap().to_string(), generate_master_key().unwrap()).unwrap();
+        core.ingest_text("viejo".into(), "All".into(), Some(1_000)).unwrap();
+        for i in 0..5 {
+            core.ingest_text(format!("clip {i}"), "All".into(), None).unwrap();
+        }
+        let recent = core.get_recent_items(3).unwrap();
+        assert_eq!(recent.len(), 3);
+        assert!(recent.iter().all(|it| it.timestamp > 1_000), "the imported one is the oldest");
+        core.trim(4).unwrap();
+        assert_eq!(core.get_recent_items(100).unwrap().len(), 4);
+        assert!(core.get_recent_items(100).unwrap().iter().all(|it| it.display_content != "viejo"));
+
+        core.learn("lapacho".into()).unwrap();
+        core.learn("lapacho".into()).unwrap();
+        assert_eq!(core.lexicon().unwrap(), vec!["lapacho"]);
+        core.forget_all().unwrap();
+        assert!(core.lexicon().unwrap().is_empty());
+
+        assert_eq!(core.get_preference("favorites".into()).unwrap(), None);
+        core.set_preference("favorites".into(), "🌳 🧉".into()).unwrap();
+        assert_eq!(core.get_preference("favorites".into()).unwrap().as_deref(), Some("🌳 🧉"));
+
+        core.clear().unwrap();
+        assert!(core.get_recent_items(100).unwrap().is_empty());
     }
 
     #[test]

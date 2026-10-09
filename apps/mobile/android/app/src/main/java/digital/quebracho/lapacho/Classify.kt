@@ -1,7 +1,5 @@
 package digital.quebracho.lapacho
 
-import digital.quebracho.lapacho.storage.ClipboardItem
-import digital.quebracho.lapacho.storage.Sensitivity
 import uniffi.lapacho_mobile_bridge.classifySensitivity
 
 /** lapacho-core's classifier (Rust, the same one desktop runs) on the Kotlin enum. */

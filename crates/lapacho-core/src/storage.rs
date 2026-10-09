@@ -190,6 +190,16 @@ impl SqliteRepo {
         let _ = conn.execute("ALTER TABLE history ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0", []);
         let _ = conn.execute("ALTER TABLE history ADD COLUMN vaulted INTEGER NOT NULL DEFAULT 0", []);
 
+        // Words the user taught the phone's keyboard, one explicit act each.
+        // Keyed by the content id so a word can't be stored twice, the word
+        // itself encrypted: a personal lexicon is a list of what someone
+        // writes about.
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS lexicon (id TEXT PRIMARY KEY, word TEXT NOT NULL, added INTEGER NOT NULL)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
         // Simple key-value settings for user preferences (persist_level, ttl, etc.)
         // so they survive restarts.
         conn.execute(
@@ -525,6 +535,47 @@ impl HistoryRepo for SqliteRepo {
 
     fn content_id(&self, raw: &str) -> String {
         crypto::content_id(&*self.content_key, raw)
+    }
+}
+
+/// The learned words (the phone's keyboard). Not on [`HistoryRepo`]: only the
+/// mobile bridge uses them, and the history's other backends have no need.
+impl SqliteRepo {
+    /// Adds a word; learning the same word twice is a no-op.
+    pub fn learn(&self, word: &str) -> Result<(), String> {
+        let enc = self.cipher.encrypt(word)?;
+        self.conn()?
+            .execute(
+                "INSERT OR IGNORE INTO lexicon (id, word, added) VALUES (?1, ?2, ?3)",
+                params![self.content_id(word), enc, now_secs()],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Every learned word, oldest first. A row that won't decrypt is skipped,
+    /// as in the history.
+    pub fn lexicon(&self) -> Result<Vec<String>, String> {
+        let conn = self.conn()?;
+        let mut stmt = conn
+            .prepare("SELECT word FROM lexicon ORDER BY added, rowid")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        Ok(rows.filter_map(|r| r.ok()).filter_map(|enc| self.cipher.decrypt(&enc).ok()).collect())
+    }
+
+    pub fn forget(&self, word: &str) -> Result<(), String> {
+        self.conn()?
+            .execute("DELETE FROM lexicon WHERE id = ?1", params![self.content_id(word)])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn forget_all(&self) -> Result<(), String> {
+        self.conn()?.execute("DELETE FROM lexicon", []).map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
 
@@ -975,6 +1026,27 @@ mod tests {
         assert!(repo.search("no-such-thing").unwrap().is_empty());
 
         let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn lexicon_learns_once_lists_in_order_forgets_and_is_encrypted() {
+        let (repo, path) = repo();
+        repo.learn("quebracho").unwrap();
+        repo.learn("lapacho").unwrap();
+        repo.learn("quebracho").unwrap();
+        assert_eq!(repo.lexicon().unwrap(), vec!["quebracho", "lapacho"]);
+
+        for suffix in ["", "-wal", "-shm"] {
+            let file = path.with_extension(format!("db{suffix}"));
+            if let Ok(bytes) = std::fs::read(&file) {
+                assert!(!String::from_utf8_lossy(&bytes).contains("quebracho"), "plaintext leaked to {file:?}");
+            }
+        }
+
+        repo.forget("quebracho").unwrap();
+        assert_eq!(repo.lexicon().unwrap(), vec!["lapacho"]);
+        repo.forget_all().unwrap();
+        assert!(repo.lexicon().unwrap().is_empty());
     }
 
     #[test]

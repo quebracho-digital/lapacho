@@ -66,7 +66,6 @@ val rustBridge = tasks.register<Exec>("rustBridge") {
 tasks.named("preBuild") { dependsOn(rustBridge) }
 
 dependencies {
-    implementation(project(":storage"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     // Runtime the uniffi Kotlin bindings call the Rust library through.
