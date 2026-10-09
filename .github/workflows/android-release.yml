@@ -93,6 +93,12 @@ jobs:
           # Public: which key the secret holds, to tell a wrong secret from a wrong path.
           keytool -list -v -keystore "$RUNNER_TEMP/release.p12" -storepass:env PASSWORD | grep -m1 SHA256
 
+      # The Rust the phone runs (the predictor and the bridge) and the sync
+      # crate: desktop-build.yml tests only lapacho-core and the desktop.
+      - name: Rust tests
+        working-directory: .
+        run: cargo test -p lapacho-predict -p lapacho-mobile-bridge -p lapacho-sync
+
       - name: Build and test
         run: gradle --no-daemon :app:assembleRelease :app:testReleaseUnitTest :plugin-terms:assembleRelease :plugin-terms:testReleaseUnitTest
 
