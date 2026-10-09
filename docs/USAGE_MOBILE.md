@@ -27,7 +27,9 @@ installs from GitHub Releases and tells you when there is a new version. By hand
 2. Optional, recommended: check the download against the `.sha256` file (any
    hash app on the phone, or `sha256sum` on a computer).
 3. Open the APK and allow the install from your browser when Android asks.
-   Installing a newer version on top keeps your history.
+   Installing a newer version on top keeps your history. **Coming from 0.1.41
+   or earlier:** 0.1.42 is signed with a new key and does not install on top;
+   uninstall first, which wipes the history and the learned words (once).
 4. Open **Lapacho** once. The top line shows the installed version — use it to
    confirm an update actually landed.
 

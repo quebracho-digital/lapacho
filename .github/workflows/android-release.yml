@@ -4,8 +4,9 @@
 # released from minisforum (release.sh) is left alone. Path filters don't
 # apply to tags: a tag always builds.
 #
-# The APK is signed with the same debug key as the minisforum builds (secret
-# ANDROID_DEBUG_KEYSTORE, base64). A different key would make Android refuse
+# The APKs are signed with the release key, the same as minisforum's builds
+# (secrets ANDROID_RELEASE_KEYSTORE, base64 of the PKCS12, and
+# ANDROID_RELEASE_KEYSTORE_PASSWORD). A different key would make Android refuse
 # the update, and reinstalling wipes the history and the learned words.
 name: Android release
 
@@ -82,13 +83,15 @@ jobs:
 
       - name: Signing key
         env:
-          KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+          KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
+          PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
         run: |
-          [ -n "$KEYSTORE" ] || { echo "::error::secret ANDROID_DEBUG_KEYSTORE is not set"; exit 1; }
-          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/debug.keystore"
-          echo "LAPACHO_DEBUG_KEYSTORE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+          [ -n "$KEYSTORE" ] && [ -n "$PASSWORD" ] || { echo "::error::secrets ANDROID_RELEASE_KEYSTORE(_PASSWORD) are not set"; exit 1; }
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.p12"
+          echo "LAPACHO_RELEASE_KEYSTORE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+          echo "LAPACHO_RELEASE_KEYSTORE_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
           # Public: which key the secret holds, to tell a wrong secret from a wrong path.
-          keytool -list -v -keystore "$RUNNER_TEMP/debug.keystore" -storepass android | grep -m1 SHA256
+          keytool -list -v -keystore "$RUNNER_TEMP/release.p12" -storepass:env PASSWORD | grep -m1 SHA256
 
       - name: Build and test
         run: gradle --no-daemon :app:assembleRelease :app:testReleaseUnitTest :plugin-terms:assembleRelease :plugin-terms:testReleaseUnitTest
@@ -99,7 +102,7 @@ jobs:
         run: |
           aapt="$(ls "$ANDROID_SDK_ROOT"/build-tools/*/aapt | sort -V | tail -1)"
           apksigner="$(ls "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)"
-          want=beeb0d4c61e5b8d94f717ce9bf78eeb273af41c8c6b06dbeb44de80d6309d266
+          want=9979b925a4a522d2dfeb60d9784a161b792994b4be7d24329ef16c0af007489a
           # Lapacho and its plugin apps: same key, never debuggable.
           for apk in app/build/outputs/apk/release/app-release.apk plugin-terms/build/outputs/apk/release/plugin-terms-release.apk; do
             if "$aapt" dump badging "$apk" | grep -q application-debuggable; then

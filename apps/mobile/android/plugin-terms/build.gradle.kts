@@ -27,13 +27,18 @@ android {
 
     // Same key as Lapacho's published APKs (see app/build.gradle.kts).
     signingConfigs {
-        getByName("debug") {
-            System.getenv("LAPACHO_DEBUG_KEYSTORE")?.let { storeFile = file(it) }
+        System.getenv("LAPACHO_RELEASE_KEYSTORE")?.let { path ->
+            create("release") {
+                storeFile = file(path)
+                storePassword = System.getenv("LAPACHO_RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = "lapacho"
+                keyPassword = storePassword
+            }
         }
     }
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 
