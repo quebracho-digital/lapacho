@@ -30,7 +30,40 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > dictionaries (`lapacho-dict-<lang>-<hash>.dict`; see [Mobile](#mobile)). The desktop installers are
 > unsigned: Windows shows SmartScreen, and macOS needs right-click → Open the
 > first time. The APK is also on [web.fishman.work](https://web.fishman.work/)
-> ([en español](https://web.fishman.work/es)).
+> ([en español](https://web.fishman.work/es)), and
+> [Obtainium](#android-without-googles-permission) installs it from GitHub and
+> keeps it updated.
+
+## Android without Google's permission
+
+Lapacho is for people who care about their privacy enough to pay a small price
+for it. Its keyboard has no internet permission, asks for no account, and needs
+nothing from Google; the one plugin that talks to a server is a separate app
+you install knowing it does.
+
+In 2027 Google will require every app installed on a certified Android phone —
+from Play or not — to come from a developer who has handed Google an ID, a fee
+and the app's signing key details. **Lapacho will not register.** Installing it
+will still work, and stay yours to decide:
+
+- **[Obtainium](https://obtainium.imranr.dev/)** installs and updates straight
+  from this repo's GitHub Releases, with no store in between:
+  [add Lapacho](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22digital.quebracho.lapacho%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fquebracho-digital%2Flapacho%22%2C%22author%22%3A%22Quebracho%20Digital%22%2C%22name%22%3A%22Lapacho%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%20%5C%22%5Elapacho-%5B0-9%5D.%2A%5B.%5Dapk%24%5C%22%7D%22%7D),
+  and, if you want it,
+  [add Lapacho Terms](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22digital.quebracho.lapacho.plugin.terms%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fquebracho-digital%2Flapacho%22%2C%22author%22%3A%22Quebracho%20Digital%22%2C%22name%22%3A%22Lapacho%20Terms%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%20%5C%22%5Elapacho-terms-plugin-.%2A%5B.%5Dapk%24%5C%22%2C%20%5C%22versionDetection%5C%22%3A%20false%7D%22%7D)
+  (the plugin; both come out of the same release).
+- **The APK by hand**, from [Releases](https://github.com/quebracho-digital/lapacho/releases)
+  or [web.fishman.work](https://web.fishman.work/), checked against its `.sha256`.
+- **Phones without Google's certification** — GrapheneOS, LineageOS without
+  Google apps, /e/OS — are not affected at all.
+- **On a certified phone, after the change:** Android's "advanced flow" for
+  apps from unregistered developers, once per phone (developer options, a
+  restart and a 24-hour wait), or `adb install`. That is the price.
+
+Every APK is signed with the same key (SHA-256 of the certificate:
+`beeb0d4c61e5b8d94f717ce9bf78eeb273af41c8c6b06dbeb44de80d6309d266`), so an
+update installs only if it really comes from here. Details:
+[`docs/USAGE_MOBILE.md`](docs/USAGE_MOBILE.md#install).
 
 ## Usage
 
