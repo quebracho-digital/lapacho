@@ -63,6 +63,16 @@ jobs:
       - name: Tests
         run: cargo test -p lapacho-core -p lapacho-desktop
 
+      # The payloads in test-payloads/, through the real ingest, opened in the
+      # built UI in WebKitGTK, with and without the CSP (ui/tests/xss.py).
+      - name: UI against the XSS payloads
+        if: runner.os == 'Linux'
+        env:
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+        run: |
+          sudo apt-get install -y python3-gi gir1.2-webkit2-4.1 xvfb
+          xvfb-run -a /usr/bin/python3 apps/desktop/ui/tests/xss.py --dist apps/desktop/ui/dist
+
       - uses: actions/upload-artifact@v4
         with:
           name: lapacho-desktop-${{ runner.os }}

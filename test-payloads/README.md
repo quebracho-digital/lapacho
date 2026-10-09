@@ -2,6 +2,11 @@
 
 Use these to manually verify the two defense layers (Mermaid strict + CSP) and sanitizers.
 
+**Automated:** `/usr/bin/python3 apps/desktop/ui/tests/xss.py` runs every file
+here through lapacho-core's ingest, opens each one in the built UI (WebKitGTK,
+offscreen, Tauri mocked) with and without the CSP, and fails if a payload gets
+any command invoked. CI runs it on Linux. A new payload is a new file here.
+
 **Prep:** note the # of history items before test. Open Lapacho (Ctrl+Shift+Alt+L or tray "Open").
 
 After each malicious copy + maximize (if Mermaid/MD), check history count unchanged and no side effects.
