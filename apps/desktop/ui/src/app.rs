@@ -743,6 +743,8 @@ pub fn App() -> impl IntoView {
                                             match bindings::run_plugin(&pid, &item_id, &params).await {
                                                 Ok(newit) => {
                                                     set_plugin_err.set(None);
+                                                    // Show the result: the list updates behind the modal, unseen.
+                                                    set_detail.set(Some(newit.clone()));
                                                     set_items.update(|v| {
                                                         v.retain(|x| x.id != newit.id);
                                                         v.insert(0, newit);
