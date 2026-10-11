@@ -458,9 +458,14 @@ later" — an envelope copied off the WebDAV folder today — doesn't apply.
 
 What is not post-quantum, and why it's acceptable for now:
 
-- **TLS to the WebDAV server** (rustls; whether its key exchange is the
-  hybrid X25519MLKEM768 depends on the crypto provider, unchecked) protects
-  the folder's password and the headers, not the clips.
+- **TLS to the WebDAV server**: `ureq` 2.12 builds rustls with the `ring`
+  provider, which has no ML-KEM — the key exchange is classical X25519
+  (checked in rustls 0.23.45 source). The hybrid X25519MLKEM768 comes with
+  the `aws-lc-rs` provider (`prefer-post-quantum`), handed to `ureq` as its
+  own `ClientConfig`; it costs a C toolchain (cmake) in every build, Android
+  NDK included, and the server must offer it too (Go ≥ 1.24 servers such as
+  Caddy and rclone do by default). It protects the folder's password and the
+  headers, not the clips.
 - **Bluetooth pairing** (LE Secure Connections, P-256 ECDH) and Google's
   Data Layer: our envelopes travel inside them, already sealed.
 
@@ -470,6 +475,15 @@ hybrid — X25519 + ML-KEM-768 (FIPS 203) — and signatures hybrid Ed25519 +
 ML-DSA (FIPS 204), never classical alone. Revoking a device can also stay
 symmetric: rotate the chain and re-pair the remaining devices by QR, at the
 cost of one scan per device.
+
+**Pending, in order:**
+
+1. Hybrid TLS to WebDAV (`aws-lc-rs` provider), once the Android build of
+   *Lapacho Sync* exists to measure what the C dependency costs there.
+2. Decide revocation: symmetric (rotate + re-pair) or per-device hybrid KEM.
+   The watch (S10) makes it needed in v1.
+3. Re-check Bluetooth: if the phone–watch link ever carries anything not
+   already sealed, seal it.
 
 ### 5.10 Crate `lapacho-sync` (expanded sketch)
 

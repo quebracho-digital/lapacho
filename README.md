@@ -275,6 +275,34 @@ Locking the *whole process* with `mlockall` was tried and reverted: under
 WebKit it kills the app. The measurement and the conditions under which it
 would be worth revisiting are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+### Quantum computers
+
+Nothing in Lapacho's own encryption falls to a quantum computer, and here is
+why rather than a promise:
+
+- **History at rest and synced clips use only symmetric crypto**: AES-256-GCM,
+  keys derived with BLAKE3, the sync chain's seed handed over by QR or 24
+  words, never over the network. Shor's algorithm breaks public-key crypto
+  (RSA, X25519, Ed25519); there is none on these paths. Grover's halves a
+  symmetric key's strength, and AES-256 keeps about 128 bits, which is enough.
+- So **"harvest now, decrypt later" doesn't apply**: a sync envelope copied
+  off the server today can't be opened by tomorrow's machine without the
+  chain's seed.
+
+What is *not* post-quantum yet, all carrying clips that are already sealed:
+
+- **TLS to a WebDAV server** — `ureq` uses rustls with the `ring` provider,
+  which offers classical X25519 only (checked in rustls 0.23.45; the hybrid
+  X25519MLKEM768 needs the `aws-lc-rs` provider). It protects the folder's
+  password and the envelopes' headers.
+- **Bluetooth pairing and Google's Data Layer** (watches, not built yet):
+  classical ECDH.
+
+The rule for anything added later — per-device keys, device revocation,
+signatures — is hybrid: X25519 + ML-KEM-768 (FIPS 203) and Ed25519 + ML-DSA
+(FIPS 204), never classical alone. Detail in
+[`docs/ARQUITECTURA_MOBILE_ANDROID.md` §5.9b](docs/ARQUITECTURA_MOBILE_ANDROID.md).
+
 ### Keyring path
 
 The encryption key lives in the OS keyring:
