@@ -4,6 +4,18 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Sync — the core, without a network yet
+
+`lapacho-sync` now does the whole round trip in memory: a chain created on
+one device and joined on another with 24 words (BIP-39, Brave-style), the
+same `PersistLevel` rule that guards the disk deciding what may leave
+(`may_sync`), clips sealed with AES-256-GCM under the chain's key with the
+header bound to the ciphertext, and the receiver classifying the content again
+and keeping the stricter verdict. Tests prove two devices exchange a clip, a
+transport never sees plaintext, and a secret passes only at the level that
+allows it. No app uses it yet; the WebDAV transport and *Lapacho Sync* on
+Android come next.
+
 ### Android — the history in lapacho-core
 
 The phone's history, learned words and keyboard preferences now live in
