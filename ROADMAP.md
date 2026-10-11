@@ -407,6 +407,18 @@ History search implemented; English translation complete. Sensitivity: long hex 
   - **Out of scope here:** Chinese and Japanese are not a layout problem — they
     need a conversion engine (pinyin/kana → characters, with a candidate list)
     and have no spaces to find a word by. A separate project if ever.
+- [ ] **Fabric patterns as plugins** (idea 2026-10-11) — summarize, extract
+  wisdom, any pattern, run on a clip against the user's own model server.
+  - **Desktop:** nothing to build, an example in `plugins/examples/` — a JSON
+    definition that runs `fabric -p "$LAPACHO_PARAM_PATTERN"` with the clip on
+    standard input (the contract already passes params as environment
+    variables).
+  - **Android:** a plugin app, *Lapacho Fabric*, the generalization of
+    *Lapacho Terms*: same OpenAI-compatible server setting, the pattern's
+    `system.md` as the system prompt, the clip as the user message. Patterns
+    imported from a Fabric checkout like the dictionaries, not downloaded by
+    Lapacho. *Analyse terms* could become one more pattern.
+  - Masked clips never reach a plugin, so a pattern never sees a secret.
 - [ ] **Speech to text, sovereign, in every language** (idea 2026-10-09,
   research the same day) — dictate instead of typing, recognized on the
   device or on your own server: no audio and no text go anywhere else.
@@ -494,6 +506,15 @@ History search implemented; English translation complete. Sensitivity: long hex 
       phone, nothing to rewrite. A watch-only plugin only when it needs the
       watch itself (showing a clip as a QR code to scan from another device,
       say) — none planned yet.
+    - **Dictation and a recorder on the watch are not plugins:** a plugin
+      starts from a clip's text, and these start from audio and *make* a
+      clip. They are Lapacho Voice's watch side: the watch records
+      (hold-to-talk for dictation, a recording for a meeting), hands the
+      audio to Lapacho Voice on the phone over the Data Layer, and the
+      transcript comes back as a clip. Summarizing it or running a Fabric
+      pattern on it is then an ordinary plugin (below), launched from the
+      watch like any other. Long recordings drain a watch; the phone stays
+      the better recorder for a meeting.
   - **iPhone:** a custom keyboard extension plus a container app, the core
     bound to Swift. A separate design (`ARQUITECTURA_MOBILE_ANDROID.md` P3.4):
     the extension needs "Allow Full Access" to read the pasteboard or share
