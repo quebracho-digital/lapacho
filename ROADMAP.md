@@ -529,7 +529,10 @@ What to work on, in order. The sections below hold the detail.
     (a week; secrets no longer than on the sender's disk).
   - [ ] *Lapacho Sync* on Android (its own app, outbox and retry) and the
     desktop wiring.
-  - [ ] Device revocation — needed in v1 for watches.
+  - [ ] Device revocation — needed in v1 for watches. Decided
+    (`ARQUITECTURA_MOBILE_ANDROID.md` §5.8b): rotate the chain, the old
+    folder as a quarantine holding *"chain is dead"*, full wipe only on
+    devices that opted in, per-device WebDAV passwords.
   - [ ] Post-quantum, pending (`ARQUITECTURA_MOBILE_ANDROID.md` §5.9b):
     hybrid TLS to WebDAV; any public-key crypto added is hybrid ML-KEM /
     ML-DSA. The clips themselves are already safe (symmetric only).

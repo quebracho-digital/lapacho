@@ -402,7 +402,7 @@ These solve different problems. Mixing them causes either “Authentik can read 
 | QR / words are **bootstrap only** | After join, daily traffic uses device keys + chain; words not re-sent. |
 | Short codes | High entropy or rate-limit + short TTL if human-typed; prefer QR. |
 | No server sees words | Ceremony is device-to-device (visual) or typed by user; relay never gets the seed. |
-| Revoke device | Remove `device_pk` from trusted set; rotate chain if device was compromised (v2: re-key). v1: “reset chain” + re-pair all. |
+| Revoke device | v1: rotate the chain and re-pair the devices that stay — see §5.8b. v2: per-device keys, hybrid post-quantum (§5.9b). |
 
 **Why not “login with Authentik on both devices and magically sync”?**
 
@@ -410,6 +410,61 @@ These solve different problems. Mixing them causes either “Authentik can read 
 - Hybrid that *is* OK: Authentik opens the relay UI → “show pairing QR for this account’s mailbox” still displays a **client-generated** QR whose secret never hit Authentik. Authentik only gates who can *create* a mailbox or download *ciphertext*.
 
 ---
+
+### 5.8b Revocation, v1 (decided 2026-10-11)
+
+**What Brave does, read in its code (2026-10-11).** The sync server
+(`brave/go-sync`) authenticates a token signed with an Ed25519 key, and the
+client id *is* that public key — every device of a chain presents the same
+identity, so the server can't tell devices apart. "Remove device" deletes the
+device's `DEVICE_INFO` record; the removed device, on noticing its own record
+gone, resets itself (`OnSelfDeviceInfoDeleted` → `StopAndClear`) — clearing
+sync state, not the browser data it already has, and only if it runs Brave's
+code and comes back online. The one real cut is "delete sync account":
+the server deletes the chain's data and writes a "disabled chain" marker, and
+every later request with that seed is refused. Lesson: removing from a list
+is cosmetic; killing the chain is what revokes.
+
+**Lapacho v1:**
+
+1. **Revoking rotates the chain.** From a device that stays: a new seed, and
+   each device that stays re-pairs by QR. The scan is the authentication: a
+   device a thief holds can't be scanned. Symmetric, so post-quantum as it
+   stands. The new chain's mailbox is a new folder, named by a key the
+   revoked device never gets.
+2. **The old folder becomes the quarantine.** Before leaving, the rotating
+   device empties the old chain's folder and leaves one envelope, sealed with
+   the old key: *"this chain is dead"*. It is the only path the revoked device
+   knows, so it lands there without the server redirecting anything. It
+   can't read the new chain: no key, and its folder name is unguessable
+   (a listing shows it exists, nothing more).
+3. **On reading "this chain is dead"** a device stops syncing, forgets the
+   chain and remembers its id, so it refuses to rejoin it. Then:
+   - **Full wipe only where it was turned on** for that device — offered when
+     pairing a phone or a watch, off for a laptop. Wipe = delete the history
+     key from the OS keystore first (crypto-erase: what remains on flash is
+     unreadable), then the database, then the learned words.
+   - Otherwise it keeps its local history and says it has left the chain.
+
+   Why not wipe everywhere: with one shared key any device, the stolen one
+   included, can seal *"this chain is dead"*. A thief could make the laptop
+   delete its history. Limiting the wipe to devices that opted in keeps that
+   attack from destroying data where it hurts; only per-device signatures
+   (v2) can say who may order a wipe.
+4. **Cutting server access, then.** Each device gets its own WebDAV password
+   (Nextcloud app passwords, or one user per device). After rotation the
+   revoked device still reaches the old folder, so it can get the order and
+   wipe itself; it writes an acknowledgement there, and its password is
+   revoked on the acknowledgement or after 30 days. While its password
+   lives it can see that the new folder exists and could delete files in it
+   (availability, never content). The user can cut it immediately instead —
+   *"cut access now"*, at the cost of the wipe order never arriving.
+
+**What no design achieves:** a device the thief keeps offline, or runs with a
+modified client, never reads the order and keeps what it already had. The
+sealed history is as strong as that device's lock screen and keystore; the
+envelopes in the old folder are gone, and those a device downloaded expire
+with the item's own TTL.
 
 ### 5.9 Envelope, encryption, and conflict model
 
@@ -556,6 +611,7 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 | S10 | Watches (2026-10-11) | **A watch is one more device on the chain.** Transports are pluggable: a direct Bluetooth/LAN link to the phone (our own, not Google Play services' Data Layer) when the phone is near; the blob store as backup and for standalone watches with Wi-Fi/LTE. "Forget this watch" is device revoke, so it moves up from v2 |
 | S11 | Android sync app (2026-10-11) | **A separate app, *Lapacho Sync***, holding the network and Bluetooth permissions; the keyboard app keeps none |
 | S12 | Google's Data Layer (2026-10-11) | **Optional transport, off by default**, for users who prefer the official phone–watch channel. It carries our envelopes, so Google sees ciphertext and metadata (when, how much, that Lapacho is in use), never the clip; turning it on says so. Built only into a `play` flavor of *Lapacho Sync* and the watch app: `play-services-wearable` is proprietary, and the default `foss` build carries no Google library |
+| S13 | Revocation v1 (2026-10-11) | **Rotate the chain** and re-pair by QR; the old folder keeps only a sealed *"chain is dead"*; a full wipe on reading it **only on devices that opted in** (phone, watch); per-device WebDAV passwords, revoked on acknowledgement or after 30 days, or at once on request. §5.8b |
 
 ---
 
