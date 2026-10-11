@@ -6,10 +6,31 @@ the source of truth and is never lost:** it is copied and sent to plugins
 intact, *rendered* sanitized, and on export threats are reported without
 altering it.
 
-## Current Status (2026-07-20)
-History search implemented; English translation complete. Sensitivity: long hex strings (>=32) now Secret; alphanumeric passwords without a special char now classify correctly. User-taught secrets (🔒 button, exact + prefix-pattern learning). Both Credential/Secret get short safe hints (`••••last4` from raw) for distinction (list/tray/modal); tray always derives preview from raw (even old DB items). Tray merges recent + persisted DB history; rebuild now loads history once per cycle instead of twice. Wayland: event-driven `wl-paste --watch` (no constant poll). Poll 250ms + 80ms debounce. Threat registry now includes SQL injection. 67 tests passing. ~93%.
+## Current status (2026-10-11, `0.1.42`)
 
-### ✅ `lapacho-core` (lib, 45 unit + integration tests)
+- **Desktop** (verified on Linux): history
+  encrypted at rest, classification and masking, tray with global shortcut,
+  persistence levels and per-item vault, plugins. Details below.
+- **Android:** a "paste keyboard" with the history, prediction, correction
+  and swipe in seven languages, explicit learning, plugin apps (*Lapacho
+  Terms*). Since `763b72e` the history lives in `lapacho-core`, the same code
+  as desktop. APKs signed with a release key, distributed without Google.
+- **Sync:** `lapacho-sync` is a stub. Everything that crosses devices waits
+  for it.
+
+## Now, next, later
+
+What to work on, in order. The sections below hold the detail.
+
+- **Now:** publish the official dictionaries; test the Android build on a
+  real Samsung; the Fabric example plugin for desktop (no code).
+- **Next:** multi-client sync (P4) — it blocks every watch and every second
+  device; then a Wear OS viewer on a Galaxy Watch5 Pro, the watch we have.
+- **Later:** Lapacho Voice, *Lapacho Fabric* on Android, the terms
+  catalogue, own F-Droid repository, Pebble and other open watches, iPhone
+  (after deciding on Apple's distribution).
+
+### ✅ `lapacho-core` (lib)
 
 - `types` — `ClipboardItem` (raw) / `UIClipboardItem` (safe projection) + enums.
 - `detectors` — type classification (text/url/json/svg/mermaid/markdown).
@@ -78,26 +99,31 @@ History search implemented; English translation complete. Sensitivity: long hex 
   (`src-tauri/src/images.rs`), `<img>` in list/modal and **per-item icon in the
   tray**, paste back with `set_image`. Needs GUI testing.
 - [x] Optimize wasm for release (`trunk build --release`): **~406 KB** (from ~2.9 MB dev unoptimized). JS glue ~37 KB. `mermaid.min.js` ~3.2 MB remains separate vendored asset. Release artifacts in `apps/desktop/ui/dist/`. Use for final `cargo tauri build`. (done 2026-06-22)
-- [x] **Título + pin por item** (2026-07-28): 🏷 pone un nombre editable inline (Enter guarda,
-  Esc cancela), cifrado en disco igual que el contenido, e incluido en `search()` — se encuentra
-  el item por lo que *es*, no por lo que dice. 📍/📌 lo marca persistente: exento del cap de
-  100 items de `cleanup()`, y sin consumir slot (pinnear no desaloja al resto). Título y pin son
-  independientes a propósito: *pin sin título* es el caso común ("esto no lo pierdas").
-  **El pin NO es un override de `PersistLevel`**: en modo Paranoia un item sensible nunca llegó
-  al disco, así que pinnearlo solo lo sostiene en memoria esta sesión; y un `Credential`/`Secret`
-  pinneado **igual expira por TTL** — esa garantía no es una preferencia del usuario.
-  Cierra el debate de "pin / guardar en historial" del registro de diseño interno.
-  Tags múltiples: no, hasta que buscar por título se quede corto. *Falta prueba GUI real.*
-- [x] **Bóveda por item** (2026-07-28, decisión explícita del usuario): 💾 fuerza a disco un item
-  que el `PersistLevel` activo rechaza, y lo exime del TTL de sensibles. **Es la única
-  perforación deliberada de la política de persistencia**, y solo se abre por item y por acto
-  explícito. Activar no puede ser un `UPDATE` (en Paranoia el item nunca se escribió): pasa por
-  `save()` con el flag ya puesto. Desactivar **re-aplica el nivel activo en el acto** — si el
-  nivel lo prohíbe, se borra del disco ya, no en el próximo `cleanup()`. En items sensibles el
-  botón se arma primero (💾 → ⚠ → confirma) para que un secreto no quede en disco por un click
-  de más. `PersistLevel::persists()` es la única fuente de la regla, usada por `save` y por el
-  des-vaulteo, para que no diverjan. Las etiquetas del selector dicen "salvo bóveda": el modo ya
-  no promete lo que no cumple. *Falta prueba GUI real.*
+- [x] **Title + pin per item** (2026-07-28): 🏷 sets a name, edited inline
+  (Enter saves, Esc cancels), encrypted on disk like the content and included
+  in `search()` — an item is found by what it *is*, not by what it says.
+  📍/📌 makes it persistent: exempt from `cleanup()`'s 100-item cap, and it
+  takes no slot (pinning evicts nothing). Title and pin are independent on
+  purpose: *a pin without a title* is the common case ("don't lose this").
+  **A pin does NOT override `PersistLevel`**: in Paranoia a sensitive item
+  never reached the disk, so pinning only holds it in memory this session;
+  and a pinned `Credential`/`Secret` **still expires by TTL** — that
+  guarantee is not a user preference. Closes the "pin / keep in history"
+  debate from the internal design log. Multiple tags: no, until searching by
+  title falls short. *Needs a real GUI test.*
+- [x] **Per-item vault** (2026-07-28, an explicit user decision): 💾 forces to
+  disk an item the active `PersistLevel` rejects, and exempts it from the
+  sensitive TTL. **It is the only deliberate hole in the persistence policy**,
+  opened per item and by an explicit act. Turning it on can't be an `UPDATE`
+  (in Paranoia the item was never written): it goes through `save()` with the
+  flag already set. Turning it off **re-applies the active level at once** —
+  if the level forbids the item, it is deleted from disk now, not at the next
+  `cleanup()`. On sensitive items the button arms first (💾 → ⚠ → confirm),
+  so a secret doesn't land on disk from one click too many.
+  `PersistLevel::persists()` is the rule's only source, used by `save` and by
+  un-vaulting, so they can't diverge. The selector's labels say "except
+  vault": the mode no longer promises what it doesn't do. *Needs a real GUI
+  test.*
 - [x] **Desktop: "About…" in the tray** — "About Lapacho…" opens the
   toolkit's About dialog (GTK `AboutDialog` on Linux, a message box on
   Windows, the standard panel on macOS): version, licence, authors, links to
@@ -114,19 +140,23 @@ History search implemented; English translation complete. Sensitivity: long hex 
 
 ### 🔐 Security
 
-- [x] **(ALTA) Bajar el nivel de persistencia no purga lo que el nivel nuevo prohíbe.** El nivel
-  solo gobierna escrituras *nuevas*: pasar a Paranoia no borra lo que Balanced/All ya escribió, y
-  con `sensitive_ttl_secs=off` nada lo purga después — el TTL es el único mecanismo que lo haría.
-  Resultado: credenciales y secretos en disco mientras la UI dice "Paranoia". No es fuga de texto
-  plano (sigue cifrado con la master key); el problema es que la etiqueta te hace creer que ya no
-  están. Encontrado 2026-07-29 en la DB real: 22 sensibles en disco (5 Secret, 1 Credential,
-  16 Personal) con `persist_level=none`. Documentado en `CHANGELOG.md` con el SQL para revisar y
-  limpiar. **Resuelto 2026-07-29**: `HistoryRepo::purge_forbidden` + llamada en `set_persist_level`.
-  Se hace solo, no se ofrece: elegir Paranoia *es* la confirmación, y un diálogo que se puede
-  cancelar deja el estado que el usuario cree haber descartado. Respeta `vaulted` (override
-  explícito por item) pero **no** `pinned` — pinear exime del tope de tamaño, nunca del nivel ni
-  del TTL. Volver a elegir el nivel actual re-aplica la purga, que es la vía de limpieza para
-  quien ya tiene historial viejo.
+- [x] **(HIGH) Lowering the persistence level didn't purge what the new
+  level forbids.** The level only governed *new* writes: switching to
+  Paranoia didn't delete what Balanced/All had written, and with
+  `sensitive_ttl_secs=off` nothing purged it later — the TTL was the only
+  mechanism that would. Result: credentials and secrets on disk while the UI
+  said "Paranoia". Not a plaintext leak (still encrypted with the master
+  key); the problem is a label that makes you believe they're gone. Found
+  2026-07-29 in the real DB: 22 sensitive items on disk (5 Secret, 1
+  Credential, 16 Personal) with `persist_level=none`; `CHANGELOG.md` has the
+  SQL to review and clean them. **Fixed 2026-07-29**:
+  `HistoryRepo::purge_forbidden`, called from `set_persist_level`. It just
+  happens, it isn't offered: choosing Paranoia *is* the confirmation, and a
+  dialog that can be cancelled leaves the state the user believes they
+  discarded. It respects `vaulted` (an explicit per-item override) but **not**
+  `pinned` — a pin exempts from the size cap, never from the level or the
+  TTL. Choosing the current level again re-applies the purge, which is the
+  way to clean an old history.
 - [x] Replace the regex SVG sanitizer with a real parser (`ammonia`) — done.
 - [x] Long hex classification as Secret + distinction hints (see above).
 - [x] Password-heuristic gap: classifier required all 4 char classes
@@ -302,28 +332,19 @@ History search implemented; English translation complete. Sensitivity: long hex 
   screenshots), the repo's own signing key for the index, and a step in
   `release.sh`/CI that adds each release's APKs and re-signs the index.
 - [ ] Decide whether to version `apps/desktop/src-tauri/gen/` (generated capabilities).
-- [ ] **Mobile (Android-first)** — design in `docs/ARQUITECTURA_MOBILE_ANDROID.md` +
-  the internal mobile design debate. Decided: **no fork** of an existing
-  keyboard (FlorisBoard/HeliBoard ruled out); IME positioned as a
-  "paste keyboard" (KeePassDX Magikeyboard pattern), HeliBoard read only as a
-  lifecycle/accessibility reference. P0 spike scaffolded at
-  `apps/mobile/android/` (Kotlin-only: `storage` module with SQLite +
-  Keystore AES-GCM, one `:app` module with companion `MainActivity` + IME
-  service in its own `:ime` process) — **written blind, not yet built or run**
-  (no Android SDK/NDK in this environment; needs verification on a machine
-  with Android Studio). P1 done: `rust-bridge` exposes `MobileCore` (uniffi).
-- [x] **Mobile: delete the Kotlin `storage` module** (2026-10-09: gone; the app's `History.kt` wraps `MobileCore`, the old store is imported once) — `HistoryRepo.kt` + `Types.kt`
-  (225 lines) duplicate `MobileCore` and have already diverged: no
-  `title`/`pinned`/`vaulted`, no search, no `get_by_id`, and a plain SHA-256
-  `contentId` instead of the keyed hash — so mobile and desktop compute
-  *different ids for the same content*, which breaks sync dedup in P4.
-  `LapachoCipher.kt` shrinks to Keystore key get/create + `wipeKey()`
-  (a real Android API, the one thing Rust can't do); its encrypt/decrypt go to
-  `lapacho-core`. Rule, per the internal mobile design debate and the
-  same pattern Tauri's own mobile plugins use: **Kotlin only where an Android
-  system API lives** (IME service, Activity, Keystore), everything else Rust.
-  **Plan:** `docs/MIGRACION_MOBILE_RUST.md`. Requiere Android SDK/NDK. **Leo debe
-  ejecutar** (no puedo probar sin SDK/NDK).
+- [x] **Mobile (Android-first)** — design in `docs/ARQUITECTURA_MOBILE_ANDROID.md`.
+  Decided: **no fork** of an existing keyboard (FlorisBoard/HeliBoard ruled
+  out); the IME is a "paste keyboard" (KeePassDX Magikeyboard pattern),
+  HeliBoard read only as a lifecycle/accessibility reference. Built and
+  released as APKs; `rust-bridge` exposes `MobileCore` (UniFFI).
+  Builds run on minisforum, where the Android SDK/NDK live.
+- [x] **Mobile: delete the Kotlin `storage` module** (2026-10-09) — gone; the
+  app's `History.kt` wraps `MobileCore` and the old store is imported once.
+  It duplicated `MobileCore` and had diverged (no title/pin/vault, no search,
+  a plain SHA-256 `contentId`, so phone and desktop computed *different ids
+  for the same content*). Rule: **Kotlin only where an Android system API
+  lives** (IME service, Activity, Keystore), everything else Rust — see
+  `docs/DECISIONS.md`. Plan as it was: `docs/MIGRACION_MOBILE_RUST.md`.
 - [ ] **Mobile: predictive keyboard** — design in
   `docs/ARQUITECTURA_MOBILE_ANDROID.md` §6, decisions in `docs/DECISIONS.md`.
   Done: `lapacho-predict` (prefix completion over a word list, accent- and
@@ -407,6 +428,40 @@ History search implemented; English translation complete. Sensitivity: long hex 
   - **Out of scope here:** Chinese and Japanese are not a layout problem — they
     need a conversion engine (pinyin/kana → characters, with a candidate list)
     and have no spaces to find a word by. A separate project if ever.
+- [ ] **Fabric patterns as plugins** (idea 2026-10-11) — summarize, extract
+  wisdom, any pattern, run on a clip against the user's own model server.
+  - **Desktop:** nothing to build, an example in `plugins/examples/` — a JSON
+    definition that runs `fabric -p "$LAPACHO_PARAM_PATTERN"` with the clip on
+    standard input (the contract already passes params as environment
+    variables). Fabric uses its own model setup (`fabric --setup`).
+    `timeout_secs` well above the default 30, and `fabric` must be on the
+    `PATH` the autostarted app sees (`~/go/bin` usually isn't). One
+    definition per favourite pattern (*Summarize*, *Extract wisdom*) beats
+    typing a name each time: a typo only shows up as Fabric's error.
+  - **Android:** a plugin app, *Lapacho Fabric*, the generalization of
+    *Lapacho Terms*: same OpenAI-compatible server setting, the pattern's
+    `system.md` as the system prompt, the clip as the user message. Patterns
+    imported from a Fabric checkout like the dictionaries, not downloaded by
+    Lapacho. *Analyse terms* could become one more pattern.
+  - Masked clips never reach a plugin, so a pattern never sees a secret.
+  - **Sovereign by default, an outside model only after a warning** — the
+    rule for every plugin app that talks to a model (Terms, Fabric, Voice's
+    server mode):
+    - No server comes preconfigured; with none set the plugin does nothing.
+    - A server on the phone itself, the LAN or the WireGuard range is
+      treated as the user's. Any other address asks once, when it is saved:
+      "is this server yours?" — the app can't tell a hostname the user runs
+      from a provider's. A "no" shows the warning: the clip's text leaves
+      for a third party, which may keep it, log it or train on it. It stays
+      on until removed, and the plugin's screen marks every run that goes
+      out.
+    - Patterns are public text (Fabric is MIT): imported from a file or a
+      Fabric checkout; the plugin app may fetch them from Fabric's
+      repository on request, never Lapacho itself.
+    - A model on the phone (llama.cpp, 1–4B) would close the loop with no
+      server at all; measure speed, RAM and battery before promising it.
+    - Desktop: the example uses Fabric's own model setting, which Lapacho
+      can't see, so the warning is documentation there, not a check.
 - [ ] **Speech to text, sovereign, in every language** (idea 2026-10-09,
   research the same day) — dictate instead of typing, recognized on the
   device or on your own server: no audio and no text go anywhere else.
@@ -468,9 +523,112 @@ History search implemented; English translation complete. Sensitivity: long hex 
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
   hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;
   Authentik optional for relay authz only. Per-item `sync_eligible`; secrets iff paranoia allows.
-  Companion/desktop network only. Not started (P4).
+  Companion/desktop network only. Not started (P4): `lapacho-sync` is a
+  stub. **It blocks every item below that crosses devices.**
+- [ ] **Sovereign Lapacho on every phone and watch** (idea 2026-10-11) — the
+  same client, local and encrypted, wherever the user's devices are.
+  - **Blocked by sync.** No watch work starts until two real clients exchange
+    an encrypted clip end to end (P4's exit criterion). A Wear OS viewer
+    could talk to the phone over the Data Layer without sync, but then the
+    watch protocol is designed before the sync one and the two have to be
+    reconciled later; not worth it.
+  - **First watch: Wear OS on a Galaxy Watch5 Pro** — the one we wear, so
+    it gets tested on real hardware every day.
+  - **A lost or stolen watch** — decided before the protocol, because it
+    shapes it:
+    - Clips live only in the watch's memory, never on its disk; the watch
+      asks the phone each time it shows the list.
+    - The watch forgets everything when it is unpaired, taken off the wrist,
+      or out of the phone's reach for more than a few minutes.
+    - "Forget this watch" on the phone revokes its pairing key, so a stolen
+      watch that is still paired gets nothing more.
+    - What the watch can ask for is capped by the paranoia level on the
+      phone; the watch never decides what it may see.
 
-**Recent decision:** Global shortcut changed from Ctrl+Shift+V (too common in terminals, editors, browsers) to **Ctrl+Shift+Alt+L** (Lapacho-exclusive).
+  Order is by cost, cheapest first:
+  - **Samsung, Pixel, any Android phone:** already the target, nothing new to
+    build. Test on a real Samsung (One UI ships its own keyboard and
+    clipboard, and its battery manager kills background apps harder than
+    stock Android).
+  - **Wear OS watches** (Pixel Watch, Galaxy Watch 4 and later, TicWatch,
+    Oppo; Galaxy Watch 3 and older run Tizen and are out): an Android app,
+    so Kotlin and the same Rust core. Not a keyboard — typing on a watch is
+    Lapacho Voice's job. **A clipboard viewer that keeps the paranoia
+    levels:** the phone decides what reaches the watch with the same rules
+    as the sync above, and the watch shows secrets masked like everywhere
+    else.
+    - **Revealing a secret's full text** (reading a Wi-Fi password or a code
+      off the wrist): only if the paranoia level allows secrets on the watch
+      at all, only while the watch is locked to the wrist (Wear OS screen
+      lock + off-wrist detection), on a tap, hidden again after a few seconds
+      and on wrist-down. A watch face is read by whoever sits next to you.
+    - **Plugins run on the phone, the watch triggers them:** a plugin takes a
+      clip's text and saves a new clip, so the watch sends "run X on clip N"
+      over the Data Layer and shows the result. The same plugins as on the
+      phone, nothing to rewrite. A watch-only plugin only when it needs the
+      watch itself (showing a clip as a QR code to scan from another device,
+      say) — none planned yet.
+    - **Dictation and a recorder on the watch are not plugins:** a plugin
+      starts from a clip's text, and these start from audio and *make* a
+      clip. They are Lapacho Voice's watch side: the watch records
+      (hold-to-talk for dictation, a recording for a meeting), hands the
+      audio to Lapacho Voice on the phone over the Data Layer, and the
+      transcript comes back as a clip. Summarizing it or running a Fabric
+      pattern on it is then an ordinary plugin (above), launched from the
+      watch like any other. Long recordings drain a watch; the phone stays
+      the better recorder for a meeting.
+  - **iPhone:** a custom keyboard extension plus a container app, the core
+    bound to Swift. A separate design (`ARQUITECTURA_MOBILE_ANDROID.md` P3.4):
+    the extension needs "Allow Full Access" to read the pasteboard or share
+    storage with the app, runs under a tight memory limit (tens of MB, the
+    predictor's buffer has to fit), and iOS lets no app read the clipboard in
+    the background, so the history only grows from what passes through the
+    keyboard or the share sheet. **Distribution is the catch:** the App Store
+    or the EU alternative marketplaces, both behind a paid Apple developer
+    account and Apple's review or notarization — the opposite of the
+    "without Google" stance on Android. Decide before writing code whether
+    that is acceptable; a free account's sideload expires every 7 days.
+    Building needs a Mac or a macOS CI runner.
+  - **Apple Watch:** a watchOS viewer like the Wear OS one, after the iPhone.
+    watchOS takes no third-party keyboards.
+  - **Chinese watches:** most aren't programmable. Amazfit (Zepp OS) runs
+    JavaScript mini-apps with an open SDK and developer-mode sideloading — a
+    viewer is feasible. Huawei (HarmonyOS, ArkTS, AppGallery only) and
+    Xiaomi (Vela quick apps) are closed stores; the cheap ones (Da Fit,
+    FitCloudPro firmware) run no third-party code at all, only
+    notifications. Out unless a user asks for a specific model.
+  - **Open watches** (looked up 2026-10-11, not tried on hardware):
+    - **Pebble** (Core Time 2, Core 2 Duo): PebbleOS, the phone app and the
+      tools fully open since Nov 2025; has a microphone, so dictation fits.
+      The most open target after Wear OS. Its speech recognition (Wispr
+      Flow) is proprietary — we'd use Lapacho Voice's.
+    - **Bangle.js 2:** Espruino, apps in JavaScript, hundreds of community
+      apps; no microphone. A viewer is feasible.
+    - **UNA:** repairable sports watch, own FreeRTOS-based OS, MIT SDK;
+      Kickstarter 2025, shipping status unconfirmed. Watch it.
+    - **PineTime (InfiniTime, GPLv3):** apps are compiled into the firmware,
+      so supporting it means maintaining a firmware fork. Low priority.
+    - **AsteroidOS:** Linux on old Wear OS watches, Qt/QML apps; few users.
+    - **Notifications, outside Lapacho** (idea 2026-10-11): the same channel
+      (the chain plus our own phone–watch link) could mirror any app's
+      notifications to the watch and send replies back
+      (`NotificationListenerService` + the notification's reply action),
+      with no vendor app or Google Play services in between — what
+      Gadgetbridge does for open watches, end to end encrypted. **A
+      separate app, not Lapacho:** notification access reads every
+      notification, 2FA codes included, and an app holding that plus a
+      network or Bluetooth link is an exfiltration tool if compromised; it
+      must not share a process or a permission set with the clipboard. It
+      reuses `lapacho-sync`'s transports; replies typed by voice reuse
+      Lapacho Voice. Check first: Android 15 redacts OTPs to listeners that
+      aren't trusted, sideloaded apps need "allow restricted settings" before
+      they can get notification access, and on a Galaxy Watch the official
+      mirroring keeps running alongside unless turned off.
+    - **One way in for all of them: a *Lapacho Watch* plugin app** on the
+      phone holding the Bluetooth permission, so the keyboard keeps none,
+      talking to a small Lapacho app on each watch. **Not through
+      Gadgetbridge's broadcast intents:** a broadcast reaches any app on the
+      phone, which is a clipboard leak.
 
 ## We do not use
 

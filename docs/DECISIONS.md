@@ -305,3 +305,63 @@ guarantee against the attacker it appears to address.
 What is actually achievable is narrower and is what the code does: keep the
 plaintext window short (`zeroize` on eviction) and keep those pages out of swap
 (the locked arena).
+
+---
+
+## Sharing more than the rules across platforms
+
+|  |  |
+|---|---|
+| **Rejected** | 2026-10-11, planning iPhone, Wear OS and open watches (design, nothing measured) |
+| **Replaced by** | The rules once in the Rust crates; a native, thin app per platform that calls them |
+
+**The problem it was meant to solve.** Each new target (iPhone, Wear OS,
+Pebble, Bangle.js) looks like a copy of the Android app, and the reflex is a
+base app the targets inherit from, or one cross-platform UI framework for all.
+
+**Why it was rejected.** There is nothing to inherit across Rust, Kotlin,
+Swift and a watch's C or JavaScript; what is worth sharing is knowledge, not
+screens. What a secret is, what each paranoia level allows, what a plugin
+receives and what may sync live once in `lapacho-core`, `-predict` and
+`-sync`, and every app calls them — the bridge (`rust-bridge`, UniFFI)
+already builds a `staticlib` and UniFFI also emits Swift, so iOS reuses it.
+Moving Android's history store into the core (`763b72e`) is the pattern.
+Screens stay native (Leptos, Compose, SwiftUI): three UIs for three
+platforms is not duplication, and a shared UI framework would make all three
+worse.
+
+- **Platform needs go through interfaces the platform implements** (reading
+  the clipboard, the secure key store, the sync transport) — UniFFI callback
+  interfaces. The core never names Android or iOS.
+- **An interface only with two real implementations.** The sync transport
+  (LAN, relay) qualifies; a single plugin does not.
+- **Small watches don't run the core.** A Pebble or a Bangle.js has no room
+  for it; they display what the phone already decided to show, so the
+  paranoia rules are never copied onto a watch. Phone and watches speak one
+  message format (list clips, reveal one, run a plugin), defined once in the
+  core.
+- `apps/mobile/android/rust-bridge` moves to `crates/lapacho-ffi` when iOS
+  starts, not before.
+
+**When to reopen.** If a rule turns up implemented twice (in Kotlin and
+Swift, say), it moves into the core. If two platforms' screens turn out to
+be the same screen kept in sync by hand for months, a shared UI layer is
+worth measuring then.
+
+## Reaching watches through Gadgetbridge's broadcast intents
+
+|  |  |
+|---|---|
+| **Rejected** | 2026-10-11, looking for a way to support open watches |
+| **Replaced by** | *Lapacho Watch*, a plugin app holding the Bluetooth permission and talking to a small Lapacho app on each watch |
+
+Gadgetbridge already talks to Bangle.js, PineTime, Pebble, Amazfit and more,
+and other apps can push data through it with Android broadcast intents. A
+broadcast reaches any app on the phone that listens for it, so every clip
+sent to the watch would be readable by any installed app: a clipboard leak
+by design (a user on the Espruino forum flagged the same route as a security
+risk). The keyboard keeps no Bluetooth permission either way; the plugin app
+carries it, and uninstalling it takes it away.
+
+**When to reopen.** If Gadgetbridge offers a channel restricted to one
+calling app (a bound service checking the caller's signature, say).
