@@ -507,6 +507,8 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 | S8 | Relay trust | Untrusted for confidentiality; trusted for availability / quota only |
 | S9 | Relay (2026-10-11) | **No relay of our own to write:** envelopes are already E2E, so any dumb blob store does — a WebDAV folder the user runs (Nextcloud, `rclone serve webdav`) or S3. One envelope per file; push = PUT, pull = list what's new |
 | S10 | Watches (2026-10-11) | **A watch is one more device on the chain.** Transports are pluggable: a direct Bluetooth/LAN link to the phone (our own, not Google Play services' Data Layer) when the phone is near; the blob store as backup and for standalone watches with Wi-Fi/LTE. "Forget this watch" is device revoke, so it moves up from v2 |
+| S11 | Android sync app (2026-10-11) | **A separate app, *Lapacho Sync***, holding the network and Bluetooth permissions; the keyboard app keeps none |
+| S12 | Google's Data Layer (2026-10-11) | **Optional transport, off by default**, for users who prefer the official phone–watch channel. It carries our envelopes, so Google sees ciphertext and metadata (when, how much, that Lapacho is in use), never the clip; turning it on says so. Built only into a `play` flavor of *Lapacho Sync* and the watch app: `play-services-wearable` is proprietary, and the default `foss` build carries no Google library |
 
 ---
 
