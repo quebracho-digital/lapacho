@@ -469,6 +469,38 @@ History search implemented; English translation complete. Sensitivity: long hex 
   hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;
   Authentik optional for relay authz only. Per-item `sync_eligible`; secrets iff paranoia allows.
   Companion/desktop network only. Not started (P4).
+- [ ] **Sovereign Lapacho on every phone and watch** (idea 2026-10-11) — the
+  same client, local and encrypted, wherever the user's devices are. Order is
+  by cost, cheapest first:
+  - **Samsung, Pixel, any Android phone:** already the target, nothing new to
+    build. Test on a real Samsung (One UI ships its own keyboard and
+    clipboard, and its battery manager kills background apps harder than
+    stock Android).
+  - **Wear OS watches** (Pixel Watch, Galaxy Watch 4 and later, TicWatch,
+    Oppo): an Android app, so Kotlin and the same Rust core. Not a keyboard —
+    typing on a watch is Lapacho Voice's job. A small viewer of the clips the
+    user pins on the phone, delivered by the sync above; secrets never reach
+    the watch unless the paranoia level allows it.
+  - **iPhone:** a custom keyboard extension plus a container app, the core
+    bound to Swift. A separate design (`ARQUITECTURA_MOBILE_ANDROID.md` P3.4):
+    the extension needs "Allow Full Access" to read the pasteboard or share
+    storage with the app, runs under a tight memory limit (tens of MB, the
+    predictor's buffer has to fit), and iOS lets no app read the clipboard in
+    the background, so the history only grows from what passes through the
+    keyboard or the share sheet. **Distribution is the catch:** the App Store
+    or the EU alternative marketplaces, both behind a paid Apple developer
+    account and Apple's review or notarization — the opposite of the
+    "without Google" stance on Android. Decide before writing code whether
+    that is acceptable; a free account's sideload expires every 7 days.
+    Building needs a Mac or a macOS CI runner.
+  - **Apple Watch:** a watchOS viewer like the Wear OS one, after the iPhone.
+    watchOS takes no third-party keyboards.
+  - **Chinese watches:** most aren't programmable. Amazfit (Zepp OS) runs
+    JavaScript mini-apps with an open SDK and developer-mode sideloading — a
+    viewer is feasible. Huawei (HarmonyOS, ArkTS, AppGallery only) and
+    Xiaomi (Vela quick apps) are closed stores; the cheap ones (Da Fit,
+    FitCloudPro firmware) run no third-party code at all, only
+    notifications. Out unless a user asks for a specific model.
 
 **Recent decision:** Global shortcut changed from Ctrl+Shift+V (too common in terminals, editors, browsers) to **Ctrl+Shift+Alt+L** (Lapacho-exclusive).
 
