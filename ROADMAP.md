@@ -423,6 +423,24 @@ History search implemented; English translation complete. Sensitivity: long hex 
     imported from a Fabric checkout like the dictionaries, not downloaded by
     Lapacho. *Analyse terms* could become one more pattern.
   - Masked clips never reach a plugin, so a pattern never sees a secret.
+  - **Sovereign by default, an outside model only after a warning** — the
+    rule for every plugin app that talks to a model (Terms, Fabric, Voice's
+    server mode):
+    - No server comes preconfigured; with none set the plugin does nothing.
+    - A server on the phone itself, the LAN or the WireGuard range is
+      treated as the user's. Any other address asks once, when it is saved:
+      "is this server yours?" — the app can't tell a hostname the user runs
+      from a provider's. A "no" shows the warning: the clip's text leaves
+      for a third party, which may keep it, log it or train on it. It stays
+      on until removed, and the plugin's screen marks every run that goes
+      out.
+    - Patterns are public text (Fabric is MIT): imported from a file or a
+      Fabric checkout; the plugin app may fetch them from Fabric's
+      repository on request, never Lapacho itself.
+    - A model on the phone (llama.cpp, 1–4B) would close the loop with no
+      server at all; measure speed, RAM and battery before promising it.
+    - Desktop: the example uses Fabric's own model setting, which Lapacho
+      can't see, so the warning is documentation there, not a check.
 - [ ] **Speech to text, sovereign, in every language** (idea 2026-10-09,
   research the same day) — dictate instead of typing, recognized on the
   device or on your own server: no audio and no text go anywhere else.
