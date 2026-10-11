@@ -15,8 +15,8 @@ altering it.
   and swipe in seven languages, explicit learning, plugin apps (*Lapacho
   Terms*). Since `763b72e` the history lives in `lapacho-core`, the same code
   as desktop. APKs signed with a release key, distributed without Google.
-- **Sync:** `lapacho-sync` is a stub. Everything that crosses devices waits
-  for it.
+- **Sync:** the core works end to end over WebDAV (Rust, tested); no app
+  uses it yet.
 
 ## Now, next, later
 
@@ -523,8 +523,16 @@ What to work on, in order. The sections below hold the detail.
   (engine, hybrid topology, pairing, Authentik). Own thin `lapacho-sync` (not CRDT/Syncthing vault);
   hybrid self-hosted store-and-forward + LAN/VPN direct; Brave-like chain pair (QR/words) for decrypt keys;
   Authentik optional for relay authz only. Per-item `sync_eligible`; secrets iff paranoia allows.
-  Companion/desktop network only. Not started (P4): `lapacho-sync` is a
-  stub. **It blocks every item below that crosses devices.**
+  **It blocks every item below that crosses devices.**
+  - [x] Core (2026-10-11): chain + 24 words, `may_sync` on
+    `PersistLevel::persists`, sealed envelopes, WebDAV transport, expiry
+    (a week; secrets no longer than on the sender's disk).
+  - [ ] *Lapacho Sync* on Android (its own app, outbox and retry) and the
+    desktop wiring.
+  - [ ] Device revocation — needed in v1 for watches.
+  - [ ] Post-quantum, pending (`ARQUITECTURA_MOBILE_ANDROID.md` §5.9b):
+    hybrid TLS to WebDAV; any public-key crypto added is hybrid ML-KEM /
+    ML-DSA. The clips themselves are already safe (symmetric only).
 - [ ] **Sovereign Lapacho on every phone and watch** (idea 2026-10-11) — the
   same client, local and encrypted, wherever the user's devices are.
   - **Blocked by sync.** No watch work starts until two real clients exchange

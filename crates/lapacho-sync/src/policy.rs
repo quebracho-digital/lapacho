@@ -9,6 +9,8 @@ pub enum Refusal {
     /// The persistence level keeps this sensitivity off the disk, so it
     /// doesn't leave the device either.
     Level,
+    /// A credential or secret past its time on this device.
+    Expired,
 }
 
 impl Refusal {
@@ -16,6 +18,7 @@ impl Refusal {
         match self {
             Refusal::Image => "Images don't sync",
             Refusal::Level => "Your privacy level keeps this item on this device",
+            Refusal::Expired => "This item has expired",
         }
     }
 }

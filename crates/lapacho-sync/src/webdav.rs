@@ -86,6 +86,13 @@ impl Transport for WebDav {
         }
         Ok(out)
     }
+
+    fn delete(&self, sync_id: &str) -> Result<(), String> {
+        match self.request("DELETE", &format!("{}{sync_id}.json", self.folder)).call() {
+            Ok(_) | Err(ureq::Error::Status(404, _)) => Ok(()),
+            Err(e) => Err(err(e)),
+        }
+    }
 }
 
 /// The `<sync_id>.json` names in a PROPFIND answer. Servers differ in the
