@@ -412,7 +412,11 @@ History search implemented; English translation complete. Sensitivity: long hex 
   - **Desktop:** nothing to build, an example in `plugins/examples/` — a JSON
     definition that runs `fabric -p "$LAPACHO_PARAM_PATTERN"` with the clip on
     standard input (the contract already passes params as environment
-    variables).
+    variables). Fabric uses its own model setup (`fabric --setup`).
+    `timeout_secs` well above the default 30, and `fabric` must be on the
+    `PATH` the autostarted app sees (`~/go/bin` usually isn't). One
+    definition per favourite pattern (*Summarize*, *Extract wisdom*) beats
+    typing a name each time: a typo only shows up as Fabric's error.
   - **Android:** a plugin app, *Lapacho Fabric*, the generalization of
     *Lapacho Terms*: same OpenAI-compatible server setting, the pattern's
     `system.md` as the system prompt, the clip as the user message. Patterns
