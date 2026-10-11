@@ -13,11 +13,15 @@ mod chain;
 mod envelope;
 mod policy;
 mod transport;
+#[cfg(feature = "webdav")]
+mod webdav;
 
 pub use chain::Chain;
 pub use envelope::{Envelope, open, seal};
 pub use policy::{Refusal, may_sync};
 pub use transport::{MemoryTransport, Transport};
+#[cfg(feature = "webdav")]
+pub use webdav::WebDav;
 
 use lapacho_core::{ClipboardItem, PersistLevel};
 
@@ -34,8 +38,9 @@ pub enum SendError {
 /// Called on an explicit user act ("Sync to my devices"): the stored
 /// `sync_eligible` flag is not consent, so it isn't read here. Returns the
 /// item's `sync_id`, for the caller to store with it.
-// ponytail: one push, no outbox or retry yet; a persistent queue with backoff
-// comes with the first network transport, where pushes can fail.
+// ponytail: one push, no outbox or retry; a failed send returns `Failed` and
+// the item stays local. A persistent queue with backoff belongs to the app that
+// runs sync (Lapacho Sync on Android), which knows when the network is back.
 pub fn send(
     chain: &Chain,
     device: &str,

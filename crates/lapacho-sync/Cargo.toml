@@ -17,3 +17,9 @@ base64 = { workspace = true }
 blake3 = { workspace = true }
 zeroize = { workspace = true }
 bip39 = "2"
+ureq = { version = "2.12", default-features = false, features = ["tls"], optional = true }
+
+[features]
+# The WebDAV transport (S9). Off by default so the keyboard app, which has
+# no network permission, doesn't carry an HTTP client it can't use.
+webdav = ["dep:ureq"]

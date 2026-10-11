@@ -4,6 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Sync — a WebDAV folder as the mailbox
+
+`lapacho-sync` gains its first network transport, behind the `webdav`
+feature so the keyboard app doesn't carry an HTTP client: any WebDAV folder
+the user runs (Nextcloud, `rclone serve webdav`) holds one file per sealed
+clip, `<chain id>/<sync id>.json`, created on first send. Tested against
+rclone 1.68.2 in Docker: two devices exchange a clip, the same clip twice is
+one file, a wrong password is an error rather than an empty mailbox, and the
+stored files hold only ciphertext. Envelopes don't expire on the server yet.
+
 ### Sync — the core, without a network yet
 
 `lapacho-sync` now does the whole round trip in memory: a chain created on
