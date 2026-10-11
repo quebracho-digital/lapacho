@@ -7,8 +7,10 @@
 //! ```
 #![cfg(feature = "webdav")]
 
-use lapacho_core::{PersistLevel, process_text};
-use lapacho_sync::{Chain, Transport, WebDav, receive, send};
+use lapacho_core::{PersistLevel, RetentionPolicy, process_text};
+use lapacho_sync::{Chain, Transport, WebDav, receive, seal, send};
+
+const R: RetentionPolicy = RetentionPolicy { sensitive_ttl_secs: Some(3600), max_items: 100 };
 
 #[test]
 fn two_devices_through_a_webdav_folder() {
@@ -25,14 +27,21 @@ fn two_devices_through_a_webdav_folder() {
 
     assert!(dav(&phone).pull().unwrap().is_empty(), "missing mailbox should read as empty");
 
-    send(&laptop, "laptop", &process_text("por webdav"), PersistLevel::None, &dav(&laptop)).unwrap();
+    send(&laptop, "laptop", &process_text("por webdav"), PersistLevel::None, &R, &dav(&laptop)).unwrap();
     // Same clip again: same file, overwritten, not a second one.
-    send(&laptop, "laptop", &process_text("por webdav"), PersistLevel::None, &dav(&laptop)).unwrap();
+    send(&laptop, "laptop", &process_text("por webdav"), PersistLevel::None, &R, &dav(&laptop)).unwrap();
     assert_eq!(dav(&laptop).pull().unwrap().len(), 1);
 
     let (got, failed) = receive(&phone, "phone", &dav(&phone)).unwrap();
     assert_eq!((got.len(), failed), (1, 0));
     assert_eq!(got[0].raw_content, "por webdav");
+
+    // An expired envelope is deleted from the server by whoever pulls next.
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    dav(&laptop).push(&seal(&laptop, "laptop", &process_text("vieja"), now).unwrap()).unwrap();
+    assert_eq!(dav(&laptop).pull().unwrap().len(), 2);
+    receive(&phone, "phone", &dav(&phone)).unwrap();
+    assert_eq!(dav(&laptop).pull().unwrap().len(), 1);
 }
 
 #[test]

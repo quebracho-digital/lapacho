@@ -446,6 +446,31 @@ These solve different problems. Mixing them causes either “Authentik can read 
 
 ---
 
+### 5.9b Post-quantum (2026-10-11)
+
+**v1 is symmetric end to end, so a quantum computer gains little against it.**
+The chain seed travels out of band (QR or 24 words), every key derives from
+it with BLAKE3, and clips are sealed with AES-256-GCM; at rest, the same
+cipher. Shor's algorithm breaks public-key crypto (X25519, Ed25519, RSA), and
+there is none on this path. Grover's halves the strength of a symmetric key:
+AES-256 keeps about 128 bits, which is enough. So "harvest now, decrypt
+later" — an envelope copied off the WebDAV folder today — doesn't apply.
+
+What is not post-quantum, and why it's acceptable for now:
+
+- **TLS to the WebDAV server** (rustls; whether its key exchange is the
+  hybrid X25519MLKEM768 depends on the crypto provider, unchecked) protects
+  the folder's password and the headers, not the clips.
+- **Bluetooth pairing** (LE Secure Connections, P-256 ECDH) and Google's
+  Data Layer: our envelopes travel inside them, already sealed.
+
+**The rule for what comes next:** device revocation, per-device keys and
+signatures (v2) bring public-key crypto in. When they do, key exchange is
+hybrid — X25519 + ML-KEM-768 (FIPS 203) — and signatures hybrid Ed25519 +
+ML-DSA (FIPS 204), never classical alone. Revoking a device can also stay
+symmetric: rotate the chain and re-pair the remaining devices by QR, at the
+cost of one scan per device.
+
 ### 5.10 Crate `lapacho-sync` (expanded sketch)
 
 ```

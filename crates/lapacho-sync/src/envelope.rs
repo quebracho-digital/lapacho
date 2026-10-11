@@ -25,6 +25,9 @@ pub struct Envelope {
     pub sender: String,
     /// Unix seconds.
     pub created_at: u64,
+    /// Unix seconds. Past it, receivers don't import the envelope and delete
+    /// it from the transport, so the mailbox is a hand-off, not an archive.
+    pub expires_at: u64,
     /// `base64(nonce || AES-256-GCM(payload))`, the header as associated data.
     pub ciphertext: String,
 }
@@ -46,6 +49,7 @@ impl Envelope {
             out.extend_from_slice(f.as_bytes());
         }
         out.extend_from_slice(&self.created_at.to_be_bytes());
+        out.extend_from_slice(&self.expires_at.to_be_bytes());
         out
     }
 }
@@ -54,14 +58,21 @@ fn cipher(chain: &Chain) -> Aes256Gcm {
     Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(chain.key()))
 }
 
-/// Seals `item` for every device of `chain`.
-pub fn seal(chain: &Chain, sender: &str, item: &ClipboardItem) -> Result<Envelope, String> {
+/// Seals `item` for every device of `chain`, to be dropped at `expires_at`
+/// (see [`crate::expires_at`]).
+pub fn seal(
+    chain: &Chain,
+    sender: &str,
+    item: &ClipboardItem,
+    expires_at: u64,
+) -> Result<Envelope, String> {
     let mut env = Envelope {
         v: VERSION,
         chain_id: chain.id().to_string(),
         sync_id: chain.sync_id(&item.raw_content),
         sender: sender.to_string(),
         created_at: now_secs(),
+        expires_at,
         ciphertext: String::new(),
     };
     let plain = Zeroizing::new(
@@ -90,6 +101,9 @@ pub fn seal(chain: &Chain, sender: &str, item: &ClipboardItem) -> Result<Envelop
 pub fn open(chain: &Chain, env: &Envelope) -> Result<ClipboardItem, String> {
     if env.v != VERSION {
         return Err(format!("unknown envelope version {}", env.v));
+    }
+    if env.expires_at <= now_secs() {
+        return Err("envelope expired".into());
     }
     let blob = STANDARD.decode(&env.ciphertext).map_err(|e| e.to_string())?;
     if blob.len() < NONCE_LEN {
@@ -120,7 +134,7 @@ pub fn open(chain: &Chain, env: &Envelope) -> Result<ClipboardItem, String> {
     Ok(item)
 }
 
-fn now_secs() -> u64 {
+pub(crate) fn now_secs() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -131,6 +145,8 @@ fn now_secs() -> u64 {
 mod tests {
     use super::*;
 
+    const FAR: u64 = u64::MAX;
+
     fn chain() -> Chain {
         Chain::create().unwrap()
     }
@@ -140,7 +156,7 @@ mod tests {
         let c = chain();
         let mut item = process_text("hola mundo");
         item.title = Some("saludo".into());
-        let env = seal(&c, "laptop", &item).unwrap();
+        let env = seal(&c, "laptop", &item, FAR).unwrap();
         assert!(!env.ciphertext.contains("hola"));
         let back = open(&c, &env).unwrap();
         assert_eq!(back.raw_content, "hola mundo");
@@ -150,18 +166,19 @@ mod tests {
 
     #[test]
     fn another_chain_cant_open() {
-        let env = seal(&chain(), "laptop", &process_text("x")).unwrap();
+        let env = seal(&chain(), "laptop", &process_text("x"), FAR).unwrap();
         assert!(open(&chain(), &env).is_err());
     }
 
     #[test]
     fn header_is_bound() {
         let c = chain();
-        let env = seal(&c, "laptop", &process_text("x")).unwrap();
+        let env = seal(&c, "laptop", &process_text("x"), FAR).unwrap();
         for tamper in [
             |e: &mut Envelope| e.sender = "phone".into(),
             |e: &mut Envelope| e.created_at += 1,
             |e: &mut Envelope| e.sync_id = "0".repeat(64),
+            |e: &mut Envelope| e.expires_at -= 1, // extending it would need the key too
         ] {
             let mut bad = env.clone();
             tamper(&mut bad);
@@ -174,7 +191,7 @@ mod tests {
         let c = chain();
         let mut item = process_text("just words");
         item.sensitivity = Sensitivity::Secret; // taught on the sender
-        let back = open(&c, &seal(&c, "laptop", &item).unwrap()).unwrap();
+        let back = open(&c, &seal(&c, "laptop", &item, FAR).unwrap()).unwrap();
         assert_eq!(back.sensitivity, Sensitivity::Secret);
         assert_ne!(back.display_content, "just words");
     }
@@ -182,9 +199,16 @@ mod tests {
     #[test]
     fn same_clip_same_id() {
         let c = chain();
-        let a = seal(&c, "laptop", &process_text("same")).unwrap();
-        let b = seal(&c, "phone", &process_text("same")).unwrap();
+        let a = seal(&c, "laptop", &process_text("same"), FAR).unwrap();
+        let b = seal(&c, "phone", &process_text("same"), FAR).unwrap();
         assert_eq!(a.sync_id, b.sync_id);
         assert_ne!(a.ciphertext, b.ciphertext);
+    }
+
+    #[test]
+    fn an_expired_envelope_does_not_open() {
+        let c = chain();
+        let env = seal(&c, "laptop", &process_text("x"), now_secs()).unwrap();
+        assert_eq!(open(&c, &env).unwrap_err(), "envelope expired");
     }
 }

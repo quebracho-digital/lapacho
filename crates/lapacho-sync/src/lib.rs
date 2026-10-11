@@ -23,7 +23,24 @@ pub use transport::{MemoryTransport, Transport};
 #[cfg(feature = "webdav")]
 pub use webdav::WebDav;
 
-use lapacho_core::{ClipboardItem, PersistLevel};
+use lapacho_core::{ClipboardItem, PersistLevel, RetentionPolicy, Sensitivity};
+
+/// How long an envelope waits in the mailbox for the other devices: a week,
+/// so a device that was off for a few days still gets it.
+pub const MAILBOX_TTL_SECS: u64 = 7 * 24 * 3600;
+
+/// When `item`'s envelope must leave the mailbox. A credential or secret
+/// leaves no later than it leaves this device's disk — the local TTL counts
+/// from when it was copied, so the remote one does too (§5.3, rule 3).
+pub fn expires_at(item: &ClipboardItem, retention: &RetentionPolicy) -> u64 {
+    let mailbox = envelope::now_secs().saturating_add(MAILBOX_TTL_SECS);
+    match (item.sensitivity, retention.sensitive_ttl_secs) {
+        (Sensitivity::Credential | Sensitivity::Secret, Some(ttl)) => {
+            mailbox.min(item.timestamp.saturating_add(ttl))
+        }
+        _ => mailbox,
+    }
+}
 
 /// Why [`send`] didn't send.
 #[derive(Debug, PartialEq, Eq)]
@@ -46,18 +63,26 @@ pub fn send(
     device: &str,
     item: &ClipboardItem,
     level: PersistLevel,
+    retention: &RetentionPolicy,
     transport: &dyn Transport,
 ) -> Result<String, SendError> {
     may_sync(item, level).map_err(SendError::Refused)?;
-    let env = seal(chain, device, item).map_err(SendError::Failed)?;
+    let expires = expires_at(item, retention);
+    if expires <= envelope::now_secs() {
+        return Err(SendError::Refused(Refusal::Expired));
+    }
+    let env = seal(chain, device, item, expires).map_err(SendError::Failed)?;
     transport.push(&env).map_err(SendError::Failed)?;
     Ok(env.sync_id)
 }
 
-/// Pulls the chain's envelopes and opens those from other devices. Returns
+/// Pulls the chain's envelopes, deletes the expired ones from the transport
+/// (whoever sent them: any device of the chain cleans up), and opens those
+/// from other devices. Returns
 /// the items, ready for `HistoryRepo::save` (which applies this device's
 /// `PersistLevel` and dedups what it already has), and how many envelopes
-/// failed to open: tampered, or sealed with another key.
+/// failed to open: tampered, or sealed with another key. A failed delete fails
+/// the whole call, so an expired secret left on the server doesn't go unseen.
 pub fn receive(
     chain: &Chain,
     device: &str,
@@ -65,7 +90,14 @@ pub fn receive(
 ) -> Result<(Vec<ClipboardItem>, usize), String> {
     let mut items = Vec::new();
     let mut failed = 0;
+    let now = envelope::now_secs();
     for env in transport.pull()? {
+        // Read from the header without opening: whoever can forge it can
+        // already delete files from the folder.
+        if env.expires_at <= now {
+            transport.delete(&env.sync_id)?;
+            continue;
+        }
         if env.sender == device || env.chain_id != chain.id() {
             continue;
         }

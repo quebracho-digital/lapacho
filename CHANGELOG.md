@@ -4,6 +4,17 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Sync — envelopes expire
+
+Every envelope carries an expiry, bound to its ciphertext. A clip waits in the
+mailbox a week for the other devices; a credential or secret no longer than
+it stays on the sending device's disk, counted from when it was copied, and
+one already past that doesn't go out. Whoever pulls next deletes what has
+expired, so the server is a hand-off, not an archive. Verified against
+rclone's WebDAV. The design now states the post-quantum position: sync is
+symmetric end to end, and any public-key crypto added later must be hybrid
+(ML-KEM, ML-DSA).
+
 ### Sync — a WebDAV folder as the mailbox
 
 `lapacho-sync` gains its first network transport, behind the `webdav`

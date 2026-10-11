@@ -13,6 +13,8 @@ pub trait Transport {
     /// Every envelope in the mailbox.
     // ponytail: all of them each time; a "since" cursor when mailboxes grow.
     fn pull(&self) -> Result<Vec<Envelope>, String>;
+    /// Removes the envelope with this `sync_id`; already gone is fine.
+    fn delete(&self, sync_id: &str) -> Result<(), String>;
 }
 
 /// In memory, for tests: share one between two "devices".
@@ -28,5 +30,10 @@ impl Transport for MemoryTransport {
 
     fn pull(&self) -> Result<Vec<Envelope>, String> {
         Ok(self.0.lock().map_err(|e| e.to_string())?.values().cloned().collect())
+    }
+
+    fn delete(&self, sync_id: &str) -> Result<(), String> {
+        self.0.lock().map_err(|e| e.to_string())?.remove(sync_id);
+        Ok(())
     }
 }
