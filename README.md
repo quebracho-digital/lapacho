@@ -13,13 +13,16 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > shortcut Ctrl+Shift+Alt+L (Lapacho-exclusive), image support, rich rendering
 > (MD/SVG/Mermaid), and a raw-first security model.
 >
+> **Sync** between devices works end to end in `lapacho-sync` (encrypted
+> envelopes over a WebDAV folder, tested), but no app uses it yet.
+>
 > A copy shows up in ~15 ms, from the clipboard event to the item stored and
 > the tray rebuilt (measured 2026-08-31; see [Diagnostics](#diagnostics) to
 > measure it yourself). Builds for Linux, Windows and macOS (Apple Silicon).
 >
 > **Android** is an early spike, usable day to day: a keyboard with a paste
 > strip, encrypted history, swipe typing, search and replace on a held clip, word suggestions and spelling corrections from
-> on-device dictionaries (Spanish and English bundled, either removable; Italian, Hebrew and your own imported), a layout per language with 🌐 to switch, and the
+> on-device dictionaries (Spanish and English bundled, either removable; Italian, French, German, Brazilian Portuguese, Russian, Hebrew and your own imported), a layout per language with 🌐 to switch, and the
 > same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
 > The app and the keyboard speak English and Spanish.
 > See [Mobile](#mobile).
@@ -102,7 +105,8 @@ comes from here. Earlier APKs carried a debug key: going from one of those to
 - **Transformation plugins:** external commands that receive content via
   `stdin` and the values they ask for via the environment (no command
   injection), with timeout, and whose output is sanitized before display.
-  Search and replace (literal or regex) ships built in.
+  Two ship built in: search and replace (literal or regex) and *Analyse
+  terms*, which turns terms and conditions into a request for an AI assistant.
 - **SQLite history** (WAL mode) with size limit and TTL-based cleanup.
 
 ## Architecture
@@ -112,12 +116,13 @@ Cargo workspace (Rust 2024 edition):
 ```
 lapacho/
 ├─ crates/lapacho-predict/ # Word completion over a dictionary (lib, no I/O)
+├─ crates/lapacho-sync/    # Device chain + sealed envelopes over WebDAV (lib, no app uses it yet)
 ├─ crates/lapacho-core/    # Pure logic, no UI (lib)
 │  ├─ types        # ClipboardItem, UIClipboardItem (safe projection), enums
 │  ├─ detectors    # content type classification
 │  ├─ security     # sanitization + sensitivity classification
-│  ├─ storage      # SQLite: history, persistence levels, TTL
-│  ├─ plugins      # external plugin execution
+│  ├─ storage      # encrypted SQLite: history, persistence levels, TTL
+│  ├─ plugins      # external plugin execution + built-ins (replace, terms)
 │  └─ ingest       # pipeline that composes everything + masking
 ├─ apps/desktop/
 │  ├─ src-tauri/   # Tauri 2 backend (clipboard monitor + commands)
@@ -126,8 +131,8 @@ lapacho/
 └─ apps/mobile/android/
    ├─ app/          # companion app + keyboard (IME), Kotlin
    │  └─ assets/dict/   # bundled word lists (es, en)
-   ├─ dictionaries/ # official importable lists (en, it, he) + NOTICEs
-   ├─ storage/      # encrypted SQLite history, Kotlin (moving to Rust)
+   ├─ dictionaries/ # official importable lists (en, it, fr, de, pt-br, ru, he) + NOTICEs
+   ├─ plugin-terms/ # Lapacho Terms, the first plugin app (separate APK)
    └─ rust-bridge/  # lapacho-core + lapacho-predict for Android via uniffi
 ```
 
@@ -136,7 +141,8 @@ from any frontend.
 
 ### Codebase map
 
-A generated knowledge graph lives at `.ua/knowledge-graph.json`: 310 nodes and
+A generated knowledge graph lives at `.ua/knowledge-graph.json` (last built
+2026-09-23, before sync and the plugin apps): 310 nodes and
 558 edges across 9 architectural layers (security core, word prediction, mobile
 Rust bridge, desktop backend, desktop UI, Android app, tests and payloads,
 documentation, workspace config), plus an 18-step guided tour. The tour walks
@@ -192,7 +198,8 @@ a 🌐 key appears to switch ([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md)).
 **Importing a dictionary on the phone.** Download the `.dict` file from the
 [release](https://github.com/quebracho-digital/lapacho/releases) with the
 phone's browser, then **LANGUAGES → ADD** in the app and pick it in the
-Download folder. Official ones (Italian, Hebrew, English) go straight in;
+Download folder. Official ones (English, Italian, French, German, Brazilian
+Portuguese, Russian, Hebrew) go straight in;
 anything else asks first. The picker is Android's own: the app chooses only
 the folder it opens on, not the order, and on some phones it goes back to
 sorting by name every time even after you pick "date modified". The files
@@ -398,7 +405,7 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
       imported from a file and mixed ([`docs/DICTIONARIES.md`](docs/DICTIONARIES.md))
 - [x] Android: spell correction, offered in the strip and never applied by
       itself (`Predictor::correct`)
-- [x] Android: the built-in plugins (search and replace) on a held clip, in the
+- [x] Android: the built-in plugins (search and replace, analyse terms) on a held clip, in the
       app or from the keyboard's strip — the same Rust code as desktop
 - [x] Android: swipe typing, decoded on the phone by `Predictor::swipe`
       (SHARK2 over the same dictionaries; why not a library:
@@ -410,8 +417,12 @@ or add `LAPACHO_TRACE=1` to the `Exec` line in
 - [x] Desktop: Linux, Windows and macOS installers attached to each GitHub
       release (`.github/workflows/desktop-build.yml`, unsigned)
 - [ ] Desktop: signed installers (Windows code signing, Apple notarization)
-- [ ] Android: storage, keyed ids and persistence levels in Rust
-      ([`docs/MIGRACION_MOBILE_RUST.md`](docs/MIGRACION_MOBILE_RUST.md))
+- [x] Android: history storage and keyed ids in Rust, the same code as desktop
+      (the Kotlin `storage` module is gone)
+- [ ] Android: persistence levels and TTL settings
+- [x] Android: plugin apps — *Lapacho Terms*, a separate APK with its own
+      network permission ([`docs/PLUGINS.md`](docs/PLUGINS.md#plugin-apps-android))
+- [ ] Multi-client sync: core done (`lapacho-sync`), no app uses it yet
 - [x] Custom app icon (artistic design: Argentine blue halo + dark green hexagon + lapacho leaf as circuit with golden nodes; source in `icons/lapacho-source.svg`)
 
 Full details and minor pending items: see [`ROADMAP.md`](ROADMAP.md). What was
