@@ -4,6 +4,12 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — a plugin's result is shown
+
+Running a plugin saved its result as a new clip at the top of the list, but
+behind the open clip's window, which kept showing the original: it looked as
+if nothing had happened. The window now switches to the new clip.
+
 ### Sync — envelopes expire
 
 Every envelope carries an expiry, bound to its ciphertext. A clip waits in the
