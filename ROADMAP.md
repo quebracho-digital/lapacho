@@ -557,6 +557,23 @@ History search implemented; English translation complete. Sensitivity: long hex 
     Xiaomi (Vela quick apps) are closed stores; the cheap ones (Da Fit,
     FitCloudPro firmware) run no third-party code at all, only
     notifications. Out unless a user asks for a specific model.
+  - **Open watches** (looked up 2026-10-11, not tried on hardware):
+    - **Pebble** (Core Time 2, Core 2 Duo): PebbleOS, the phone app and the
+      tools fully open since Nov 2025; has a microphone, so dictation fits.
+      The most open target after Wear OS. Its speech recognition (Wispr
+      Flow) is proprietary — we'd use Lapacho Voice's.
+    - **Bangle.js 2:** Espruino, apps in JavaScript, hundreds of community
+      apps; no microphone. A viewer is feasible.
+    - **UNA:** repairable sports watch, own FreeRTOS-based OS, MIT SDK;
+      Kickstarter 2025, shipping status unconfirmed. Watch it.
+    - **PineTime (InfiniTime, GPLv3):** apps are compiled into the firmware,
+      so supporting it means maintaining a firmware fork. Low priority.
+    - **AsteroidOS:** Linux on old Wear OS watches, Qt/QML apps; few users.
+    - **One way in for all of them: a *Lapacho Watch* plugin app** on the
+      phone holding the Bluetooth permission, so the keyboard keeps none,
+      talking to a small Lapacho app on each watch. **Not through
+      Gadgetbridge's broadcast intents:** a broadcast reaches any app on the
+      phone, which is a clipboard leak.
 
 **Recent decision:** Global shortcut changed from Ctrl+Shift+V (too common in terminals, editors, browsers) to **Ctrl+Shift+Alt+L** (Lapacho-exclusive).
 
