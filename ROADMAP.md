@@ -609,6 +609,21 @@ What to work on, in order. The sections below hold the detail.
     - **PineTime (InfiniTime, GPLv3):** apps are compiled into the firmware,
       so supporting it means maintaining a firmware fork. Low priority.
     - **AsteroidOS:** Linux on old Wear OS watches, Qt/QML apps; few users.
+    - **Notifications, outside Lapacho** (idea 2026-10-11): the same channel
+      (the chain plus our own phone–watch link) could mirror any app's
+      notifications to the watch and send replies back
+      (`NotificationListenerService` + the notification's reply action),
+      with no vendor app or Google Play services in between — what
+      Gadgetbridge does for open watches, end to end encrypted. **A
+      separate app, not Lapacho:** notification access reads every
+      notification, 2FA codes included, and an app holding that plus a
+      network or Bluetooth link is an exfiltration tool if compromised; it
+      must not share a process or a permission set with the clipboard. It
+      reuses `lapacho-sync`'s transports; replies typed by voice reuse
+      Lapacho Voice. Check first: Android 15 redacts OTPs to listeners that
+      aren't trusted, sideloaded apps need "allow restricted settings" before
+      they can get notification access, and on a Galaxy Watch the official
+      mirroring keeps running alongside unless turned off.
     - **One way in for all of them: a *Lapacho Watch* plugin app** on the
       phone holding the Bluetooth permission, so the keyboard keeps none,
       talking to a small Lapacho app on each watch. **Not through

@@ -505,6 +505,8 @@ Sync is **cross-shell**: not “Android-only”. Scheduling:
 | S6 | Without Authentik | Chain + device signatures still work on LAN/WG or private relay API key |
 | S7 | Encrypt model v1 | Shared chain key (all my devices); pairwise later if needed |
 | S8 | Relay trust | Untrusted for confidentiality; trusted for availability / quota only |
+| S9 | Relay (2026-10-11) | **No relay of our own to write:** envelopes are already E2E, so any dumb blob store does — a WebDAV folder the user runs (Nextcloud, `rclone serve webdav`) or S3. One envelope per file; push = PUT, pull = list what's new |
+| S10 | Watches (2026-10-11) | **A watch is one more device on the chain.** Transports are pluggable: a direct Bluetooth/LAN link to the phone (our own, not Google Play services' Data Layer) when the phone is near; the blob store as backup and for standalone watches with Wi-Fi/LTE. "Forget this watch" is device revoke, so it moves up from v2 |
 
 ---
 
