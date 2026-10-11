@@ -230,6 +230,14 @@ Indicative matrix (tune in implementation; document defaults in settings UI):
 | **Sensitive** | If eligible | If eligible | If eligible + short remote TTL | **No** by default |
 | **All** | If eligible | If eligible | If eligible | **If eligible** (user must opt in per item) |
 
+**As built (2026-10-11, `lapacho_sync::may_sync`):** an item syncs iff
+`PersistLevel::persists(sensitivity)` — the same rule as the disk, so the two
+can't drift. Stricter than the matrix above in one cell: `Personal` under
+`None` stays local. The per-item vault doesn't open this gate, and images
+don't sync in v1. `send` runs on the explicit user act; the stored
+`sync_eligible` column (defaulted to true before sync existed) is not read as
+consent.
+
 Rules of thumb:
 
 1. **`sync_eligible` never overrides “policy says no”.** UI disables the action and explains why.  
