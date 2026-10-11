@@ -477,10 +477,23 @@ History search implemented; English translation complete. Sensitivity: long hex 
     clipboard, and its battery manager kills background apps harder than
     stock Android).
   - **Wear OS watches** (Pixel Watch, Galaxy Watch 4 and later, TicWatch,
-    Oppo): an Android app, so Kotlin and the same Rust core. Not a keyboard —
-    typing on a watch is Lapacho Voice's job. A small viewer of the clips the
-    user pins on the phone, delivered by the sync above; secrets never reach
-    the watch unless the paranoia level allows it.
+    Oppo; Galaxy Watch 3 and older run Tizen and are out): an Android app,
+    so Kotlin and the same Rust core. Not a keyboard — typing on a watch is
+    Lapacho Voice's job. **A clipboard viewer that keeps the paranoia
+    levels:** the phone decides what reaches the watch with the same rules
+    as the sync above, and the watch shows secrets masked like everywhere
+    else.
+    - **Revealing a secret's full text** (reading a Wi-Fi password or a code
+      off the wrist): only if the paranoia level allows secrets on the watch
+      at all, only while the watch is locked to the wrist (Wear OS screen
+      lock + off-wrist detection), on a tap, hidden again after a few seconds
+      and on wrist-down. A watch face is read by whoever sits next to you.
+    - **Plugins run on the phone, the watch triggers them:** a plugin takes a
+      clip's text and saves a new clip, so the watch sends "run X on clip N"
+      over the Data Layer and shows the result. The same plugins as on the
+      phone, nothing to rewrite. A watch-only plugin only when it needs the
+      watch itself (showing a clip as a QR code to scan from another device,
+      say) — none planned yet.
   - **iPhone:** a custom keyboard extension plus a container app, the core
     bound to Swift. A separate design (`ARQUITECTURA_MOBILE_ANDROID.md` P3.4):
     the extension needs "Allow Full Access" to read the pasteboard or share
