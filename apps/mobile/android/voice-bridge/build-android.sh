@@ -21,8 +21,10 @@ done
 # Bindings from an unstripped host build, as in rust-bridge/build-android.sh.
 # Its own target directory: with the Android archive already in the shared
 # one, sherpa-onnx-sys 1.13.8 doesn't fetch the host's libraries and the
-# link fails.
-host="$target/voice-bindgen"
+# link fails. Outside target/, next to OUT in Gradle's build folder, so CI's
+# Rust cache, which empties sherpa-onnx's folder but keeps the build script's
+# result, never sees it.
+host="$(dirname "$out")/voice-host-target"
 CARGO_TARGET_DIR="$host" cargo build -q -p lapacho-voice-bridge
 CARGO_TARGET_DIR="$host" cargo run -q -p lapacho-voice-bridge --features bindgen --bin uniffi-bindgen -- \
     generate --library "$host/debug/liblapacho_voice_bridge.so" \
