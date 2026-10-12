@@ -4,6 +4,14 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — dictation shows itself
+
+Holding Ctrl+Shift+Alt+D used to show nothing, with or without Lapacho's
+window open. A small window at the bottom of the screen now shows a
+waveform of what the microphone hears, then "Copied: …" with the text (or
+why nothing was), and closes after a moment. It never takes the focus:
+Ctrl+V still pastes where you were typing.
+
 ### Android — the plugins carry Lapacho's version: Obtainium stops nagging (`0.1.45`)
 
 Lapacho Terms and Lapacho Voice had versions of their own (0.1.2), so

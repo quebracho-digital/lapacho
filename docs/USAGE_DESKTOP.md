@@ -170,8 +170,11 @@ takes no memory between dictations. If nothing happens on release, the
 log says why (no model, no microphone). On macOS the first dictation asks
 for microphone access.
 
-Not yet: no sign that it is recording (you are holding the keys), and it
-can't tell a password field from any other, so don't dictate secrets.
+While you hold the keys a small window at the bottom of the screen shows
+a waveform of what the microphone hears; on release it says what reached
+the clipboard (or why nothing did) and closes itself. It never takes the
+focus, so Ctrl+V still pastes where you were typing. Not yet: it can't
+tell a password field from any other, so don't dictate secrets.
 
 ## Where things live (Linux)
 

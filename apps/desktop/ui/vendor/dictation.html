@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <!-- The dictation overlay (window "dictation", tauri.conf.json): shown
+       while Ctrl+Shift+Alt+D is held, never focused. src-tauri/src/voice.rs
+       drives it through dictation.js; it calls nothing back. -->
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; overflow: hidden; }
+      body {
+        font: 13px/1.3 system-ui, sans-serif;
+        background: #16130f; color: #ece6dd;
+        border: 1px solid #4a443a; box-sizing: border-box;
+        display: flex; align-items: center; gap: 10px; padding: 0 12px;
+        user-select: none; cursor: default;
+      }
+      #dot { width: 10px; height: 10px; border-radius: 50%; background: #d0453a; flex: none; }
+      body.busy #dot { background: #e0a86a; }
+      body.done #dot { background: #6aa84f; }
+      canvas { flex: none; }
+      #text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      /* The result gets two lines: more of what was said. */
+      body.done #text { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    </style>
+  </head>
+  <body>
+    <div id="dot"></div>
+    <canvas id="wave" width="120" height="40"></canvas>
+    <div id="text"></div>
+    <script src="dictation.js"></script>
+  </body>
+</html>
