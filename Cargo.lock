@@ -631,6 +631,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bzip2"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3a53fac24f34a81bc9954b5d6cfce0c21e18ec6959f44f56e8e90e4bb7c346c"
+dependencies = [
+ "libbz2-rs-sys",
+]
+
+[[package]]
 name = "bzip2-sys"
 version = "0.1.13+1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2690,7 +2699,19 @@ dependencies = [
 name = "lapacho-voice"
 version = "0.1.42"
 dependencies = [
+ "bzip2 0.6.1",
  "sherpa-onnx",
+ "tar",
+]
+
+[[package]]
+name = "lapacho-voice-bridge"
+version = "0.1.42"
+dependencies = [
+ "lapacho-voice",
+ "thiserror 2.0.18",
+ "uniffi",
+ "zeroize",
 ]
 
 [[package]]
@@ -2716,6 +2737,12 @@ dependencies = [
  "libloading",
  "once_cell",
 ]
+
+[[package]]
+name = "libbz2-rs-sys"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34b357333733e8260735ba5894eb928c02ecc69c78715f01a8019e7fa7f2db4c"
 
 [[package]]
 name = "libc"

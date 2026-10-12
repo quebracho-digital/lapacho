@@ -6,6 +6,7 @@ members = [
     "crates/lapacho-sync",
     "crates/lapacho-voice",
     "apps/mobile/android/rust-bridge",
+    "apps/mobile/android/voice-bridge",
     "apps/desktop/src-tauri",
 ]
 # The Leptos/WASM frontend is a standalone crate built by Trunk for the

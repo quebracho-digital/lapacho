@@ -24,7 +24,8 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > strip, encrypted history, swipe typing, search and replace on a held clip, word suggestions and spelling corrections from
 > on-device dictionaries (Spanish and English bundled, either removable; Italian, French, German, Brazilian Portuguese, Russian, Hebrew and your own imported), a layout per language with 🌐 to switch, and the
 > same sensitivity classifier as desktop (`lapacho-core` compiled for Android).
-> The app and the keyboard speak English and Spanish.
+> The app and the keyboard speak English and Spanish. Dictation, on the phone,
+> through a separate app with the microphone (*Lapacho Voice*).
 > See [Mobile](#mobile).
 >
 > **Downloads:** [GitHub Releases](https://github.com/quebracho-digital/lapacho/releases)
@@ -54,7 +55,8 @@ will still work, and stay yours to decide:
   [add Lapacho](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22digital.quebracho.lapacho%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fquebracho-digital%2Flapacho%22%2C%22author%22%3A%22Quebracho%20Digital%22%2C%22name%22%3A%22Lapacho%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%20%5C%22%5Elapacho-%5B0-9%5D.%2A%5B.%5Dapk%24%5C%22%7D%22%7D),
   and, if you want it,
   [add Lapacho Terms](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22digital.quebracho.lapacho.plugin.terms%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fquebracho-digital%2Flapacho%22%2C%22author%22%3A%22Quebracho%20Digital%22%2C%22name%22%3A%22Lapacho%20Terms%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%20%5C%22%5Elapacho-terms-plugin-.%2A%5B.%5Dapk%24%5C%22%2C%20%5C%22versionDetection%5C%22%3A%20false%7D%22%7D)
-  (the plugin; both come out of the same release).
+  and [add Lapacho Voice](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22digital.quebracho.lapacho.plugin.voice%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fquebracho-digital%2Flapacho%22%2C%22author%22%3A%22Quebracho%20Digital%22%2C%22name%22%3A%22Lapacho%20Voice%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%20%5C%22%5Elapacho-voice-plugin-.%2A%5B.%5Dapk%24%5C%22%2C%20%5C%22versionDetection%5C%22%3A%20false%7D%22%7D)
+  (the plugins; all come out of the same release).
 - **The APK by hand**, from [Releases](https://github.com/quebracho-digital/lapacho/releases)
   or [web.fishman.work](https://web.fishman.work/), checked against its `.sha256`.
 - **Phones without Google's certification** — GrapheneOS, LineageOS without

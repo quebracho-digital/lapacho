@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Lapacho Voz</string>
+    <string name="hold_to_talk">Mantené para hablar</string>
+    <string name="listening">Escuchando… soltá cuando termines</string>
+    <string name="recognizing">Reconociendo…</string>
+    <string name="nothing_heard">No se entendió nada. Mantené y probá de nuevo.</string>
+    <string name="ready">Mantené el botón y hablá. El texto va al portapapeles y el teclado de Lapacho te lo ofrece. Nada sale de este teléfono.</string>
+    <string name="no_model">El dictado necesita su modelo (Parakeet, 25 idiomas, unos 500 MB de descarga): sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2, de github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models. Bajalo e importalo acá.</string>
+    <string name="import_model">Importar modelo</string>
+    <string name="importing">Importando… tarda un minuto o dos.</string>
+    <string name="no_permission">Lapacho Voz necesita el micrófono para escucharte. Graba solo mientras mantenés el botón.</string>
+    <string name="error">Error: %1$s</string>
+</resources>

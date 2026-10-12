@@ -7,6 +7,10 @@
         <intent>
             <action android:name="digital.quebracho.lapacho.action.RUN_PLUGIN" />
         </intent>
+        <!-- Lapacho Voice, the keyboard's 🎤 (the keyboard has no microphone). -->
+        <intent>
+            <action android:name="digital.quebracho.lapacho.action.DICTATE" />
+        </intent>
     </queries>
 
     <application

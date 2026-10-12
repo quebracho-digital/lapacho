@@ -51,7 +51,7 @@ fn dictate(model_dir: PathBuf, stop: mpsc::Receiver<()>) -> Result<(), String> {
     let (mut samples, rate) = record(stop)?;
     let model = model.join().map_err(|_| "model loader panicked")??;
     let text = if samples.len() as f32 / rate as f32 >= MIN_SECONDS {
-        model.transcribe(rate as i32, &samples)
+        model.transcribe(rate as i32, &mut samples)
     } else {
         String::new()
     };
@@ -103,10 +103,6 @@ fn record(stop: mpsc::Receiver<()>) -> Result<(Vec<f32>, u32), String> {
     stream.play().map_err(|e| e.to_string())?;
     let _ = stop.recv();
     drop(stream);
-    let mut samples = std::mem::take(&mut *buf.lock().unwrap());
-    // Laptop microphones can sit far off zero (this one: +0.21), and the
-    // model hears that as noise: centre the recording.
-    let mean = samples.iter().sum::<f32>() / samples.len().max(1) as f32;
-    samples.iter_mut().for_each(|s| *s -= mean);
+    let samples = std::mem::take(&mut *buf.lock().unwrap());
     Ok((samples, rate))
 }

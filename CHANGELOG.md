@@ -4,6 +4,18 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — dictation, Lapacho Voice
+
+A new app beside Lapacho, `lapacho-voice-plugin-0.1.0.apk`: the keyboard
+shows 🎤 when it is installed (never in a password field), the 🎤 opens a
+small window, you hold its button and speak, and the text comes back first
+in the keyboard's strip. The keyboard still has no microphone permission:
+Android lets only the app on screen record, so Voice records, puts the text
+on the clipboard and closes. Same recognition as the desktop
+(`lapacho-voice`, through its own bridge). The model is imported once from
+the `.tar.bz2` sherpa-onnx publishes. Tested on the emulator end to end; not
+yet on a phone.
+
 ### Desktop — dictation
 
 Hold **Ctrl+Shift+Alt+D**, speak, let go: the text is on the clipboard and

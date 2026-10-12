@@ -473,17 +473,19 @@ What to work on, in order. The sections below hold the detail.
     lands on the clipboard (`apps/desktop/src-tauri/src/voice.rs`, crate
     `lapacho-voice`). Model imported by hand, loaded per dictation. Missing:
     a recording indicator, a password-field check (desktop can't see one).
-  - [ ] **Android, proposed** (not built): Android lets an app use the
-    microphone only while it is on screen, so the keyboard's 🎤 opens
-    Lapacho Voice's own small screen — a button you hold to talk, over the
-    app you were in. On release the text goes to the clipboard and the
-    screen closes; the keyboard comes back and offers it in the strip like
-    any copied clip, so nothing is typed without a tap. Hold-to-talk moves
-    from the key to that button: the touch on the key can't survive the
-    screen opening. Recognition through `lapacho-voice` (the same Rust as
-    desktop) in its own small bridge, so the keyboard APK doesn't carry
-    sherpa-onnx. The model (640 MB) imported from a file, like a
-    dictionary.
+  - [x] **Android** (2026-10-12, Leo agreed the design): *Lapacho Voice*,
+    `apps/mobile/android/plugin-voice`. Android lets an app use the
+    microphone only while it is on screen, so the keyboard's 🎤 (shown only
+    with Voice installed, never in a private field) opens Voice's own small
+    window over the app — a button you hold to talk. On release the text
+    goes to the clipboard and the window closes; the keyboard comes back and
+    offers it in the strip like any copied clip. Recognition is
+    `lapacho-voice` (the desktop's) through `voice-bridge`, so the keyboard
+    APK carries no sherpa-onnx. The model is imported from the archive
+    sherpa-onnx publishes, unpacked in Rust (40 s on the emulator). Verified
+    on the emulator end to end, a recording fed through a virtual microphone:
+    🎤 → hold → the sentence word for word, first in the strip. **Not yet on
+    a real phone**; the APK is 70 MB (two ABIs; split per ABI if it matters).
   - **Lapacho Voice, a plugin app** like *Lapacho Terms* (decided): it holds
     `RECORD_AUDIO` and the models; the keyboard's 🎤 key hands over to it and
     types what comes back. The keyboard keeps no permission at all, and
