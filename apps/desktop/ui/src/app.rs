@@ -750,6 +750,11 @@ pub fn App() -> impl IntoView {
                                                         v.insert(0, newit);
                                                     });
                                                 }
+                                                // What a Markdown clip shows isn't its text: a quote's
+                                                // bar or a list's dots have no character to find.
+                                                Err(e) if e.trim() == "No matches" && dt == DetectedType::Markdown => {
+                                                    set_plugin_err.set(Some("No matches in the raw text — check 📝 Raw".into()))
+                                                }
                                                 Err(e) => set_plugin_err.set(Some(e)),
                                             }
                                         });

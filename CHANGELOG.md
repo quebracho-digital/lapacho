@@ -4,6 +4,13 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — search & replace says where to look
+
+On a Markdown clip, a search that finds nothing now says "No matches in
+the raw text — check 📝 Raw": the plugin searches the text, not what the
+view draws, and a quote's bar or a list's dots have no character behind
+them.
+
 ### Android — dictation, Lapacho Voice (`0.1.43`)
 
 A new app beside Lapacho, `lapacho-voice-plugin-0.1.0.apk`: the keyboard
