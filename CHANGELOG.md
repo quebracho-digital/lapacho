@@ -4,6 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — the plugins carry Lapacho's version: Obtainium stops nagging (`0.1.45`)
+
+Lapacho Terms and Lapacho Voice had versions of their own (0.1.2), so
+Obtainium could never match an installed plugin to a release tag and kept
+offering the same update; their links had version detection off. They now
+take Lapacho's version (`0.1.45-setup`, versionCode 46) and the links
+leave version detection on. A plugin already added to Obtainium keeps its
+old setting: turn *version detection* on in its settings, or remove it and
+add it again from the link.
+
 ### Android — a first-run checklist (`0.1.45`)
 
 Lapacho's screen starts with the steps Android won't let an app take by

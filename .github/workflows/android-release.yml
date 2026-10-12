@@ -143,10 +143,9 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/out"
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/out/lapacho-$version.apk"
-          # The plugin apps keep their own versions (plugin-*/build.gradle.kts).
+          # The plugin apps carry Lapacho's version (plugin-*/build.gradle.kts).
           for p in terms voice; do
-            v="$(sed -n 's/.*versionName = "\(.*\)"/\1/p' plugin-$p/build.gradle.kts)"
-            cp plugin-$p/build/outputs/apk/release/plugin-$p-release.apk "$RUNNER_TEMP/out/lapacho-$p-plugin-$v.apk"
+            cp plugin-$p/build/outputs/apk/release/plugin-$p-release.apk "$RUNNER_TEMP/out/lapacho-$p-plugin-$version.apk"
           done
           for dict in dictionaries/*.txt; do
             case "$(basename "$dict")" in NOTICE-*) continue ;; esac
