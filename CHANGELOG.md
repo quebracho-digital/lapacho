@@ -27,6 +27,13 @@ and dropped after; the audio stays in memory and is zeroed. New crate
 `lapacho-voice`, the part Android will share. Tested with the laptop's own
 microphone, which sits at +0.21 instead of zero: uncorrected, the model
 heard nonsense, so every recording is centred first.
+### Plugins — Fabric examples
+
+Two example plugins run [Fabric](https://github.com/danielmiessler/fabric)
+patterns on a clip with the model set up in `fabric --setup`:
+`fabric-summarize.json` (one pattern, fixed) and `fabric-pattern.json` (any
+pattern by name). A new test loads every example, since a broken one is
+skipped without a word.
 
 ### Desktop — a plugin's result is shown
 
