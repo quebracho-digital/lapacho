@@ -128,6 +128,19 @@ What to work on, in order. The sections below hold the detail.
   toolkit's About dialog (GTK `AboutDialog` on Linux, a message box on
   Windows, the standard panel on macOS): version, licence, authors, links to
   the repo and its releases. Verified on Linux by clicking it over dbusmenu.
+- [ ] **Edit an item in place** (Leo, 2026-10-12): change a clip's text
+  without a new item — today the only way is a plugin (search & replace),
+  which adds the result as a new clip and leaves the original. Desktop: an
+  ✏️ in the detail window turns the text into a textarea (Enter/Ctrl+Enter
+  saves, Esc cancels); Android: the same from a held clip. Open points:
+  - **Re-classify on save:** an edit can add or remove a secret; the item
+    goes back through `classify_sensitivity` and the active `PersistLevel`
+    (a clip edited into a password may have to leave the disk).
+  - **Masked items:** not editable while masked; reveal first, or never.
+  - **Sync:** an edit changes the item, not its id; with multi-client sync
+    (P4) it needs a modified-at so the last edit wins, not the first copy.
+  - **Plugins:** offer "replace this clip" next to "new clip" for a result,
+    once in-place editing exists — the same write path.
 
 ### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
 - [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).
@@ -475,7 +488,10 @@ What to work on, in order. The sections below hold the detail.
   - [x] **Desktop dictation** (2026-10-12): hold Ctrl+Shift+Alt+D, the text
     lands on the clipboard (`apps/desktop/src-tauri/src/voice.rs`, crate
     `lapacho-voice`). Model imported by hand, loaded per dictation. Missing:
-    a recording indicator, a password-field check (desktop can't see one).
+    a recording indicator (Leo, 2026-10-12: nothing shows while the keys
+    are held — at least the tray icon should change while recording, and
+    a short notice when the text is ready), a password-field check
+    (desktop can't see one).
   - [x] **Android** (2026-10-12, Leo agreed the design): *Lapacho Voice*,
     `apps/mobile/android/plugin-voice`. Android lets an app use the
     microphone only while it is on screen, so the keyboard's 🎤 (shown only
