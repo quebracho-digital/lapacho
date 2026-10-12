@@ -7,15 +7,19 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.DocumentsContract
 import android.util.Log
 import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -43,6 +47,8 @@ class VoiceActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var talk: Button
     private lateinit var importButton: Button
+    private lateinit var downloadButton: Button
+    private val ui = Handler(Looper.getMainLooper())
 
     @Volatile private var recording = false
     private var recorder: Thread? = null
@@ -62,17 +68,24 @@ class VoiceActivity : Activity() {
             setText(R.string.import_model)
             setOnClickListener { pickModel() }
         }
+        // The browser downloads it: this app has no internet permission.
+        downloadButton = Button(this).apply {
+            setText(R.string.download_model)
+            setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(MODEL_URL))) }
+        }
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
             addView(status)
             addView(talk)
+            addView(downloadButton)
             addView(importButton)
         })
         showState()
     }
 
     override fun onDestroy() {
+        ui.removeCallbacksAndMessages(null)
         recording = false
         work.shutdownNow()
         super.onDestroy()
@@ -81,10 +94,33 @@ class VoiceActivity : Activity() {
     private fun hasModel() = modelFiles().all { File(modelDir, it).isFile }
 
     private fun showState() {
-        val ready = hasModel()
-        status.setText(if (ready) R.string.ready else R.string.no_model)
+        ui.removeCallbacksAndMessages(null)
+        val busy = importer?.isAlive == true
+        val ready = !busy && hasModel()
         talk.visibility = if (ready) View.VISIBLE else View.GONE
         importButton.visibility = if (ready) View.GONE else View.VISIBLE
+        downloadButton.visibility = importButton.visibility
+        importButton.isEnabled = !busy
+        downloadButton.isEnabled = !busy
+        // Unpacking takes minutes on a phone; with the screen off the CPU
+        // sleeps and it stalls, so the screen stays on while it runs.
+        if (busy) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        when {
+            busy -> {
+                status.text = getString(R.string.importing, progress())
+                ui.postDelayed({ showState() }, 1000)
+            }
+            importError != null -> fail(importError!!).also { importError = null }
+            else -> status.setText(if (ready) R.string.ready else R.string.no_model)
+        }
+    }
+
+    /** How much of the model is on disk, in percent: what is written so far
+     *  against the four files' known size. 99 at most until it is done. */
+    private fun progress(): Int {
+        val written = modelDir.listFiles()?.sumOf { it.length() } ?: 0L
+        return (written * 100 / MODEL_BYTES).toInt().coerceIn(0, 99)
     }
 
     @SuppressLint("ClickableViewAccessibility") // the press itself is the action: hold to talk
@@ -193,21 +229,25 @@ class VoiceActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val uri = data?.data
         if (requestCode != PICK_MODEL || resultCode != RESULT_OK || uri == null) return
-        status.setText(R.string.importing)
-        importButton.isEnabled = false
-        Thread {
-            val error = try {
-                val fd = contentResolver.openFileDescriptor(uri, "r")!!.detachFd()
-                importModel(fd, modelDir.path)
-                null
+        // What an interrupted import left behind would count as progress.
+        modelDir.listFiles()?.forEach { it.delete() }
+        val dir = modelDir.path
+        val fd = try {
+            contentResolver.openFileDescriptor(uri, "r")!!.detachFd()
+        } catch (e: Exception) {
+            fail(e)
+            return
+        }
+        // Kept outside this window: leaving and coming back while it runs
+        // finds it here and shows its progress instead of offering it again.
+        importer = Thread {
+            try {
+                importModel(fd, dir)
             } catch (e: Exception) {
-                e
+                importError = e
             }
-            runOnUiThread {
-                importButton.isEnabled = true
-                if (error != null) fail(error) else showState()
-            }
-        }.start()
+        }.also { it.start() }
+        showState()
     }
 
     /** Loudest sample: says whether the microphone heard anything, not what. */
@@ -222,6 +262,10 @@ class VoiceActivity : Activity() {
     private fun dp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics).toInt()
 
     companion object {
+        @Volatile private var importer: Thread? = null
+        @Volatile private var importError: Exception? = null
+        private const val MODEL_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2"
+        private const val MODEL_BYTES = 670_478_772L // the four MODEL_FILES, unpacked
         private const val TAG = "LapachoVoice"
         private const val RATE = 16_000
         private const val THREADS = 4

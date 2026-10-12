@@ -4,7 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Desktop — search & replace says where to look
+### Android — Lapacho Voice 0.1.1: the model import shows its progress (`0.1.44`)
+
+Unpacking the model takes minutes on a phone, and the window only said
+"Importing…": it looked stuck. It now shows a percentage, keeps the screen
+on while it runs (with the screen off the phone sleeps and the import
+stalls), and leaving the window and coming back shows the import still
+running instead of offering it again. A *Download model* button opens the
+model file in the browser, so there is no URL to type.
+
+### Desktop — search & replace says where to look (`0.1.44`)
 
 On a Markdown clip, a search that finds nothing now says "No matches in
 the raw text — check 📝 Raw": the plugin searches the text, not what the
