@@ -5,9 +5,10 @@
     <string name="recognizing">Recognizing…</string>
     <string name="nothing_heard">Nothing understood. Hold and try again.</string>
     <string name="ready">Hold the button and speak. The text goes to the clipboard and Lapacho\'s keyboard offers it. Nothing leaves this phone.</string>
-    <string name="no_model">Dictation needs its model (Parakeet, 25 languages, about 500 MB to download): sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2, from github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models. Download it and import it here.</string>
+    <string name="no_model">Dictation needs its model, once: Parakeet, 25 languages, a 487 MB download. Tap Download model, wait for the browser to finish, then Import model and pick it in Download.</string>
+    <string name="download_model">Download model</string>
     <string name="import_model">Import model</string>
-    <string name="importing">Importing… this takes a minute or two.</string>
+    <string name="importing">Importing… %1$d %%. A few minutes on a phone; the screen stays on until it is done.</string>
     <string name="no_permission">Lapacho Voice needs the microphone to hear you. It records only while you hold the button.</string>
     <string name="error">Error: %1$s</string>
 </resources>
