@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Desktop — dictation shows itself
+### Desktop — dictation shows itself (`0.1.46`)
 
 Holding Ctrl+Shift+Alt+D used to show nothing, with or without Lapacho's
 window open. A small window at the bottom of the screen now shows a
