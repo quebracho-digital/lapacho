@@ -20,9 +20,11 @@ android {
         applicationId = "digital.quebracho.lapacho.plugin.terms"
         minSdk = 26
         targetSdk = 35
-        // Its own version: the plugin changes far less often than Lapacho.
-        versionCode = 3
-        versionName = "0.1.2"
+        // Lapacho's version, read from its build: one release, one version
+        // for the three apps, so Obtainium can match an installed plugin to
+        // the release tag (with versions of its own it never could).
+        versionCode = lapachoVersion("versionCode = (\\d+)").toInt()
+        versionName = lapachoVersion("versionName = \"(.*)\"")
     }
 
     // Same key as Lapacho's published APKs (see app/build.gradle.kts).
@@ -57,3 +59,6 @@ dependencies {
     // Android's org.json is a stub in JVM tests; the real library stands in.
     testImplementation("org.json:json:20240303")
 }
+
+fun lapachoVersion(pattern: String): String =
+    Regex(pattern).find(file("../app/build.gradle.kts").readText())!!.groupValues[1]

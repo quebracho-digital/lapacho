@@ -13,9 +13,11 @@ android {
         applicationId = "digital.quebracho.lapacho.plugin.voice"
         minSdk = 26
         targetSdk = 35
-        // Its own version, like Lapacho Terms.
-        versionCode = 3
-        versionName = "0.1.2"
+        // Lapacho's version, read from its build: one release, one version
+        // for the three apps, so Obtainium can match an installed plugin to
+        // the release tag (with versions of its own it never could).
+        versionCode = lapachoVersion("versionCode = (\\d+)").toInt()
+        versionName = lapachoVersion("versionName = \"(.*)\"")
         // sherpa-onnx ships these two ABIs' libraries; see voice-bridge.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
@@ -60,3 +62,6 @@ dependencies {
     // Runtime the uniffi Kotlin bindings call the Rust library through.
     implementation("net.java.dev.jna:jna:5.14.0@aar")
 }
+
+fun lapachoVersion(pattern: String): String =
+    Regex(pattern).find(file("../app/build.gradle.kts").readText())!!.groupValues[1]
