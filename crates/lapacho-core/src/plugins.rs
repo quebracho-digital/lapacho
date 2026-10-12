@@ -313,6 +313,18 @@ pub fn execute_plugin(
 mod tests {
     use super::*;
 
+    /// A broken example is skipped silently by `load_plugins`, so count them.
+    #[test]
+    fn every_shipped_example_loads() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/examples");
+        let files = fs::read_dir(&dir)
+            .unwrap()
+            .filter(|e| e.as_ref().unwrap().path().extension().is_some_and(|x| x == "json"))
+            .count();
+        let loaded = load_plugins(&dir).unwrap().len() - builtin_plugins().len();
+        assert_eq!(loaded, files);
+    }
+
     #[test]
     fn init_seeds_example_and_loads_it() {
         let dir = std::env::temp_dir().join(format!("lp_plugins_{}", std::process::id()));

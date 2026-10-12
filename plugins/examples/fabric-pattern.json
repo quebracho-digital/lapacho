@@ -1,0 +1,9 @@
+{
+  "id": "fabric-pattern",
+  "name": "Fabric pattern…",
+  "description": "Runs any Fabric pattern on the clip, by name (extract_wisdom, improve_writing…)",
+  "command": "sh",
+  "args": ["-c", "PATH=\"$PATH:$HOME/go/bin\" exec fabric -p \"$LAPACHO_PARAM_PATTERN\""],
+  "timeout_secs": 300,
+  "params": [{ "name": "pattern", "label": "Pattern" }]
+}

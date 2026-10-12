@@ -4,6 +4,14 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Plugins — Fabric examples
+
+Two example plugins run [Fabric](https://github.com/danielmiessler/fabric)
+patterns on a clip with the model set up in `fabric --setup`:
+`fabric-summarize.json` (one pattern, fixed) and `fabric-pattern.json` (any
+pattern by name). A new test loads every example, since a broken one is
+skipped without a word.
+
 ### Desktop — a plugin's result is shown
 
 Running a plugin saved its result as a new clip at the top of the list, but
