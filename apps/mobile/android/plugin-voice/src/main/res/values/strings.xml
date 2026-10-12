@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Lapacho Voice</string>
+    <string name="hold_to_talk">Hold to talk</string>
+    <string name="listening">Listening… let go when you\'re done</string>
+    <string name="recognizing">Recognizing…</string>
+    <string name="nothing_heard">Nothing understood. Hold and try again.</string>
+    <string name="ready">Hold the button and speak. The text goes to the clipboard and Lapacho\'s keyboard offers it. Nothing leaves this phone.</string>
+    <string name="no_model">Dictation needs its model (Parakeet, 25 languages, about 500 MB to download): sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2, from github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models. Download it and import it here.</string>
+    <string name="import_model">Import model</string>
+    <string name="importing">Importing… this takes a minute or two.</string>
+    <string name="no_permission">Lapacho Voice needs the microphone to hear you. It records only while you hold the button.</string>
+    <string name="error">Error: %1$s</string>
+</resources>

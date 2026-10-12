@@ -1,0 +1,17 @@
+[package]
+name = "lapacho-voice"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Downloads sherpa-onnx's prebuilt static libraries from its GitHub releases
+# at build time (Linux, macOS, Windows, Android). Apache-2.0.
+sherpa-onnx = "1.13.8"
+# Importing the model from the archive sherpa-onnx publishes (.tar.bz2), on
+# a phone that has no tool to unpack it. Pure Rust: no C to cross-compile.
+tar = "0.4"
+bzip2 = "0.6" # libbz2-rs-sys, Rust, by default

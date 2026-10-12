@@ -15,6 +15,7 @@
 mod images;
 mod keystore;
 mod tray;
+mod voice;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -1240,10 +1241,25 @@ fn main() {
                 Some(Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::ALT),
                 Code::KeyV,
             );
+            // Hold to dictate: records while held, the text lands on the
+            // clipboard on release. D for dictate.
+            let dictate = Shortcut::new(
+                Some(Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::ALT),
+                Code::KeyD,
+            );
+            let voice_dir = data_dir.join("voice");
             let toggle_for_handler = toggle;
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
                     .with_handler(move |app, shortcut, event| {
+                        if shortcut == &dictate {
+                            let voice = app.state::<voice::Voice>();
+                            match event.state {
+                                ShortcutState::Pressed => voice.start(voice_dir.clone()),
+                                ShortcutState::Released => voice.stop(),
+                            }
+                            return;
+                        }
                         if event.state != ShortcutState::Pressed {
                             return;
                         }
@@ -1255,7 +1271,8 @@ fn main() {
                     })
                     .build(),
             )?;
-            for (sc, name) in [(toggle, "Ctrl+Shift+Alt+L"), (search, "Ctrl+Shift+Alt+V")] {
+            app.manage(voice::Voice::default());
+            for (sc, name) in [(toggle, "Ctrl+Shift+Alt+L"), (search, "Ctrl+Shift+Alt+V"), (dictate, "Ctrl+Shift+Alt+D")] {
                 if let Err(e) = app.global_shortcut().register(sc) {
                     eprintln!("lapacho: could not register {name}: {e}");
                 }

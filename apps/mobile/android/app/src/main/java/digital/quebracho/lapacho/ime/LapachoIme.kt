@@ -122,6 +122,7 @@ class LapachoIme : InputMethodService() {
     // whoever switched to French is still writing French in the next app.
     private var layoutIndex = 0
     private lateinit var globeKey: TextView
+    private lateinit var micKey: TextView
     // Long-press alternates: [BASE_LONG_PRESS] plus what the dictionaries
     // of the layout on screen add (ñ comes from Spanish's).
     private var longPress: Map<String, String> = BASE_LONG_PRESS
@@ -216,6 +217,12 @@ class LapachoIme : InputMethodService() {
         // after a Force Stop of either process, this must still show the
         // last items the companion saved.
         privateField = info != null && isPrivateField(info.inputType, info.imeOptions)
+        // 🎤 only with Lapacho Voice installed, and never where a password
+        // goes: dictating one would put it on the clipboard. Checked on every
+        // show: the app can be installed or removed meanwhile.
+        if (::micKey.isInitialized) {
+            micKey.visibility = if (!privateField && voiceIntent().resolveActivity(packageManager) != null) View.VISIBLE else View.GONE
+        }
         // A dictionary imported or removed in the companion since the last
         // show: new words, and possibly new keys to hold. Before the layer
         // is drawn below, so the hints are the new ones.
@@ -481,6 +488,18 @@ class LapachoIme : InputMethodService() {
         return pasteButton(previewLabel(item)) {}.apply {
             holdToOpen(this, LEARN_PRESS_MS, onHold = { openPlugins(item) }, onTap = { commitRaw(item) })
         }
+    }
+
+    /**
+     * Lapacho Voice, a separate app: Android lets only the app on screen use
+     * the microphone, and this keyboard has no permission for it. Voice opens
+     * its window over this app, puts the text on the clipboard, and closes;
+     * when the keyboard shows again it offers the text like any copied clip.
+     */
+    private fun voiceIntent() = Intent(VOICE_ACTION)
+
+    private fun dictate() {
+        startActivity(voiceIntent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun openPlugins(item: ClipboardItem) {
@@ -1232,6 +1251,9 @@ class LapachoIme : InputMethodService() {
             // Only with two layouts or more; see [applyLayout].
             globeKey = keyButton("🌐", 1f) { nextLayout() }.apply { visibility = View.GONE }
             addView(globeKey)
+            // See [onStartInputView] for when it shows.
+            micKey = keyButton("🎤", 1f) { dictate() }.apply { visibility = View.GONE }
+            addView(micKey)
             addView(keyButton("☺", 1f) { toggleLayer(Layer.EMOJI) })
             addView(keyButton(",", 1f) { type(",") })
             addView(keyButton(strings.getString(R.string.key_space), 3.7f) { output(" ") })
@@ -1240,6 +1262,8 @@ class LapachoIme : InputMethodService() {
         }
 
     companion object {
+        const val VOICE_ACTION = "digital.quebracho.lapacho.action.DICTATE"
+
         /**
          * How many characters a held backspace takes in one step: the spaces
          * right before the cursor, then the word before them — "hola mundo  "

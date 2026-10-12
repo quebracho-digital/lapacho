@@ -135,6 +135,30 @@ same for everybody. Nothing you type is recorded, counted or kept: suggestions
 are looked up and forgotten. The one exception is a word you deliberately
 teach it, below.
 
+## Dictation
+
+Speaking instead of typing takes a second app, **Lapacho Voice**
+(`lapacho-voice-plugin-<version>.apk` in each release): the keyboard has no
+microphone permission and isn't getting one, and Android lets only the app
+on screen use the microphone.
+
+With it installed, the keyboard shows **🎤** on its bottom row (never in a
+password field). Tap it: a small window opens over your app. **Hold the
+button and speak, then let go.** The window closes, and when the keyboard
+comes back the text is first in the strip, like anything you copy: tap it to
+paste. Nothing is typed for you.
+
+Recognition happens on the phone (Parakeet, 25 European languages, detected
+by itself; not Hebrew). Lapacho Voice has no internet permission either.
+The audio is kept in memory only and erased once it is text.
+
+**The model, once.** Voice needs a 640 MB model it doesn't download itself:
+get `sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2` (about 500 MB)
+with the phone's browser from
+[sherpa-onnx's models](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models),
+open Lapacho Voice, **Import model**, and pick it in Download. Unpacking
+takes a minute or two; you can delete the download afterwards.
+
 ## Swipe typing
 
 Instead of tapping, draw the word: put a finger on its first letter, slide it
@@ -305,6 +329,8 @@ thumbnail come out black.
   looked up in a fixed dictionary and nothing about them is stored — except
   the words you explicitly teach it, which the app lists and can forget.
 - Secrets are never stored and never displayed.
+- Dictation is a separate app with the microphone and no network; the
+  keyboard has neither.
 
 ## Troubleshooting
 

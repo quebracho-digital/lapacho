@@ -4,7 +4,9 @@ members = [
     "crates/lapacho-core",
     "crates/lapacho-predict",
     "crates/lapacho-sync",
+    "crates/lapacho-voice",
     "apps/mobile/android/rust-bridge",
+    "apps/mobile/android/voice-bridge",
     "apps/desktop/src-tauri",
 ]
 # The Leptos/WASM frontend is a standalone crate built by Trunk for the
@@ -15,7 +17,7 @@ exclude = ["apps/desktop/ui"]
 [workspace.package]
 # Desktop's version: versionName (apps/mobile/android/app/build.gradle.kts)
 # without its suffix. CI fails when they differ.
-version = "0.1.42"
+version = "0.1.43"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 authors = ["Leonardo Fishman", "Quebracho Digital"]

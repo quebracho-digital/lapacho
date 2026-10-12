@@ -4,7 +4,30 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Plugins — Fabric examples
+### Android — dictation, Lapacho Voice (`0.1.43`)
+
+A new app beside Lapacho, `lapacho-voice-plugin-0.1.0.apk`: the keyboard
+shows 🎤 when it is installed (never in a password field), the 🎤 opens a
+small window, you hold its button and speak, and the text comes back first
+in the keyboard's strip. The keyboard still has no microphone permission:
+Android lets only the app on screen record, so Voice records, puts the text
+on the clipboard and closes. Same recognition as the desktop
+(`lapacho-voice`, through its own bridge). The model is imported once from
+the `.tar.bz2` sherpa-onnx publishes. Tested on the emulator end to end; not
+yet on a phone.
+
+### Desktop — dictation (`0.1.43`)
+
+Hold **Ctrl+Shift+Alt+D**, speak, let go: the text is on the clipboard and
+in the history. Recognized on the computer by Parakeet TDT 0.6B v3
+(sherpa-onnx), the model `speech-eval` chose: 3.6 % word error in Spanish,
+25 languages, seven times faster than the next one. The model is imported
+by hand (640 MB, `docs/USAGE_DESKTOP.md#dictation`), loaded while you speak
+and dropped after; the audio stays in memory and is zeroed. New crate
+`lapacho-voice`, the part Android will share. Tested with the laptop's own
+microphone, which sits at +0.21 instead of zero: uncorrected, the model
+heard nonsense, so every recording is centred first.
+### Plugins — Fabric examples (`0.1.43`)
 
 Two example plugins run [Fabric](https://github.com/danielmiessler/fabric)
 patterns on a clip with the model set up in `fabric --setup`:
@@ -12,13 +35,13 @@ patterns on a clip with the model set up in `fabric --setup`:
 pattern by name). A new test loads every example, since a broken one is
 skipped without a word.
 
-### Desktop — a plugin's result is shown
+### Desktop — a plugin's result is shown (`0.1.43`)
 
 Running a plugin saved its result as a new clip at the top of the list, but
 behind the open clip's window, which kept showing the original: it looked as
 if nothing had happened. The window now switches to the new clip.
 
-### Sync — envelopes expire
+### Sync — envelopes expire (`0.1.43`)
 
 Every envelope carries an expiry, bound to its ciphertext. A clip waits in the
 mailbox a week for the other devices; a credential or secret no longer than
@@ -29,7 +52,7 @@ rclone's WebDAV. The design now states the post-quantum position: sync is
 symmetric end to end, and any public-key crypto added later must be hybrid
 (ML-KEM, ML-DSA).
 
-### Sync — a WebDAV folder as the mailbox
+### Sync — a WebDAV folder as the mailbox (`0.1.43`)
 
 `lapacho-sync` gains its first network transport, behind the `webdav`
 feature so the keyboard app doesn't carry an HTTP client: any WebDAV folder
@@ -39,7 +62,7 @@ rclone 1.68.2 in Docker: two devices exchange a clip, the same clip twice is
 one file, a wrong password is an error rather than an empty mailbox, and the
 stored files hold only ciphertext. Envelopes don't expire on the server yet.
 
-### Sync — the core, without a network yet
+### Sync — the core, without a network yet (`0.1.43`)
 
 `lapacho-sync` now does the whole round trip in memory: a chain created on
 one device and joined on another with 24 words (BIP-39, Brave-style), the
@@ -51,7 +74,7 @@ transport never sees plaintext, and a secret passes only at the level that
 allows it. No app uses it yet; the WebDAV transport and *Lapacho Sync* on
 Android come next.
 
-### Android — the history in lapacho-core
+### Android — the history in lapacho-core (`0.1.43`)
 
 The phone's history, learned words and keyboard preferences now live in
 lapacho-core's store (Rust, the same code as desktop) instead of a store

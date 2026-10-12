@@ -1,0 +1,33 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The reason this is an app of its own: it needs the microphone, and
+         Lapacho's keyboard must not have it. No network either. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:icon="@android:drawable/ic_btn_speak_now"
+        android:theme="@android:style/Theme.DeviceDefault.Dialog">
+
+        <!-- A small window over the app you were typing in. Android lets an
+             app record only while it is on screen, so the keyboard's 🎤 opens
+             this rather than recording behind it. Its own task (empty
+             affinity), out of recents: closing it goes back to that app. -->
+        <activity
+            android:name=".VoiceActivity"
+            android:exported="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="digital.quebracho.lapacho.action.DICTATE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

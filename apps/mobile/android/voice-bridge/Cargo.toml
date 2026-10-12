@@ -1,0 +1,30 @@
+[package]
+name = "lapacho-voice-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+# Lapacho Voice's own bridge, apart from rust-bridge so the keyboard's APK
+# doesn't carry sherpa-onnx and onnxruntime (~30 MB) it never uses.
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+bindgen = ["uniffi/cli"]
+
+[dependencies]
+lapacho-voice = { path = "../../../../crates/lapacho-voice" }
+zeroize = { workspace = true }
+thiserror = "2"
+uniffi = "0.28"
+
+[build-dependencies]
+uniffi = { version = "0.28", features = ["build"] }

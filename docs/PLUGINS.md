@@ -118,6 +118,14 @@ It builds the request from `crates/lapacho-core/src/terms_request.txt`, the
 same file the built-in uses, copied in as an asset at build time. Releases
 ship it as `lapacho-terms-plugin-<version>.apk`, signed with the same key.
 
+*Lapacho Voice* (`apps/mobile/android/plugin-voice`) is the other kind of
+app beside Lapacho: not a plugin run on a clip, but the keyboard's 🎤. It
+answers `digital.quebracho.lapacho.action.DICTATE`, holds the microphone
+permission, and hands its text back through the clipboard, which the
+keyboard reads on its next show. Recognition is `crates/lapacho-voice`, the
+desktop's, through its own bridge (`voice-bridge`) so the keyboard doesn't
+carry sherpa-onnx. Releases ship it as `lapacho-voice-plugin-<version>.apk`.
+
 ## Built-in plugins
 
 They live in `crates/lapacho-core/src/plugins.rs` and run the same on both
