@@ -68,15 +68,15 @@ jobs:
         with:
           targets: aarch64-linux-android,x86_64-linux-android
       - uses: Swatinem/rust-cache@v2
-      # sherpa-onnx-sys unpacks its libraries into target/sherpa-onnx-prebuilt,
-      # which rust-cache cleans away before saving, while it keeps the build
-      # script's result pointing there: a run from the cache links against a
-      # missing folder. Forget that result so the script runs and fetches
-      # them again (~50 MB), as in a cold build.
+      # sherpa-onnx-sys unpacks its libraries into target/sherpa-onnx-prebuilt.
+      # rust-cache's cleaning empties that folder but leaves its directories,
+      # and keeps the build script's result: a run from the cache finds the
+      # folder, skips the download and links against nothing. Drop both so
+      # the script runs and fetches them again (~50 MB), as in a cold build.
       - name: Re-run sherpa-onnx's build script
         shell: bash
         working-directory: .
-        run: rm -rf target/*/.fingerprint/sherpa-onnx-sys-* target/*/build/sherpa-onnx-sys-* target/*/*/.fingerprint/sherpa-onnx-sys-* target/*/*/build/sherpa-onnx-sys-*
+        run: rm -rf target/sherpa-onnx-prebuilt target/*/.fingerprint/sherpa-onnx-sys-* target/*/build/sherpa-onnx-sys-* target/*/*/.fingerprint/sherpa-onnx-sys-* target/*/*/build/sherpa-onnx-sys-*
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-ndk
