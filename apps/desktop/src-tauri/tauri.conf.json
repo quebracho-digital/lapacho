@@ -38,6 +38,20 @@
         "skipTaskbar": true,
         "center": true,
         "resizable": false
+      },
+      {
+        "label": "dictation",
+        "title": "Lapacho",
+        "url": "dictation.html",
+        "width": 360,
+        "height": 56,
+        "visible": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "focus": false,
+        "focusable": false
       }
     ],
     "security": {

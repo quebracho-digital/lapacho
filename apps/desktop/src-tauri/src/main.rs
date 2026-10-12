@@ -1255,7 +1255,7 @@ fn main() {
                         if shortcut == &dictate {
                             let voice = app.state::<voice::Voice>();
                             match event.state {
-                                ShortcutState::Pressed => voice.start(voice_dir.clone()),
+                                ShortcutState::Pressed => voice.start(app.clone(), voice_dir.clone()),
                                 ShortcutState::Released => voice.stop(),
                             }
                             return;

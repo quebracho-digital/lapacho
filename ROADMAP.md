@@ -488,10 +488,9 @@ What to work on, in order. The sections below hold the detail.
   - [x] **Desktop dictation** (2026-10-12): hold Ctrl+Shift+Alt+D, the text
     lands on the clipboard (`apps/desktop/src-tauri/src/voice.rs`, crate
     `lapacho-voice`). Model imported by hand, loaded per dictation. Missing:
-    a recording indicator (Leo, 2026-10-12: nothing shows while the keys
-    are held — at least the tray icon should change while recording, and
-    a short notice when the text is ready), a password-field check
-    (desktop can't see one).
+    a password-field check (desktop can't see one). The recording
+    indicator Leo asked for (2026-10-12) is the `dictation` overlay: a
+    waveform while held, then the text copied.
   - [x] **Android** (2026-10-12, Leo agreed the design): *Lapacho Voice*,
     `apps/mobile/android/plugin-voice`. Android lets an app use the
     microphone only while it is on screen, so the keyboard's 🎤 (shown only
