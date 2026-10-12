@@ -4,6 +4,13 @@
          Lapacho's keyboard must not have it. No network either. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- To see whether another app offers an on-device recognizer. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:label="@string/app_name"

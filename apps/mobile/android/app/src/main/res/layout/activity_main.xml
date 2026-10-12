@@ -12,6 +12,15 @@
         android:textSize="18sp"
         android:paddingBottom="8dp" />
 
+    <!-- First run: what Android won't let the app do itself (MainActivity.showSetup). -->
+    <LinearLayout
+        android:id="@+id/setup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="8dp"
+        android:visibility="gone" />
+
     <EditText
         android:id="@+id/input"
         android:layout_width="match_parent"

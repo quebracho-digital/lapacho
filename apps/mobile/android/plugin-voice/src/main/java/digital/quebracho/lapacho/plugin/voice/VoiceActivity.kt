@@ -11,10 +11,14 @@ import android.net.Uri
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.util.Log
 import android.util.TypedValue
 import android.view.MotionEvent
@@ -48,6 +52,9 @@ class VoiceActivity : Activity() {
     private lateinit var talk: Button
     private lateinit var importButton: Button
     private lateinit var downloadButton: Button
+    private lateinit var engineButton: Button
+    private val prefs by lazy { getSharedPreferences("voice", MODE_PRIVATE) }
+    private var recognizer: SpeechRecognizer? = null
     private val ui = Handler(Looper.getMainLooper())
 
     @Volatile private var recording = false
@@ -73,6 +80,14 @@ class VoiceActivity : Activity() {
             setText(R.string.download_model)
             setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(MODEL_URL))) }
         }
+        // Not sovereign: another app's recognizer (Google's, on most phones),
+        // on the phone but not ours to read. Offered, never chosen for you.
+        engineButton = Button(this).apply {
+            setOnClickListener {
+                prefs.edit().putBoolean(USE_SYSTEM, !useSystem()).apply()
+                showState()
+            }
+        }
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
@@ -80,6 +95,7 @@ class VoiceActivity : Activity() {
             addView(talk)
             addView(downloadButton)
             addView(importButton)
+            addView(engineButton)
         })
         showState()
     }
@@ -87,18 +103,30 @@ class VoiceActivity : Activity() {
     override fun onDestroy() {
         ui.removeCallbacksAndMessages(null)
         recording = false
+        recognizer?.destroy()
         work.shutdownNow()
         super.onDestroy()
     }
 
     private fun hasModel() = modelFiles().all { File(modelDir, it).isFile }
 
+    /** A recognizer another app provides that works on the phone, offline:
+     *  one that sends the audio to a server is never offered. */
+    private fun systemAvailable() =
+        Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+
+    private fun useSystem() = systemAvailable() && prefs.getBoolean(USE_SYSTEM, false)
+
     private fun showState() {
         ui.removeCallbacksAndMessages(null)
         val busy = importer?.isAlive == true
-        val ready = !busy && hasModel()
+        val system = useSystem()
+        val ready = !busy && (system || hasModel())
         talk.visibility = if (ready) View.VISIBLE else View.GONE
         importButton.visibility = if (ready) View.GONE else View.VISIBLE
+        // Switching: to the system's while Parakeet isn't there, back to Parakeet any time.
+        engineButton.visibility = if (!busy && (system || (!ready && systemAvailable()))) View.VISIBLE else View.GONE
+        engineButton.setText(if (system) R.string.use_parakeet else R.string.use_system)
         downloadButton.visibility = importButton.visibility
         importButton.isEnabled = !busy
         downloadButton.isEnabled = !busy
@@ -112,7 +140,7 @@ class VoiceActivity : Activity() {
                 ui.postDelayed({ showState() }, 1000)
             }
             importError != null -> fail(importError!!).also { importError = null }
-            else -> status.setText(if (ready) R.string.ready else R.string.no_model)
+            else -> status.setText(if (system) R.string.ready_system else if (ready) R.string.ready else R.string.no_model)
         }
     }
 
@@ -149,6 +177,7 @@ class VoiceActivity : Activity() {
 
     @SuppressLint("MissingPermission") // checked in onTalkTouch
     private fun start() {
+        if (useSystem()) return startSystem()
         val dir = modelDir.path
         model = work.submit<VoiceModel> { VoiceModel(dir, THREADS) }
         val min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
@@ -174,6 +203,7 @@ class VoiceActivity : Activity() {
         recording = false
         status.setText(R.string.recognizing)
         talk.isEnabled = false
+        recognizer?.let { return it.stopListening() }
         val pending = model
         Thread {
             recorder?.join()
@@ -193,6 +223,68 @@ class VoiceActivity : Activity() {
             }
             runOnUiThread { done(text) }
         }.start()
+    }
+
+    /**
+     * The system's recognizer, held like ours: it listens from the press and
+     * answers after the release. It may also stop by itself on a pause; its
+     * answer then comes before the release, and closes the window the same.
+     * ponytail: the phone's language is the one it listens for (Parakeet
+     * detects it); a picker if people dictate in a second language.
+     */
+    @SuppressLint("NewApi") // only reached when systemAvailable()
+    private fun startSystem() {
+        recording = true
+        status.setText(R.string.listening)
+        recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
+            val self = this
+            setRecognitionListener(object : RecognitionListener {
+                override fun onResults(results: Bundle) {
+                    if (recognizer !== self) return
+                    finishSystem()
+                    done(results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty())
+                }
+                override fun onError(error: Int) {
+                    // One left fetching a language pack says it disconnected: not ours any more.
+                    if (recognizer !== self) return
+                    // Its language isn't on the phone yet: the system can fetch
+                    // it (its own download, this app still has no network).
+                    if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE && Build.VERSION.SDK_INT >= 33) {
+                        triggerModelDownload(listenIntent())
+                        // ponytail: not destroyed, that would cancel the download; dropped with the window.
+                        recognizer = null
+                        recording = false
+                        talk.isPressed = false
+                        talk.isEnabled = true
+                        status.setText(R.string.system_downloading)
+                        return
+                    }
+                    finishSystem()
+                    when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> done("")
+                        else -> fail(Exception(getString(R.string.system_error, error)))
+                    }
+                }
+                override fun onReadyForSpeech(params: Bundle?) {}
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() {}
+                override fun onPartialResults(partialResults: Bundle?) {}
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+            startListening(listenIntent())
+        }
+    }
+
+    private fun listenIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+
+    private fun finishSystem() {
+        recording = false
+        talk.isPressed = false
+        recognizer?.destroy()
+        recognizer = null
     }
 
     private fun done(text: String) {
@@ -262,6 +354,7 @@ class VoiceActivity : Activity() {
     private fun dp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics).toInt()
 
     companion object {
+        private const val USE_SYSTEM = "use_system"
         @Volatile private var importer: Thread? = null
         @Volatile private var importError: Exception? = null
         private const val MODEL_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2"

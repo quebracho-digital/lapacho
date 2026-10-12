@@ -8,6 +8,8 @@ import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
+import android.provider.Settings
+import android.view.inputmethod.InputMethodManager
 import android.os.Bundle
 import android.os.PersistableBundle
 import android.view.View
@@ -50,6 +52,7 @@ import digital.quebracho.lapacho.removeDictionary
 import digital.quebracho.lapacho.removedBundled
 import digital.quebracho.lapacho.restoreBundled
 import digital.quebracho.lapacho.matchesQuery
+import digital.quebracho.lapacho.ime.LapachoIme
 
 private const val TAG = "LapachoApp"
 
@@ -184,7 +187,61 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+        showSetup()
         openFromKeyboard()
+    }
+
+    // The keyboard picker is a dialog over this window: closing it doesn't
+    // resume the activity, only gives the focus back.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) showSetup()
+    }
+
+    /**
+     * First run: the steps Android won't let an app take for itself, each
+     * ticked once done, read from the system every time (never remembered,
+     * so turning the keyboard off later brings its step back). Gone once the
+     * keyboard is on and the default; dictation is offered too, until Voice
+     * is installed or the user says not now.
+     */
+    private fun showSetup() {
+        val box = findViewById<LinearLayout>(R.id.setup)
+        val imm = getSystemService(InputMethodManager::class.java)
+        val enabled = imm.enabledInputMethodList.any { it.packageName == packageName }
+        val default = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+            ?.startsWith("$packageName/") == true
+        val voice = packageManager.queryIntentActivities(Intent(LapachoIme.VOICE_ACTION), 0).isNotEmpty()
+        val prefs = getSharedPreferences("setup", MODE_PRIVATE)
+        val voiceWanted = !voice && !prefs.getBoolean("voice_not_now", false)
+        box.removeAllViews()
+        box.visibility = if (enabled && default && !voiceWanted) View.GONE else View.VISIBLE
+        if (box.visibility == View.GONE) return
+        box.addView(TextView(this).apply {
+            setText(R.string.setup_title)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        fun step(text: Int, done: Boolean, ready: Boolean = true, action: () -> Unit) = box.addView(CheckBox(this).apply {
+            setText(text)
+            isChecked = done
+            isEnabled = !done && ready
+            // A tick the user can't set: tapping runs the step, the system says when it is done.
+            setOnClickListener { isChecked = false; action() }
+        })
+        step(R.string.setup_enable, enabled) { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
+        step(R.string.setup_default, default, ready = enabled) { imm.showInputMethodPicker() }
+        if (voiceWanted || voice) {
+            step(R.string.setup_voice, voice) { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(VOICE_URL))) }
+        }
+        if (voiceWanted && enabled && default) {
+            box.addView(Button(this).apply {
+                setText(R.string.setup_not_now)
+                setOnClickListener {
+                    prefs.edit().putBoolean("voice_not_now", true).apply()
+                    showSetup()
+                }
+            })
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -582,6 +639,8 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         /** The id of a clip the keyboard wants run through a plugin. */
+        // Where Lapacho Voice is offered: its Obtainium link and the APKs.
+        const val VOICE_URL = "https://web.fishman.work/lapacho"
         const val EXTRA_PLUGIN_ITEM = "digital.quebracho.lapacho.PLUGIN_ITEM"
         /** The plugin-app contract (plugin-terms answers it): find by action, text in, text or error out. */
         const val PLUGIN_ACTION = "digital.quebracho.lapacho.action.RUN_PLUGIN"

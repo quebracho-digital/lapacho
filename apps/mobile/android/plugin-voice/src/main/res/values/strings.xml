@@ -11,4 +11,9 @@
     <string name="importing">Importing… %1$d %%. A few minutes on a phone; the screen stays on until it is done.</string>
     <string name="no_permission">Lapacho Voice needs the microphone to hear you. It records only while you hold the button.</string>
     <string name="error">Error: %1$s</string>
+    <string name="use_system">Use the phone\'s recognizer instead (not sovereign: another app\'s, usually Google\'s, on this phone; nothing to download)</string>
+    <string name="use_parakeet">Use Parakeet, Lapacho\'s own recognizer</string>
+    <string name="ready_system">Hold the button and speak. The phone\'s recognizer turns it into text, on this phone, but it is another app\'s code (usually Google\'s), not Lapacho\'s.</string>
+    <string name="system_error">the phone\'s recognizer failed (%1$d). It may need its language downloaded, in its own settings.</string>
+    <string name="system_downloading">The phone\'s recognizer is downloading its language (its own download). Try again in a minute.</string>
 </resources>

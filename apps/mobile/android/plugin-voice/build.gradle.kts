@@ -14,8 +14,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // Its own version, like Lapacho Terms.
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
         // sherpa-onnx ships these two ABIs' libraries; see voice-bridge.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }

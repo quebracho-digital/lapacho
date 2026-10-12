@@ -35,7 +35,9 @@ installs from GitHub Releases and tells you when there is a new version. By hand
 
 ## Turn on the keyboard
 
-Installing is not enough; Android requires enabling a keyboard by hand:
+Installing is not enough; Android requires enabling a keyboard by hand.
+Open Lapacho: its *Getting started* list takes you to each step (the
+Settings page, then the keyboard picker) and ticks it once done. By hand:
 
 **Settings → System → Languages & input → On-screen keyboard → Manage
 keyboards → Lapacho** (the exact path varies by manufacturer).
@@ -157,7 +159,14 @@ open [`sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2`](https://github.com/k
 (487 MB, from sherpa-onnx's releases) in the phone's browser, which saves it
 to Download, then
 open Lapacho Voice, **Import model**, and pick it in Download. Unpacking
-takes a minute or two; you can delete the download afterwards.
+takes a few minutes on a phone, with a percentage; the screen stays on
+meanwhile. You can delete the download afterwards.
+
+**Or the phone's recognizer (not sovereign).** On a phone that has one
+working offline — Google's, on most phones, Android 12 or later — Voice
+offers it instead of the download. It runs on the phone, but it is another
+app's code, not Lapacho's. If its language is missing, the phone offers to
+download it (its own download). *Use Parakeet* switches back any time.
 
 ## Swipe typing
 
