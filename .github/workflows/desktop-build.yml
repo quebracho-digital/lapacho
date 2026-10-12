@@ -43,7 +43,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
-            librsvg2-dev libxdo-dev libssl-dev libdbus-1-dev patchelf
+            librsvg2-dev libxdo-dev libssl-dev libdbus-1-dev libasound2-dev patchelf
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -61,7 +61,7 @@ jobs:
 
       # After the build: generate_context! embeds ui/dist, which trunk makes.
       - name: Tests
-        run: cargo test -p lapacho-core -p lapacho-desktop
+        run: cargo test -p lapacho-core -p lapacho-voice -p lapacho-desktop
 
       # The payloads in test-payloads/, through the real ingest, opened in the
       # built UI in WebKitGTK, with and without the CSP (ui/tests/xss.py).

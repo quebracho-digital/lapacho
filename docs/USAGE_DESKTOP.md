@@ -20,6 +20,7 @@ from source is covered in the [README](../README.md#development).
 |----------|--------|
 | **Ctrl+Shift+Alt+L** | Show / hide the main window. |
 | **Ctrl+Shift+Alt+V** | Quick search: opens a search box over your apps. Type to filter, ↑/↓ to move, **Enter** copies the highlighted clip and closes it, **Esc** closes. |
+| **Ctrl+Shift+Alt+D** (hold) | Dictate: speak while you hold it; on release the text is on the clipboard, ready for Ctrl+V. Needs the voice model, see [Dictation](#dictation). |
 
 ## Tray menu
 
@@ -142,6 +143,36 @@ or `"flag"`, a checkbox that arrives as `1` or `0`.
 Writing your own: [PLUGINS.md](PLUGINS.md), with examples in
 [`plugins/examples/`](../plugins/examples/).
 
+## Dictation
+
+Hold **Ctrl+Shift+Alt+D**, speak, let go: what you said is recognized on
+this computer and put on the clipboard, so **Ctrl+V** pastes it and it is
+in the history like anything you copy (a dictated password is masked like a
+copied one). Nothing is sent anywhere, and the audio is kept only in memory
+and erased once it is turned into text.
+
+It needs a model, which Lapacho doesn't download for you. It is
+**Parakeet TDT 0.6B v3** (NVIDIA, CC-BY-4.0, 640 MB): 25 European
+languages — Spanish, English, Italian, Portuguese, French, German, Russian
+among them — recognized without telling it which. Not Hebrew.
+
+1. Download `sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2` from
+   sherpa-onnx's [ASR models release](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models).
+2. Unpack it, and put the files that are inside its folder
+   (`encoder.int8.onnx`, `decoder.int8.onnx`, `joiner.int8.onnx`,
+   `tokens.txt`) in a `voice` folder next to the history:
+   `~/.local/share/digital.quebracho.lapacho/voice/` on Linux,
+   `~/Library/Application Support/digital.quebracho.lapacho/voice/` on macOS,
+   `%APPDATA%\digital.quebracho.lapacho\voice\` on Windows.
+
+The model loads while you speak (about 2 s) and is dropped after, so it
+takes no memory between dictations. If nothing happens on release, the
+log says why (no model, no microphone). On macOS the first dictation asks
+for microphone access.
+
+Not yet: no sign that it is recording (you are holding the keys), and it
+can't tell a password field from any other, so don't dictate secrets.
+
 ## Where things live (Linux)
 
 | What | Where |
@@ -149,6 +180,7 @@ Writing your own: [PLUGINS.md](PLUGINS.md), with examples in
 | History (encrypted) | `~/.local/share/digital.quebracho.lapacho/history.db` |
 | Encryption key | OS keyring (`digital.quebracho.lapacho` / `history-encryption-key`); fallback `history.key` next to the DB |
 | Log | `~/.local/state/lapacho/lapacho.log` (previous run: `.log.1`) |
+| Voice model | `~/.local/share/digital.quebracho.lapacho/voice/` |
 
 The log never contains clipboard content. For per-capture timings, start with
 `LAPACHO_TRACE=1 lapacho`.

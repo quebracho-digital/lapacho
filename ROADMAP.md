@@ -465,6 +465,25 @@ What to work on, in order. The sections below hold the detail.
 - [ ] **Speech to text, sovereign, in every language** (idea 2026-10-09,
   research the same day) — dictate instead of typing, recognized on the
   device or on your own server: no audio and no text go anywhere else.
+  - [x] **Engine chosen** (2026-10-12, `speech-eval` README): Parakeet TDT
+    0.6B v3 int8 (CC-BY-4.0) on phone and desktop — 3.6 % WER in Spanish,
+    RTF 0.03, one model for 25 languages, no Hebrew. Qwen3-ASR 1.7B for a
+    server, ivrit-ai Whisper for Hebrew.
+  - [x] **Desktop dictation** (2026-10-12): hold Ctrl+Shift+Alt+D, the text
+    lands on the clipboard (`apps/desktop/src-tauri/src/voice.rs`, crate
+    `lapacho-voice`). Model imported by hand, loaded per dictation. Missing:
+    a recording indicator, a password-field check (desktop can't see one).
+  - [ ] **Android, proposed** (not built): Android lets an app use the
+    microphone only while it is on screen, so the keyboard's 🎤 opens
+    Lapacho Voice's own small screen — a button you hold to talk, over the
+    app you were in. On release the text goes to the clipboard and the
+    screen closes; the keyboard comes back and offers it in the strip like
+    any copied clip, so nothing is typed without a tap. Hold-to-talk moves
+    from the key to that button: the touch on the key can't survive the
+    screen opening. Recognition through `lapacho-voice` (the same Rust as
+    desktop) in its own small bridge, so the keyboard APK doesn't carry
+    sherpa-onnx. The model (640 MB) imported from a file, like a
+    dictionary.
   - **Lapacho Voice, a plugin app** like *Lapacho Terms* (decided): it holds
     `RECORD_AUDIO` and the models; the keyboard's 🎤 key hands over to it and
     types what comes back. The keyboard keeps no permission at all, and

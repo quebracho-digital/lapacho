@@ -4,6 +4,18 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — dictation
+
+Hold **Ctrl+Shift+Alt+D**, speak, let go: the text is on the clipboard and
+in the history. Recognized on the computer by Parakeet TDT 0.6B v3
+(sherpa-onnx), the model `speech-eval` chose: 3.6 % word error in Spanish,
+25 languages, seven times faster than the next one. The model is imported
+by hand (640 MB, `docs/USAGE_DESKTOP.md#dictation`), loaded while you speak
+and dropped after; the audio stays in memory and is zeroed. New crate
+`lapacho-voice`, the part Android will share. Tested with the laptop's own
+microphone, which sits at +0.21 instead of zero: uncorrected, the model
+heard nonsense, so every recording is centred first.
+
 ### Desktop — a plugin's result is shown
 
 Running a plugin saved its result as a new clip at the top of the list, but

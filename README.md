@@ -108,6 +108,9 @@ comes from here. Earlier APKs carried a debug key: going from one of those to
   Two ship built in: search and replace (literal or regex) and *Analyse
   terms*, which turns terms and conditions into a request for an AI assistant.
 - **SQLite history** (WAL mode) with size limit and TTL-based cleanup.
+- **Dictation on the desktop:** hold Ctrl+Shift+Alt+D and speak; recognized
+  on the computer (Parakeet, 25 languages), the text lands on the clipboard.
+  The model is imported, not downloaded ([`docs/USAGE_DESKTOP.md`](docs/USAGE_DESKTOP.md#dictation)).
 
 ## Architecture
 
@@ -116,6 +119,7 @@ Cargo workspace (Rust 2024 edition):
 ```
 lapacho/
 ├─ crates/lapacho-predict/ # Word completion over a dictionary (lib, no I/O)
+├─ crates/lapacho-voice/   # Dictation: speech to text on the device (sherpa-onnx + Parakeet)
 ├─ crates/lapacho-sync/    # Device chain + sealed envelopes over WebDAV (lib, no app uses it yet)
 ├─ crates/lapacho-core/    # Pure logic, no UI (lib)
 │  ├─ types        # ClipboardItem, UIClipboardItem (safe projection), enums

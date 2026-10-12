@@ -38,6 +38,8 @@ base64 = { workspace = true }
 uuid = { workspace = true }
 # `mlock`: pin the encryption key into RAM so it never reaches swap.
 lapacho-core = { workspace = true, features = ["mlock"] }
+lapacho-voice = { path = "../../../crates/lapacho-voice" }
+cpal = "0.16"
 serde = { workspace = true }
 serde_json = { workspace = true }
 # Zeroize raw_content when items leave the volatile tray buffer (T8).

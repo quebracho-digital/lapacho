@@ -1,0 +1,13 @@
+[package]
+name = "lapacho-voice"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Downloads sherpa-onnx's prebuilt static libraries from its GitHub releases
+# at build time (Linux, macOS, Windows, Android). Apache-2.0.
+sherpa-onnx = "1.13.8"
