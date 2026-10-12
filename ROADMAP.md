@@ -23,7 +23,7 @@ altering it.
 What to work on, in order. The sections below hold the detail.
 
 - **Now:** publish the official dictionaries; test the Android build on a
-  real Samsung; the Fabric example plugin for desktop (no code).
+  real Samsung; try the Fabric example plugins against a real model.
 - **Next:** multi-client sync (P4) — it blocks every watch and every second
   device; then a Wear OS viewer on a Galaxy Watch5 Pro, the watch we have.
 - **Later:** Lapacho Voice, *Lapacho Fabric* on Android, the terms
@@ -430,7 +430,10 @@ What to work on, in order. The sections below hold the detail.
     and have no spaces to find a word by. A separate project if ever.
 - [ ] **Fabric patterns as plugins** (idea 2026-10-11) — summarize, extract
   wisdom, any pattern, run on a clip against the user's own model server.
-  - **Desktop:** nothing to build, an example in `plugins/examples/` — a JSON
+  - [x] **Desktop** (2026-10-12): `fabric-summarize.json` and
+    `fabric-pattern.json` in `plugins/examples/`, checked with a stand-in
+    `fabric` (input, pattern, a hostile pattern value); **not yet run against
+    a real model** — `fabric` isn't installed on the laptop. Was: a JSON
     definition that runs `fabric -p "$LAPACHO_PARAM_PATTERN"` with the clip on
     standard input (the contract already passes params as environment
     variables). Fabric uses its own model setup (`fabric --setup`).

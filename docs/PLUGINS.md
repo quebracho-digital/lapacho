@@ -29,6 +29,9 @@ One JSON file per plugin in the app's data folder:
 The first time the app starts it creates the folder with one example,
 `uppercase.json`. More examples are in [`plugins/examples/`](../plugins/examples/):
 copy one into the folder and it shows up the next time you open a clip.
+A file that isn't valid JSON, or lacks a required field, doesn't show up:
+the log (`~/.local/state/lapacho/lapacho.log` on Linux) names it and says
+why.
 
 ### The definition
 

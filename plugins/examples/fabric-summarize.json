@@ -1,0 +1,8 @@
+{
+  "id": "fabric-summarize",
+  "name": "Summarize (Fabric)",
+  "description": "Runs Fabric's summarize pattern on the clip, with the model set up in fabric --setup",
+  "command": "sh",
+  "args": ["-c", "PATH=\"$PATH:$HOME/go/bin\" exec fabric -p summarize"],
+  "timeout_secs": 300
+}
