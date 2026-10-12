@@ -48,14 +48,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      # sherpa-onnx-sys unpacks its libraries into target/sherpa-onnx-prebuilt,
-      # which rust-cache doesn't keep, while it does keep the build script's
-      # result pointing there: the next run links against a missing folder.
-      # Cache the folder too; the prefix drops the caches saved without it.
       - uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: v1-rust
-          cache-directories: target/sherpa-onnx-prebuilt
+      # sherpa-onnx-sys unpacks its libraries into target/sherpa-onnx-prebuilt,
+      # which rust-cache cleans away before saving, while it keeps the build
+      # script's result pointing there: a run from the cache links against a
+      # missing folder. Forget that result so the script runs and fetches
+      # them again (~50 MB), as in a cold build.
+      - name: Re-run sherpa-onnx's build script
+        shell: bash
+        run: rm -rf target/*/.fingerprint/sherpa-onnx-sys-* target/*/build/sherpa-onnx-sys-* target/*/*/.fingerprint/sherpa-onnx-sys-* target/*/*/build/sherpa-onnx-sys-*
       - uses: taiki-e/install-action@v2
         with:
           tool: trunk
