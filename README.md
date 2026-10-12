@@ -112,7 +112,9 @@ comes from here. Earlier APKs carried a debug key: going from one of those to
 - **SQLite history** (WAL mode) with size limit and TTL-based cleanup.
 - **Dictation on the desktop:** hold Ctrl+Shift+Alt+D and speak; recognized
   on the computer (Parakeet, 25 languages), the text lands on the clipboard.
-  The model is imported, not downloaded ([`docs/USAGE_DESKTOP.md`](docs/USAGE_DESKTOP.md#dictation)).
+  The model is imported, not downloaded: [this file](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2)
+  (487 MB), for the desktop ([`docs/USAGE_DESKTOP.md`](docs/USAGE_DESKTOP.md#dictation))
+  and for Lapacho Voice on the phone ([`docs/USAGE_MOBILE.md`](docs/USAGE_MOBILE.md)).
 
 ## Architecture
 
