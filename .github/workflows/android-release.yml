@@ -67,7 +67,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,x86_64-linux-android
+      # sherpa-onnx-sys unpacks its libraries into target/sherpa-onnx-prebuilt,
+      # which rust-cache doesn't keep, while it does keep the build script's
+      # result pointing there: the next run links against a missing folder.
+      # Cache the folder too; the prefix drops the caches saved without it.
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
+          cache-directories: target/sherpa-onnx-prebuilt
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-ndk
