@@ -156,8 +156,8 @@ It needs a model, which Lapacho doesn't download for you. It is
 languages — Spanish, English, Italian, Portuguese, French, German, Russian
 among them — recognized without telling it which. Not Hebrew.
 
-1. Download `sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2` from
-   sherpa-onnx's [ASR models release](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models).
+1. Download [`sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2`](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2)
+   (487 MB, from sherpa-onnx's releases).
 2. Unpack it, and put the files that are inside its folder
    (`encoder.int8.onnx`, `decoder.int8.onnx`, `joiner.int8.onnx`,
    `tokens.txt`) in a `voice` folder next to the history:

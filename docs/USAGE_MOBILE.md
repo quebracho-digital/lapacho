@@ -153,9 +153,9 @@ by itself; not Hebrew). Lapacho Voice has no internet permission either.
 The audio is kept in memory only and erased once it is text.
 
 **The model, once.** Voice needs a 640 MB model it doesn't download itself:
-get `sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2` (about 500 MB)
-with the phone's browser from
-[sherpa-onnx's models](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models),
+open [`sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2`](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2)
+(487 MB, from sherpa-onnx's releases) in the phone's browser, which saves it
+to Download, then
 open Lapacho Voice, **Import model**, and pick it in Download. Unpacking
 takes a minute or two; you can delete the download afterwards.
 
