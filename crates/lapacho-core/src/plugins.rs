@@ -159,12 +159,18 @@ pub fn load_plugins(plugins_dir: &Path) -> Result<Vec<PluginDefinition>, String>
     if let Ok(entries) = fs::read_dir(plugins_dir) {
         for entry in entries.flatten() {
             let path: PathBuf = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("json")
-                && let Ok(content) = fs::read_to_string(&path)
-                && let Ok(plugin) = serde_json::from_str::<PluginDefinition>(&content)
-                && !plugins.iter().any(|p| p.id == plugin.id)
-            {
-                plugins.push(plugin);
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            // A broken file is skipped, not fatal; the log says why. Name and
+            // parse error only: a definition holds no clip content.
+            let parsed = fs::read_to_string(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|c| serde_json::from_str::<PluginDefinition>(&c).map_err(|e| e.to_string()));
+            match parsed {
+                Ok(plugin) if !plugins.iter().any(|p| p.id == plugin.id) => plugins.push(plugin),
+                Ok(_) => {}
+                Err(e) => eprintln!("lapacho: plugin {} skipped: {e}", path.display()),
             }
         }
     }
