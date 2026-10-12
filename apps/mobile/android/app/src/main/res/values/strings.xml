@@ -104,4 +104,9 @@
     <string name="param_regex">Regular expression</string>
     <string name="plugin_no_matches">No matches</string>
     <string name="plugin_nothing_to_search">Type something to search for</string>
+    <string name="setup_title">Getting started</string>
+    <string name="setup_enable">1. Turn on Lapacho\'s keyboard (opens Settings)</string>
+    <string name="setup_default">2. Make it the keyboard you type with</string>
+    <string name="setup_voice">3. Optional: dictation, with Lapacho Voice (opens its download page)</string>
+    <string name="setup_not_now">Not now</string>
 </resources>

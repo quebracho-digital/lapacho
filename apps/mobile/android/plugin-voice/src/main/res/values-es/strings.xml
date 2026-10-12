@@ -11,4 +11,9 @@
     <string name="importing">Importando… %1$d %%. En un teléfono tarda unos minutos; la pantalla queda prendida hasta que termine.</string>
     <string name="no_permission">Lapacho Voz necesita el micrófono para escucharte. Graba solo mientras mantenés el botón.</string>
     <string name="error">Error: %1$s</string>
+    <string name="use_system">Usar el reconocedor del teléfono (no soberano: de otra app, normalmente Google, en este teléfono; sin descargas)</string>
+    <string name="use_parakeet">Usar Parakeet, el reconocedor propio de Lapacho</string>
+    <string name="ready_system">Mantené el botón y hablá. El reconocedor del teléfono lo pasa a texto, en este teléfono, pero es código de otra app (normalmente Google), no de Lapacho.</string>
+    <string name="system_error">falló el reconocedor del teléfono (%1$d). Puede que necesite bajar el idioma, en sus propios ajustes.</string>
+    <string name="system_downloading">El reconocedor del teléfono está bajando su idioma (es su propia descarga). Probá de nuevo en un minuto.</string>
 </resources>

@@ -4,6 +4,23 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — a first-run checklist (`0.1.45`)
+
+Lapacho's screen starts with the steps Android won't let an app take by
+itself, each ticked when done: turn the keyboard on (opens the right
+Settings page), make it the default (opens the keyboard picker), and,
+optional, get Lapacho Voice for dictation (opens the download page, or
+*Not now*). The ticks are read from the system each time, so turning the
+keyboard off brings its step back. Once all are done, it is gone.
+
+### Android — Lapacho Voice 0.1.2: the phone's recognizer, if you want it (`0.1.45`)
+
+When the phone has a recognizer that works offline (Google's, on most
+phones; Android 12 or later), Voice offers it instead of downloading
+Parakeet — labelled for what it is: on the phone, but another app's code,
+not sovereign. Never chosen for you, and Parakeet is one tap away. One
+that sends the audio to a server is never offered.
+
 ### Android — Lapacho Voice 0.1.1: the model import shows its progress (`0.1.44`)
 
 Unpacking the model takes minutes on a phone, and the window only said

@@ -104,4 +104,9 @@
     <string name="param_regex">Expresión regular</string>
     <string name="plugin_no_matches">No se encontró nada</string>
     <string name="plugin_nothing_to_search">Escribí qué buscar</string>
+    <string name="setup_title">Para empezar</string>
+    <string name="setup_enable">1. Activá el teclado de Lapacho (abre Ajustes)</string>
+    <string name="setup_default">2. Elegilo como el teclado con el que escribís</string>
+    <string name="setup_voice">3. Opcional: dictado, con Lapacho Voz (abre la página de descarga)</string>
+    <string name="setup_not_now">Ahora no</string>
 </resources>
