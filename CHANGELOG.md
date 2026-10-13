@@ -11,6 +11,15 @@ Holding a clip, in the keyboard's strip or the app's list, now offers
 with it, as on desktop since 0.1.47. Text that reads as a password is
 refused, since the phone never keeps one; empty text too. Tried on the
 emulator, not yet on a phone.
+### Desktop — plugins show up without a restart, and the terms request says what it is
+
+The plugin list was read once, when the window first loaded, so a plugin
+copied into the folder (or an edited one) needed Lapacho restarted. It is
+read again every time a clip opens. The built-in *Analyse terms* is now
+*Terms: request for my assistant* on desktop: it never analysed anything,
+it builds the request to paste, and the name made it look like the
+example plugin that does, *Analyse terms with my model*. Android keeps
+*Analyse terms…*, which opens the share sheet.
 
 ### Plugins — *Analyse terms with my model* without a form
 
