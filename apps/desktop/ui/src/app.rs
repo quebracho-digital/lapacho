@@ -131,6 +131,7 @@ pub fn App() -> impl IntoView {
     let (plugin_values, set_plugin_values) = signal(std::collections::HashMap::<String, String>::new());
     let (plugin_err, set_plugin_err) = signal(None::<String>);
     let (plugin_running, set_plugin_running) = signal(false);
+    let (plugin_replace, set_plugin_replace) = signal(false);
 
     // Raw vs. rendered preview inside the maximize modal (reset on each open).
     let (view_raw, set_view_raw) = signal(false);
@@ -185,6 +186,7 @@ pub fn App() -> impl IntoView {
             set_sel_plugin.set(String::new());
             set_plugin_values.set(Default::default());
             set_plugin_err.set(None);
+            set_plugin_replace.set(false);
             set_edit_text.set(None);
             set_detail.set(item);
         });
@@ -857,18 +859,23 @@ pub fn App() -> impl IntoView {
                                         }).unwrap_or_else(|| pid.clone());
                                         set_plugin_err.set(Some(format!("{name}…")));
                                         set_plugin_running.set(true);
+                                        let replace = plugin_replace.get_untracked();
                                         spawn_local(async move {
-                                            let ran = bindings::run_plugin(&pid, &item_id, &params).await;
+                                            let ran = bindings::run_plugin(&pid, &item_id, &params, replace).await;
                                             set_plugin_running.set(false);
                                             match ran {
                                                 Ok(newit) => {
                                                     // Show the result: the list updates behind the modal, unseen.
                                                     set_items.update(|v| {
-                                                        v.retain(|x| x.id != newit.id);
+                                                        v.retain(|x| x.id != newit.id && !(replace && x.id == item_id));
                                                         v.insert(0, newit.clone());
                                                     });
                                                     show_detail(Some(newit));
-                                                    notify(format!("✓ {name}: the result is a new clip, copied and shown here"));
+                                                    notify(if replace {
+                                                        format!("✓ {name}: the clip now holds the result, copied")
+                                                    } else {
+                                                        format!("✓ {name}: the result is a new clip, copied and shown here")
+                                                    });
                                                 }
                                                 // What a Markdown clip shows isn't its text: a quote's
                                                 // bar or a list's dots have no character to find.
@@ -879,6 +886,15 @@ pub fn App() -> impl IntoView {
                                             }
                                         });
                                     }>{move || if plugin_running.get() { "Running…" } else { "Run" }}</button>
+                                    // Off by default: a result that replaces the clip loses the original.
+                                    <label class="plugin-param" title="The result takes this clip's place instead of becoming a new clip">
+                                        <input
+                                            type="checkbox"
+                                            prop:checked=move || plugin_replace.get()
+                                            on:change=move |ev| set_plugin_replace.set(event_target_checked(&ev))
+                                        />
+                                        "Replace this clip"
+                                    </label>
                                     <span class="plugin-err">{move || plugin_err.get()}</span>
                                 </div>
 

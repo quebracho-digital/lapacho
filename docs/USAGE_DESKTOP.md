@@ -74,7 +74,9 @@ wiped from memory when they leave it. The vault (💾) is the per-item exception
 
 ## Plugins
 
-Plugins transform a clip. Two come built in (below); the rest are external
+Plugins transform a clip. The result is a new clip, copied, and the
+original stays; tick **Replace this clip** next to **Run** and the result
+takes the original's place instead, as an edit would. Two come built in (below); the rest are external
 commands, each declared by a JSON file in
 `~/.local/share/digital.quebracho.lapacho/plugins/`:
 

@@ -94,6 +94,8 @@
     <string name="edit_empty">Empty text: nothing saved. To remove the clip, clear the history.</string>
     <string name="edit_secret">That reads as a password, and the phone never keeps one: not saved.</string>
     <string name="edit_gone">The clip is gone: nothing saved.</string>
+    <string name="plugin_replace_clip">Replace this clip</string>
+    <string name="plugin_replaced">Done: the clip now holds the result</string>
     <string name="plugins">Plugins</string>
     <string name="plugin_run">Run</string>
     <string name="plugin_done">Saved as a new clip</string>

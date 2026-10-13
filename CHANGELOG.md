@@ -4,6 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Plugins — a result can replace its clip (`0.1.48`)
+
+A plugin's result was always a new clip. **Replace this clip**, a box next
+to Run on desktop and in a built-in's form on Android, puts the result in
+the original's place instead, the same way an edit does: classified again,
+name and pin kept, copied. Off by default. Android: built-ins only (not
+*Analyse terms…*); a result that reads as a password is refused there.
+Tried on the emulator (search and replace), not on a phone; desktop
+builds and its tests pass, not clicked through.
+
 ### Android — edit a clip in place (`0.1.48`)
 
 Holding a clip, in the keyboard's strip or the app's list, now offers

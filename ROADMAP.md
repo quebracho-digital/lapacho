@@ -143,8 +143,10 @@ What to work on, in order. The sections below hold the detail.
     the phone never stores one.
   - **Sync:** the id changes with the content; with multi-client sync (P4)
     an edit is a delete plus a new item, unless sync gets a stable id.
-  - **Plugins:** offer "replace this clip" next to "new clip" for a result
-    — the same write path (`edit_item`).
+  - ✅ **Plugins (`0.1.48`):** "Replace this clip" next to Run puts a
+    result in the clip's place, through the edit's write path
+    (`replace_item` on desktop, `edit_text` on Android). Android: built-ins
+    only; a plugin app's result doesn't know its clip yet.
 
 ### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
 - [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).
