@@ -99,6 +99,7 @@ struct RunPluginArgs<'a> {
     plugin_id: &'a str,
     item_id: &'a str,
     params: &'a std::collections::HashMap<String, String>,
+    replace: bool,
 }
 
 // --- queries ---------------------------------------------------------------
@@ -244,8 +245,9 @@ pub async fn run_plugin(
     plugin_id: &str,
     item_id: &str,
     params: &std::collections::HashMap<String, String>,
+    replace: bool,
 ) -> Result<UIClipboardItem, String> {
-    let v = invoke("run_plugin", args(&RunPluginArgs { plugin_id, item_id, params }))
+    let v = invoke("run_plugin", args(&RunPluginArgs { plugin_id, item_id, params, replace }))
         .await
         .map_err(js_err)?;
     serde_wasm_bindgen::from_value(v).map_err(|e| e.to_string())

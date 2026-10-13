@@ -94,6 +94,8 @@
     <string name="edit_empty">Texto vacío: no se guardó nada. Para quitar el clip, borrá el historial.</string>
     <string name="edit_secret">Eso parece una contraseña, y el teléfono nunca guarda una: no se guardó.</string>
     <string name="edit_gone">El clip ya no está: no se guardó nada.</string>
+    <string name="plugin_replace_clip">Reemplazar este clip</string>
+    <string name="plugin_replaced">Listo: el clip ahora tiene el resultado</string>
     <string name="plugins">Plugins</string>
     <string name="plugin_run">Aplicar</string>
     <string name="plugin_done">Guardado como clip nuevo</string>

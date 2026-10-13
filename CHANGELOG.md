@@ -4,14 +4,24 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Android — edit a clip in place
+### Plugins — a result can replace its clip (`0.1.48`)
+
+A plugin's result was always a new clip. **Replace this clip**, a box next
+to Run on desktop and in a built-in's form on Android, puts the result in
+the original's place instead, the same way an edit does: classified again,
+name and pin kept, copied. Off by default. Android: built-ins only (not
+*Analyse terms…*); a result that reads as a password is refused there.
+Tried on the emulator (search and replace), not on a phone; desktop
+builds and its tests pass, not clicked through.
+
+### Android — edit a clip in place (`0.1.48`)
 
 Holding a clip, in the keyboard's strip or the app's list, now offers
 ✏️ Edit before the plugins: the text in a box, and Save replaces the clip
 with it, as on desktop since 0.1.47. Text that reads as a password is
 refused, since the phone never keeps one; empty text too. Tried on the
 emulator, not yet on a phone.
-### Desktop — plugins show up without a restart, and the terms request says what it is
+### Desktop — plugins show up without a restart, and the terms request says what it is (`0.1.48`)
 
 The plugin list was read once, when the window first loaded, so a plugin
 copied into the folder (or an edited one) needed Lapacho restarted. It is
@@ -21,7 +31,7 @@ it builds the request to paste, and the name made it look like the
 example plugin that does, *Analyse terms with my model*. Android keeps
 *Analyse terms…*, which opens the share sheet.
 
-### Plugins — *Analyse terms with my model* without a form
+### Plugins — *Analyse terms with my model* without a form (`0.1.47`)
 
 The `terms-assistant` example asked for the endpoint, the model and the
 token on every run, and the model had to be the server's exact id

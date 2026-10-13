@@ -72,6 +72,10 @@ Scroll the strip sideways for older ones (the 20 most recent are shown).
 Hold a clip — in the keyboard's strip, or in the app's list — and pick what to
 do with it.
 
+A built-in's result is a new clip; tick **Replace this clip** in its form
+and it replaces the held one instead (not for *Analyse terms…*, whose
+result is a request to send).
+
 **✏️ Edit**: the clip's text in a box; **SAVE** replaces the clip with what
 you wrote, as if you had just copied it. Text that reads as a password is
 refused (the phone never keeps one), and so is empty text.

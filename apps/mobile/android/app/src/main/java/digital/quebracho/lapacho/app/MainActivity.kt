@@ -368,10 +368,15 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * A field per value the plugin asks for, then the run. The result is a new
-     * clip, like on desktop; the original stays. A refusal (a bad regex,
-     * nothing matched) says why and opens the form again with what was typed.
+     * clip, like on desktop; the original stays, unless "Replace this clip" is
+     * ticked. A refusal (a bad regex, nothing matched) says why and opens the
+     * form again with what was typed.
+     *
+     * ponytail: only the built-ins can replace; a plugin app's result comes
+     * back through an activity result that doesn't know the clip. Add it there
+     * when someone wants it.
      */
-    private fun askParams(item: ClipboardItem, plugin: PluginInfo, typed: Map<String, String> = emptyMap()) {
+    private fun askParams(item: ClipboardItem, plugin: PluginInfo, typed: Map<String, String> = emptyMap(), replaceTyped: Boolean = false) {
         val pad = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20f, resources.displayMetrics).toInt()
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -386,6 +391,9 @@ class MainActivity : AppCompatActivity() {
             form.addView(field)
             p to field
         }
+        // Not for terms: its result is a request to send, not a new text for the clip.
+        val replace = CheckBox(this).apply { text = getString(R.string.plugin_replace_clip); isChecked = replaceTyped }
+        if (plugin.id != "terms") form.addView(replace)
         AlertDialog.Builder(this)
             .setTitle(pluginName(plugin))
             .setView(form)
@@ -395,6 +403,20 @@ class MainActivity : AppCompatActivity() {
                 }
                 try {
                     val result = runPlugin(plugin.id, repo.raw(item) ?: return@setPositiveButton, values)
+                    if (replace.isChecked && plugin.id != "terms") {
+                        if (classify(result).isSecret()) {
+                            Toast.makeText(this, R.string.edit_secret, Toast.LENGTH_LONG).show()
+                            return@setPositiveButton askParams(item, plugin, values, true)
+                        }
+                        try {
+                            repo.edit(item.id, result)
+                            Toast.makeText(this, R.string.plugin_replaced, Toast.LENGTH_SHORT).show()
+                        } catch (_: MobileException.NotFound) {
+                            Toast.makeText(this, R.string.edit_gone, Toast.LENGTH_LONG).show()
+                        }
+                        refresh()
+                        return@setPositiveButton backToKeyboard()
+                    }
                     save(result)
                     refresh()
                     if (plugin.id == "terms") {
@@ -414,7 +436,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 } catch (e: MobileException.Plugin) {
                     Toast.makeText(this, pluginRefusal(e.reason), Toast.LENGTH_LONG).show()
-                    askParams(item, plugin, values)
+                    askParams(item, plugin, values, replace.isChecked)
                 }
             }
             .setNegativeButton(android.R.string.cancel) { _, _ -> backToKeyboard() }

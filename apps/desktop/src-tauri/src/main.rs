@@ -658,7 +658,8 @@ fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginDefinition>, Str
 /// through the same ingest pipeline as the clipboard monitor, so the response
 /// is stored raw and gets a freshly classified, sanitized display — masked if
 /// the plugin happened to produce a secret. The new item is emitted to the UI
-/// and returned.
+/// and returned. With `replace`, the result takes the source clip's place
+/// instead, as an edit would (`replace_item`).
 ///
 /// `async`: a plain command runs on the main thread, and a plugin that asks a
 /// model for minutes froze the window, so a click on Run showed nothing and
@@ -668,6 +669,7 @@ fn run_plugin(
     plugin_id: String,
     item_id: String,
     params: Option<std::collections::HashMap<String, String>>,
+    replace: Option<bool>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<UIClipboardItem, String> {
@@ -678,6 +680,11 @@ fn run_plugin(
     let resp = plugins::execute_plugin(&state.plugins_dir, &plugin_id, &source.raw_content, &params.unwrap_or_default())?;
     if !resp.success {
         return Err(resp.error.unwrap_or_else(|| "Plugin failed".to_string()));
+    }
+    if replace.unwrap_or(false) {
+        let item = replace_item(&item_id, &resp.result_raw_content, &app, &state)?;
+        copy_raw(&item.id, &state)?;
+        return Ok(UIClipboardItem::from(item));
     }
 
     // Store the output raw; the pipeline derives the sanitized display. Saving
@@ -712,32 +719,37 @@ fn run_plugin(
 /// the UI never has their text.
 #[tauri::command]
 fn edit_item(id: String, text: String, app: AppHandle, state: State<'_, AppState>) -> Result<UIClipboardItem, String> {
-    let old = load_item(&id, &state)?;
+    replace_item(&id, &text, &app, &state).map(UIClipboardItem::from)
+}
+
+/// `edit_item`'s work, shared with a plugin run that replaces its clip.
+fn replace_item(id: &str, text: &str, app: &AppHandle, state: &AppState) -> Result<ClipboardItem, String> {
+    let old = load_item(id, state)?;
     if old.content_type == "image" || matches!(old.sensitivity, Sensitivity::Credential | Sensitivity::Secret) {
         return Err("Only plain text can be edited".to_string());
     }
     if text.trim().is_empty() {
         return Err("Empty text: delete the item instead".to_string());
     }
-    let mut item = process_text(&text);
+    let mut item = process_text(text);
     item.id = state.repo.content_id(&item.raw_content);
     if item.id == old.id {
-        return Ok(UIClipboardItem::from(old));
+        return Ok(old);
     }
     apply_taught_secrets(&*state.repo, &mut item);
     (item.title, item.pinned, item.vaulted) = (old.title, old.pinned, old.vaulted);
     // Saved before the old one goes: a failed write loses the edit, not the clip.
     let level = *state.persist_level.lock().unwrap();
     state.repo.save(&item, level)?;
-    state.repo.delete(&id)?;
+    state.repo.delete(id)?;
     {
         let mut recent = state.tray_recent.lock().unwrap();
-        recent.evict(&id);
+        recent.evict(id);
         recent.push_front(item.clone());
     }
-    tray::schedule_rebuild(&app);
-    request_history_refresh(&app);
-    Ok(UIClipboardItem::from(item))
+    tray::schedule_rebuild(app);
+    request_history_refresh(app);
+    Ok(item)
 }
 
 /// Secrets the user taught override the heuristic: this exact content (marked
