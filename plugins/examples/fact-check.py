@@ -18,6 +18,8 @@ import importlib.util
 import os
 import sys
 
+# Importing terms-assistant.py would leave a __pycache__ in the plugins folder.
+sys.dont_write_bytecode = True
 here = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("terms_assistant", os.path.join(here, "terms-assistant.py"))
 if spec is None or not os.path.exists(spec.origin):
