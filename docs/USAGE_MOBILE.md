@@ -72,6 +72,10 @@ Scroll the strip sideways for older ones (the 20 most recent are shown).
 Hold a clip — in the keyboard's strip, or in the app's list — and pick what to
 do with it.
 
+**✏️ Edit**: the clip's text in a box; **SAVE** replaces the clip with what
+you wrote, as if you had just copied it. Text that reads as a password is
+refused (the phone never keeps one), and so is empty text.
+
 **Analyse terms…**: copy the terms or the privacy policy you are about to
 accept, hold that clip, pick it, **RUN**. Lapacho builds a request for an AI
 assistant (what to look for, how grave each clause is, and the text fenced so

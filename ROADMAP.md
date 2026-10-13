@@ -128,7 +128,7 @@ What to work on, in order. The sections below hold the detail.
   toolkit's About dialog (GTK `AboutDialog` on Linux, a message box on
   Windows, the standard panel on macOS): version, licence, authors, links to
   the repo and its releases. Verified on Linux by clicking it over dbusmenu.
-- [ ] **Edit an item in place** (Leo, 2026-10-12): change a clip's text
+- [x] **Edit an item in place** (Leo, 2026-10-12): change a clip's text
   without a new item.
   - ✅ **Desktop (2026-10-13):** ✏️ in the detail window turns the raw text
     into a textarea (Ctrl+Enter or Save, Esc or Cancel). On save the text
@@ -137,7 +137,10 @@ What to work on, in order. The sections below hold the detail.
     Paranoia); name, pin and vault carry over. The id follows the content,
     so the edited item replaces the old one. Masked items have no ✏️: the
     UI never has their text.
-  - [ ] **Android:** the same from a held clip.
+  - ✅ **Android (2026-10-13, emulator only):** ✏️ Edit first among a
+    held clip's plugins, from the app or the keyboard. `MobileCore.edit_text`
+    is desktop's path; text that classifies as a secret is refused, since
+    the phone never stores one.
   - **Sync:** the id changes with the content; with multi-client sync (P4)
     an edit is a delete plus a new item, unless sync gets a stable id.
   - **Plugins:** offer "replace this clip" next to "new clip" for a result

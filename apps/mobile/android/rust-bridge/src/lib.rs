@@ -203,6 +203,24 @@ impl MobileCore {
         Ok(self.repo.set_preference(&key, &value)?)
     }
 
+    /// Replaces item `id`'s text with `text`, as if it had just been copied:
+    /// classified again and stored under the content's id, so the edited item
+    /// replaces the old one; name and pin carry over. Same path as desktop's
+    /// `edit_item`. The caller keeps secrets out, as it does on capture.
+    pub fn edit_text(&self, id: String, text: String) -> Result<MobileItem> {
+        let old = self.repo.get_by_id(&id)?.ok_or(MobileError::NotFound { id: id.clone() })?;
+        let mut item = core_process_text(&text);
+        item.id = self.repo.content_id(&item.raw_content);
+        if item.id == old.id {
+            return Ok(old.into());
+        }
+        (item.title, item.pinned, item.vaulted) = (old.title, old.pinned, old.vaulted);
+        // Saved before the old one goes: a failed write loses the edit, not the clip.
+        self.repo.save(&item, PersistLevel::All)?;
+        self.repo.delete(&id)?;
+        Ok(item.into())
+    }
+
     /// Get raw content for a specific item to paste it. Single-row lookup: the
     /// IME calls this on every paste, so it must not decrypt the whole history.
     pub fn get_raw_content(&self, id: String) -> Result<String> {
@@ -325,6 +343,21 @@ mod tests {
             core.get_raw_content("nope".into()),
             Err(MobileError::NotFound { .. })
         ));
+    }
+
+    #[test]
+    fn an_edit_replaces_the_item() {
+        let db = std::env::temp_dir().join(format!("mobile_edit_{}.db", uuid::Uuid::new_v4()));
+        let core = MobileCore::new(db.to_str().unwrap().into(), crypto::SecretKey::generate().unwrap().to_base64()).unwrap();
+        let old = core.ingest_text("hola lapacho".into(), "All".into(), None).unwrap();
+        let new = core.edit_text(old.id.clone(), "hola lapacho mobile".into()).unwrap();
+        assert_ne!(new.id, old.id);
+        let recent = core.get_recent_items(10).unwrap();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(core.get_raw_content(new.id.clone()).unwrap(), "hola lapacho mobile");
+        // The same text again changes nothing.
+        assert_eq!(core.edit_text(new.id.clone(), "hola lapacho mobile".into()).unwrap().id, new.id);
+        assert!(matches!(core.edit_text("nope".into(), "x".into()), Err(MobileError::NotFound { .. })));
     }
 
     #[test]

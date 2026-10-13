@@ -4,6 +4,14 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Android — edit a clip in place
+
+Holding a clip, in the keyboard's strip or the app's list, now offers
+✏️ Edit before the plugins: the text in a box, and Save replaces the clip
+with it, as on desktop since 0.1.47. Text that reads as a password is
+refused, since the phone never keeps one; empty text too. Tried on the
+emulator, not yet on a phone.
+
 ### Plugins — *Analyse terms with my model* without a form
 
 The `terms-assistant` example asked for the endpoint, the model and the
