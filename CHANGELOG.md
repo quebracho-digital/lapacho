@@ -4,6 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Plugins — *Analyse terms with my model* without a form
+
+The `terms-assistant` example asked for the endpoint, the model and the
+token on every run, and the model had to be the server's exact id
+(`Qwen3.6-35B-A3B` failed with "model not found"). It now reads them from
+`terms-assistant.local.json`, written once next to the script, and `model`
+can be any part of the id: `qwen3.8-27b` finds
+`unsloth/Qwen3.8-27B-GGUF:Q4_K_M` in the server's `/v1/models`, and a name
+that matches several, or none, gets the list back as the error.
+
 ### Desktop — edit a clip, and every button says what it did (`0.1.47`)
 
 ✏️ Edit in a clip's window turns its text into a box: Ctrl+Enter or Save
