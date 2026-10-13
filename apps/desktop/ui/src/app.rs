@@ -130,6 +130,7 @@ pub fn App() -> impl IntoView {
     // failed — a wrong regex or "No matches" has to be seen, not swallowed.
     let (plugin_values, set_plugin_values) = signal(std::collections::HashMap::<String, String>::new());
     let (plugin_err, set_plugin_err) = signal(None::<String>);
+    let (plugin_running, set_plugin_running) = signal(false);
 
     // Raw vs. rendered preview inside the maximize modal (reset on each open).
     let (view_raw, set_view_raw) = signal(false);
@@ -839,9 +840,9 @@ pub fn App() -> impl IntoView {
                                             })
                                             .collect_view()
                                     }}
-                                    <button on:click=move |_| {
+                                    <button disabled=move || plugin_running.get() on:click=move |_| {
                                         let pid = sel_plugin.get();
-                                        if pid.is_empty() {
+                                        if pid.is_empty() || plugin_running.get_untracked() {
                                             return;
                                         }
                                         let item_id = id_plugin.clone();
@@ -850,8 +851,11 @@ pub fn App() -> impl IntoView {
                                             ps.iter().find(|p| p.id == pid).map(|p| p.name.clone())
                                         }).unwrap_or_else(|| pid.clone());
                                         set_plugin_err.set(Some(format!("{name}…")));
+                                        set_plugin_running.set(true);
                                         spawn_local(async move {
-                                            match bindings::run_plugin(&pid, &item_id, &params).await {
+                                            let ran = bindings::run_plugin(&pid, &item_id, &params).await;
+                                            set_plugin_running.set(false);
+                                            match ran {
                                                 Ok(newit) => {
                                                     // Show the result: the list updates behind the modal, unseen.
                                                     set_items.update(|v| {
@@ -869,7 +873,7 @@ pub fn App() -> impl IntoView {
                                                 Err(e) => set_plugin_err.set(Some(e)),
                                             }
                                         });
-                                    }>"Run"</button>
+                                    }>{move || if plugin_running.get() { "Running…" } else { "Run" }}</button>
                                     <span class="plugin-err">{move || plugin_err.get()}</span>
                                 </div>
 
