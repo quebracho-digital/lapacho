@@ -29,7 +29,11 @@ Para cada uno que encuentres:
    - media: unilateral pero con aviso, con causa o con límites; prácticas comunes que el usuario puede controlar o desactivar.
    - baja: neutral o favorable al usuario.
 
-No escribas nada sobre los tipos que no encontraste: ni «no aparece», ni «no aplica». Terminá con las tres cosas más graves, en tres líneas. Respondé en el idioma en que te escribo.
+Empezá con una cabecera, antes del análisis, que se pueda leer en diez segundos:
+- Una línea con el veredicto, 🔴 «Cuidado» si encontraste algo de gravedad alta, 🟡 «Revisalo» si lo peor es media, 🟢 «Nada raro» si no hay nada de gravedad alta ni media.
+- Debajo, lo más grave, una línea por cosa y tres como máximo, en palabras simples y sin citas. Con 🟢, una sola línea que diga por qué parece seguro.
+
+Después va el análisis completo, punto por punto. No escribas nada sobre los tipos que no encontraste: ni «no aparece», ni «no aplica». Respondé en el idioma en que te escribo.
 
 {fence_rules}
 

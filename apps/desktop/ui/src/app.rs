@@ -141,6 +141,29 @@ pub fn App() -> impl IntoView {
     // confirming second click. Putting a secret on disk shouldn't be one stray
     // click away from the pin next to it.
     let (arming, set_arming) = signal(None::<String>);
+    // The detail item's raw text while it is being edited.
+    let (edit_text, set_edit_text) = signal(None::<String>);
+    // A line at the bottom saying what a click did: a copy leaves no trace of
+    // its own, and a plugin's result used to swap in without a word.
+    let (toast, set_toast) = signal(None::<String>);
+    let notify = move |msg: String| {
+        set_toast.set(Some(msg.clone()));
+        set_timeout(
+            move || {
+                if toast.get_untracked().as_deref() == Some(msg.as_str()) {
+                    set_toast.set(None);
+                }
+            },
+            std::time::Duration::from_millis(2500),
+        );
+    };
+    // `ok` on success, the backend's reason otherwise.
+    let report = move |res: Result<(), String>, ok: &str| {
+        notify(match res {
+            Ok(()) => ok.to_string(),
+            Err(e) => format!("⚠ {e}"),
+        })
+    };
 
     // Opens `item` in the detail modal, fresh, or closes it with `None`.
     //
@@ -156,6 +179,7 @@ pub fn App() -> impl IntoView {
             set_sel_plugin.set(String::new());
             set_plugin_values.set(Default::default());
             set_plugin_err.set(None);
+            set_edit_text.set(None);
             set_detail.set(item);
         });
     };
@@ -437,7 +461,7 @@ pub fn App() -> impl IntoView {
                                         on:click=move |_| {
                                             let id = id_copy.clone();
                                             spawn_local(async move {
-                                                let _ = bindings::copy_item(&id).await;
+                                                report(bindings::copy_item(&id).await, "⧉ Copied");
                                             });
                                         }
                                     >"⧉"</button>
@@ -453,7 +477,7 @@ pub fn App() -> impl IntoView {
                                                 on:click=move |_| {
                                                     let id = id_secret.clone();
                                                     spawn_local(async move {
-                                                        let _ = bindings::mark_secret(&id).await;
+                                                        report(bindings::mark_secret(&id).await, "🔒 Masked, and remembered as a secret");
                                                     });
                                                 }
                                             >"🔒"</button>
@@ -473,7 +497,7 @@ pub fn App() -> impl IntoView {
                                         on:click=move |_| {
                                             let id = id_pin.clone();
                                             spawn_local(async move {
-                                                let _ = bindings::toggle_pin(&id).await;
+                                                report(bindings::toggle_pin(&id).await, if pinned { "Unpinned" } else { "📌 Pinned: the history limit won't delete it" });
                                             });
                                         }
                                     >{if pinned { "📌" } else { "📍" }}</button>
@@ -496,7 +520,7 @@ pub fn App() -> impl IntoView {
                                             }
                                             set_arming.set(None);
                                             spawn_local(async move {
-                                                let _ = bindings::toggle_vault(&id).await;
+                                                report(bindings::toggle_vault(&id).await, if vaulted { "Out of the vault" } else { "🗄 In the vault: kept on disk" });
                                             });
                                         }
                                     >{if vaulted { "🗄" } else if is_armed { "⚠" } else { "💾" }}</button>
@@ -505,8 +529,11 @@ pub fn App() -> impl IntoView {
                                         on:click=move |_| {
                                             let id = id_del.clone();
                                             spawn_local(async move {
-                                                let _ = bindings::delete_item(&id).await;
-                                                set_items.update(move |v| v.retain(|x| x.id != id));
+                                                let res = bindings::delete_item(&id).await;
+                                                if res.is_ok() {
+                                                    set_items.update(|v| v.retain(|x| x.id != id));
+                                                }
+                                                report(res, "Deleted");
                                             });
                                         }
                                     >"✕"</button>
@@ -531,6 +558,27 @@ pub fn App() -> impl IntoView {
                     let id_export = item.id.clone();
                     let id_plugin = item.id.clone();
                     let id_mermaid = item.id.clone();
+                    let (id_edit, id_edit_btn) = (item.id.clone(), item.id.clone());
+                    let edit_ref = NodeRef::<leptos::html::Textarea>::new();
+                    // Saves the box's text; the item that comes back replaces the
+                    // old one (its id follows the content) and is shown here.
+                    let save_edit = move |id: String| {
+                        let Some(area) = edit_ref.get_untracked() else { return };
+                        let text = area.value();
+                        spawn_local(async move {
+                            match bindings::edit_item(&id, &text).await {
+                                Ok(newit) => {
+                                    set_items.update(|v| {
+                                        v.retain(|x| x.id != id && x.id != newit.id);
+                                        v.insert(0, newit.clone());
+                                    });
+                                    show_detail(Some(newit));
+                                    notify("✓ Saved".to_string());
+                                }
+                                Err(e) => notify(format!("⚠ {e}")),
+                            }
+                        });
+                    };
                     let (id_prev, id_next) = (item.id.clone(), item.id.clone());
                     let (id_has_prev, id_has_next) = (item.id.clone(), item.id.clone());
                     let tag_class = format!("tag s-{}", item.sensitivity.label());
@@ -583,7 +631,32 @@ pub fn App() -> impl IntoView {
                                     {
                                         let dc = dc.clone();
                                         let id_mermaid = id_mermaid.clone();
+                                        let id_edit = id_edit.clone();
                                         move || {
+                                            // Editing: the raw text in a box. Its value is read on
+                                            // save, not kept in a signal: setting one per keystroke
+                                            // would rebuild the box and lose the cursor.
+                                            if let Some(text) = edit_text.get() {
+                                                let id = id_edit.clone();
+                                                return view! {
+                                                    <textarea
+                                                        class="full edit"
+                                                        node_ref=edit_ref
+                                                        prop:value=text
+                                                        autofocus
+                                                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                                                            if ev.key() == "Escape" {
+                                                                ev.stop_propagation();
+                                                                set_edit_text.set(None);
+                                                            } else if ev.key() == "Enter" && ev.ctrl_key() {
+                                                                ev.prevent_default();
+                                                                save_edit(id.clone());
+                                                            }
+                                                        }
+                                                    ></textarea>
+                                                }
+                                                .into_any();
+                                            }
                                             // Images render as <img>; the data-URL is never shown as text.
                                             if is_image {
                                                 return view! {
@@ -657,10 +730,44 @@ pub fn App() -> impl IntoView {
                                         on:click=move |_| {
                                             let id = id_copy.clone();
                                             spawn_local(async move {
-                                                let _ = bindings::copy_item(&id).await;
+                                                report(bindings::copy_item(&id).await, "⧉ Copied");
                                             });
                                         }
                                     >"Copy"</button>
+                                    // Masked items aren't editable: the UI never has their text.
+                                    {(!sens && !is_image).then(|| {
+                                        let id = id_edit_btn.clone();
+                                        move || {
+                                            let id = id.clone();
+                                            if edit_text.with(Option::is_some) {
+                                                view! {
+                                                    <button class="primary" title="Ctrl+Enter" on:click=move |_| save_edit(id.clone())>
+                                                        "Save"
+                                                    </button>
+                                                    <button title="Esc" on:click=move |_| set_edit_text.set(None)>"Cancel"</button>
+                                                }
+                                                .into_any()
+                                            } else {
+                                                view! {
+                                                    <button
+                                                        title="Edit the text (Ctrl+Enter saves, Esc cancels)"
+                                                        on:click=move |_| {
+                                                            let id = id.clone();
+                                                            // The raw text, not the display: an edit
+                                                            // shouldn't drop what the display cleans up.
+                                                            spawn_local(async move {
+                                                                match bindings::export_item(&id).await {
+                                                                    Ok(res) => set_edit_text.set(Some(res.content)),
+                                                                    Err(e) => notify(format!("⚠ {e}")),
+                                                                }
+                                                            });
+                                                        }
+                                                    >"✏️ Edit"</button>
+                                                }
+                                                .into_any()
+                                            }
+                                        }
+                                    })}
                                     <button on:click=move |_| {
                                         let id = id_export.clone();
                                         spawn_local(async move {
@@ -739,16 +846,20 @@ pub fn App() -> impl IntoView {
                                         }
                                         let item_id = id_plugin.clone();
                                         let params = plugin_values.get_untracked();
+                                        let name = plugins.with_untracked(|ps| {
+                                            ps.iter().find(|p| p.id == pid).map(|p| p.name.clone())
+                                        }).unwrap_or_else(|| pid.clone());
+                                        set_plugin_err.set(Some(format!("{name}…")));
                                         spawn_local(async move {
                                             match bindings::run_plugin(&pid, &item_id, &params).await {
                                                 Ok(newit) => {
-                                                    set_plugin_err.set(None);
                                                     // Show the result: the list updates behind the modal, unseen.
-                                                    set_detail.set(Some(newit.clone()));
                                                     set_items.update(|v| {
                                                         v.retain(|x| x.id != newit.id);
-                                                        v.insert(0, newit);
+                                                        v.insert(0, newit.clone());
                                                     });
+                                                    show_detail(Some(newit));
+                                                    notify(format!("✓ {name}: the result is a new clip, copied and shown here"));
                                                 }
                                                 // What a Markdown clip shows isn't its text: a quote's
                                                 // bar or a list's dots have no character to find.
@@ -804,5 +915,7 @@ pub fn App() -> impl IntoView {
                     }
                 })
         }}
+
+        {move || toast.get().map(|msg| view! { <div class="toast" role="status">{msg}</div> })}
     }
 }

@@ -681,6 +681,7 @@ fn run_plugin(
     // like the monitor — the item is still shown live either way.
     let mut item = process_text(&resp.result_raw_content);
     item.id = state.repo.content_id(&item.raw_content);
+    apply_taught_secrets(&*state.repo, &mut item);
     let level = *state.persist_level.lock().unwrap();
     if let Err(e) = state.repo.save(&item, level) {
         eprintln!("lapacho: failed to save plugin output: {e}");
@@ -690,10 +691,65 @@ fn run_plugin(
         state.tray_recent.lock().unwrap().push_front(item.clone());
     }
 
+    // The output is what you run a plugin for: it goes on the clipboard, ready
+    // to paste (the terms request into an assistant), as on Android.
+    copy_raw(&item.id, &state)?;
     let ui = UIClipboardItem::from(item);
     emit_new_item(&app, ui.clone());
     tray::schedule_rebuild(&app);
     Ok(ui)
+}
+
+/// Replaces a text item's content with `text`, as if it had just been copied:
+/// classified again (an edit can add or remove a secret) and saved under the
+/// active level, so a clip edited into a password leaves the disk when the
+/// level says so. The id is the content's, so the edited item replaces the
+/// old one; its name, pin and vault carry over. Masked items aren't editable:
+/// the UI never has their text.
+#[tauri::command]
+fn edit_item(id: String, text: String, app: AppHandle, state: State<'_, AppState>) -> Result<UIClipboardItem, String> {
+    let old = load_item(&id, &state)?;
+    if old.content_type == "image" || matches!(old.sensitivity, Sensitivity::Credential | Sensitivity::Secret) {
+        return Err("Only plain text can be edited".to_string());
+    }
+    if text.trim().is_empty() {
+        return Err("Empty text: delete the item instead".to_string());
+    }
+    let mut item = process_text(&text);
+    item.id = state.repo.content_id(&item.raw_content);
+    if item.id == old.id {
+        return Ok(UIClipboardItem::from(old));
+    }
+    apply_taught_secrets(&*state.repo, &mut item);
+    (item.title, item.pinned, item.vaulted) = (old.title, old.pinned, old.vaulted);
+    // Saved before the old one goes: a failed write loses the edit, not the clip.
+    let level = *state.persist_level.lock().unwrap();
+    state.repo.save(&item, level)?;
+    state.repo.delete(&id)?;
+    {
+        let mut recent = state.tray_recent.lock().unwrap();
+        recent.evict(&id);
+        recent.push_front(item.clone());
+    }
+    tray::schedule_rebuild(&app);
+    request_history_refresh(&app);
+    Ok(UIClipboardItem::from(item))
+}
+
+/// Secrets the user taught override the heuristic: this exact content (marked
+/// secret before, keyed hash) or a learned token prefix (e.g. "acme_live_").
+fn apply_taught_secrets(repo: &dyn HistoryRepo, item: &mut ClipboardItem) {
+    if item.sensitivity != Sensitivity::Secret
+        && (matches!(repo.get_preference(&format!("secret:{}", item.id)), Ok(Some(_)))
+            || repo
+                .get_preference("secret_prefixes")
+                .ok()
+                .flatten()
+                .is_some_and(|ps| ps.split('\n').any(|p| matches_secret_prefix(&item.raw_content, p))))
+    {
+        item.sensitivity = Sensitivity::Secret;
+        item.display_content = sensitive_display(&item.raw_content, Sensitivity::Secret);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -733,21 +789,7 @@ fn run_monitor(
         let t0 = std::time::Instant::now();
         let mut item = item;
         item.id = repo.content_id(&item.raw_content);
-        // User-taught secrets: exact content match (keyed hash) or a learned
-        // token prefix (e.g. "acme_live_") override the heuristic.
-        if item.sensitivity != Sensitivity::Secret
-            && (matches!(repo.get_preference(&format!("secret:{}", item.id)), Ok(Some(_)))
-                || repo
-                    .get_preference("secret_prefixes")
-                    .ok()
-                    .flatten()
-                    .is_some_and(|ps| {
-                        ps.split('\n').any(|p| matches_secret_prefix(&item.raw_content, p))
-                    }))
-        {
-            item.sensitivity = Sensitivity::Secret;
-            item.display_content = sensitive_display(&item.raw_content, Sensitivity::Secret);
-        }
+        apply_taught_secrets(&*repo, &mut item);
         let level = *persist_level.lock().unwrap();
         if let Err(e) = repo.save(&item, level) {
             eprintln!("lapacho: failed to save clipboard item: {e}");
@@ -1316,7 +1358,8 @@ fn main() {
             export_item,
             list_plugins,
             app_version,
-            run_plugin
+            run_plugin,
+            edit_item
         ])
         .build(tauri::generate_context!())
         .expect("error while running the Lapacho desktop app");

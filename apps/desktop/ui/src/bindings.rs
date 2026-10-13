@@ -251,6 +251,20 @@ pub async fn run_plugin(
     serde_wasm_bindgen::from_value(v).map_err(|e| e.to_string())
 }
 
+/// Replaces a text item's content; the backend classifies it again and
+/// returns the item that replaced it (its id follows the content).
+pub async fn edit_item(id: &str, text: &str) -> Result<UIClipboardItem, String> {
+    #[derive(serde::Serialize)]
+    struct EditArgs<'a> {
+        id: &'a str,
+        text: &'a str,
+    }
+    let v = invoke("edit_item", args(&EditArgs { id, text }))
+        .await
+        .map_err(js_err)?;
+    serde_wasm_bindgen::from_value(v).map_err(|e| e.to_string())
+}
+
 // --- events ----------------------------------------------------------------
 
 /// Subscribes to a Tauri event for the lifetime of the app. The handler closure

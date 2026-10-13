@@ -4,6 +4,25 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — edit a clip, and every button says what it did
+
+✏️ Edit in a clip's window turns its text into a box: Ctrl+Enter or Save
+keeps the change, Esc or Cancel drops it. The edited clip replaces the
+old one, keeps its name, pin and vault, and is classified again — a clip
+edited into a password is masked, and leaves the disk under Paranoia.
+Masked clips can't be edited.
+
+Copy, delete, pin, vault and 🔒 now show a short line at the bottom of
+the window, and an error when they fail instead of nothing. A plugin
+shows its name while it runs; its result is copied, shown in the window
+and announced. Plugin results also respect the secrets you taught.
+
+### Terms — a verdict first
+
+The request for your assistant now asks for a header before the analysis:
+🔴 *Cuidado*, 🟡 *Revisalo* or 🟢 *Nada raro*, and the worst points in a
+line each (or why it looks safe), then the full analysis.
+
 ### Desktop — dictation shows itself (`0.1.46`)
 
 Holding Ctrl+Shift+Alt+D used to show nothing, with or without Lapacho's
