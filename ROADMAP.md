@@ -129,18 +129,19 @@ What to work on, in order. The sections below hold the detail.
   Windows, the standard panel on macOS): version, licence, authors, links to
   the repo and its releases. Verified on Linux by clicking it over dbusmenu.
 - [ ] **Edit an item in place** (Leo, 2026-10-12): change a clip's text
-  without a new item — today the only way is a plugin (search & replace),
-  which adds the result as a new clip and leaves the original. Desktop: an
-  ✏️ in the detail window turns the text into a textarea (Enter/Ctrl+Enter
-  saves, Esc cancels); Android: the same from a held clip. Open points:
-  - **Re-classify on save:** an edit can add or remove a secret; the item
-    goes back through `classify_sensitivity` and the active `PersistLevel`
-    (a clip edited into a password may have to leave the disk).
-  - **Masked items:** not editable while masked; reveal first, or never.
-  - **Sync:** an edit changes the item, not its id; with multi-client sync
-    (P4) it needs a modified-at so the last edit wins, not the first copy.
-  - **Plugins:** offer "replace this clip" next to "new clip" for a result,
-    once in-place editing exists — the same write path.
+  without a new item.
+  - ✅ **Desktop (2026-10-13):** ✏️ in the detail window turns the raw text
+    into a textarea (Ctrl+Enter or Save, Esc or Cancel). On save the text
+    goes back through classification, taught secrets and the active
+    `PersistLevel` (a clip edited into a password leaves the disk under
+    Paranoia); name, pin and vault carry over. The id follows the content,
+    so the edited item replaces the old one. Masked items have no ✏️: the
+    UI never has their text.
+  - [ ] **Android:** the same from a held clip.
+  - **Sync:** the id changes with the content; with multi-client sync (P4)
+    an edit is a delete plus a new item, unless sync gets a stable id.
+  - **Plugins:** offer "replace this clip" next to "new clip" for a result
+    — the same write path (`edit_item`).
 
 ### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
 - [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).
