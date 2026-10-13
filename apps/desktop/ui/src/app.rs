@@ -174,6 +174,11 @@ pub fn App() -> impl IntoView {
     // "closure invoked recursively or after being dropped" once per handler —
     // the red lines that piled up over the ✕ on every close.
     let show_detail = move |item: Option<UIClipboardItem>| {
+        // Read the plugins folder again on every open: a plugin copied in, or
+        // edited, shows without restarting Lapacho.
+        if item.is_some() {
+            spawn_local(async move { set_plugins.set(bindings::list_plugins().await) });
+        }
         request_animation_frame(move || {
             set_export.set(None);
             set_view_raw.set(false);

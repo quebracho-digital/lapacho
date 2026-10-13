@@ -4,6 +4,16 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Desktop — plugins show up without a restart, and the terms request says what it is
+
+The plugin list was read once, when the window first loaded, so a plugin
+copied into the folder (or an edited one) needed Lapacho restarted. It is
+read again every time a clip opens. The built-in *Analyse terms* is now
+*Terms: request for my assistant* on desktop: it never analysed anything,
+it builds the request to paste, and the name made it look like the
+example plugin that does, *Analyse terms with my model*. Android keeps
+*Analyse terms…*, which opens the share sheet.
+
 ### Plugins — *Analyse terms with my model* without a form
 
 The `terms-assistant` example asked for the endpoint, the model and the

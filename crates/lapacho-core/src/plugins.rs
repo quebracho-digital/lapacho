@@ -46,7 +46,7 @@ pub fn builtin_plugins() -> Vec<PluginDefinition> {
         ),
         builtin(
             "terms",
-            "Analyse terms",
+            "Terms: request for my assistant",
             "Turns terms and conditions or a privacy policy into a request to paste into your AI assistant",
             Vec::new(),
         ),

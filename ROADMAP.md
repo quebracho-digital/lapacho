@@ -276,8 +276,15 @@ What to work on, in order. The sections below hold the detail.
     1. **Measure:** the evaluation set against the teachers and students
        above, on minisforum's llama.cpp. Recall per kind of clause, quotes
        that really are in the text, time and RAM. This decides whether any
-       small model is good enough as it is.
-    2. **Distil, only if none is:** the teacher labels thousands of clauses,
+       small model is good enough as it is. ✅ **Measured (2026-10-08,
+       `terms-eval`):** the 26–35B models are good enough as they are
+       (documents F1 0.91–0.92; Qwen3.8-27B quotes 99 % verbatim), so
+       desktop needs no training. No 4B model is: Qwen3.5-4B finds nearly
+       everything (recall 0.90) but files real paragraphs under the wrong
+       category (precision 0.65), about 0.15 F1 short.
+    2. **Distil, for the phone:** teacher Qwen3.8-27B, student Qwen3.5-4B
+       (both Apache-2.0); 13 labelled documents measure it but are too few
+       to train on: the teacher labels thousands of clauses,
        answers with invented quotes are dropped, and a LoRA goes on the best
        student. Train on a few hours of rented GPU (ROCm on the 890M is not
        ready for training), then run it anywhere as GGUF.

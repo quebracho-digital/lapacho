@@ -103,10 +103,10 @@ search with a pattern, and use its groups in the replacement: search
 `(\d+)-(\d+)-(\d+)`, replace with `$3/$2/$1`, and `2026-10-02` becomes
 `02/10/2026`. If nothing matches it says so instead of making a copy.
 
-### Analyse terms
+### Terms: a request for your assistant
 
 Built in. Copy the terms and conditions or the privacy policy you are about
-to accept, open that clip, pick **Analyse terms**, **Run**. The new clip is a
+to accept, open that clip, pick **Terms: request for my assistant**, **Run**. The new clip is a
 request ready to paste into the AI assistant you use (Gemini, ChatGPT,
 Claude, Lumo, a local model): what to look for, how to rate it, and the text
 inside a fence the assistant is told never to take instructions from. Lapacho
@@ -114,7 +114,8 @@ sends nothing anywhere; you choose where to paste it. It is not legal advice,
 and the request says so.
 
 To skip the pasting and have **a model you run** answer (llama.cpp, Ollama,
-LM Studio, or a Drupal site with `ai_provider_universal_terms`), copy
+LM Studio, or a Drupal site with `ai_provider_universal_terms`) with
+**Analyse terms with my model**, copy
 `terms-assistant.json` and `terms-assistant.py` from
 [`plugins/examples/`](../plugins/examples/) into your plugins folder, and
 write the server once beside them in `terms-assistant.local.json`:
