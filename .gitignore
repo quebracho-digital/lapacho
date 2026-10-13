@@ -16,3 +16,4 @@
 # Local agent/editor state — machine-specific paths, never shared
 /.claude/settings.local.json
 __pycache__/
+*.local.json

@@ -16,11 +16,20 @@ They use `tr`, `sh`, `wc` and `awk` (and `python3` for `terms-assistant`, `fabri
 they work as they are on Linux and macOS; on Windows they need Git Bash or WSL
 on the `PATH`.
 
-**`terms-assistant`, the endpoint:** for llama.cpp, Ollama or LM Studio, the
-server's base URL (`http://localhost:8080`, `http://localhost:11434`), plus
-the model id when the server hosts several. For Drupal, the full analyze URL
-(`https://example.org/api/terms/analyze`), with `user:password` in the token
-field if the site uses Basic auth. Drupal checks every quote against the
+**`terms-assistant`, the settings:** it has no form; it reads
+`terms-assistant.local.json` next to the script, written once:
+
+```json
+{"endpoint": "http://localhost:8080", "model": "qwen3.8-27b", "token": ""}
+```
+
+For llama.cpp, Ollama or LM Studio, `endpoint` is the server's base URL
+(`http://localhost:8080`, `http://localhost:11434`), and `model` any part of
+its id when the server hosts several (`qwen3.8-27b` finds
+`unsloth/Qwen3.8-27B-GGUF:Q4_K_M`; if several match, the error lists them).
+For Drupal, the full analyze URL (`https://example.org/api/terms/analyze`),
+with `user:password` as the token if the site uses Basic auth. With a token
+in it, make the file readable only by you (`chmod 600`). Drupal checks every quote against the
 text and drops invented ones; a local model's report is passed on as it
 is.
 

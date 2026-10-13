@@ -659,7 +659,11 @@ fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginDefinition>, Str
 /// is stored raw and gets a freshly classified, sanitized display — masked if
 /// the plugin happened to produce a secret. The new item is emitted to the UI
 /// and returned.
-#[tauri::command]
+///
+/// `async`: a plain command runs on the main thread, and a plugin that asks a
+/// model for minutes froze the window, so a click on Run showed nothing and
+/// queued another run.
+#[tauri::command(async)]
 fn run_plugin(
     plugin_id: String,
     item_id: String,

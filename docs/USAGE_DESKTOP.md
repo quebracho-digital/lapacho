@@ -116,8 +116,15 @@ and the request says so.
 To skip the pasting and have **a model you run** answer (llama.cpp, Ollama,
 LM Studio, or a Drupal site with `ai_provider_universal_terms`), copy
 `terms-assistant.json` and `terms-assistant.py` from
-[`plugins/examples/`](../plugins/examples/) into your plugins folder: it
-asks for the endpoint and keeps the model's report as a new clip.
+[`plugins/examples/`](../plugins/examples/) into your plugins folder, and
+write the server once beside them in `terms-assistant.local.json`:
+
+```json
+{"endpoint": "http://localhost:8080", "model": "qwen3.8-27b", "token": ""}
+```
+
+`model` can be any part of the server's id; if several match, the error
+lists them. The report comes back as a new clip.
 
 ### Plugins that ask for values
 
