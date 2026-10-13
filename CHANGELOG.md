@@ -4,7 +4,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Desktop — edit a clip, and every button says what it did
+### Desktop — edit a clip, and every button says what it did (`0.1.47`)
 
 ✏️ Edit in a clip's window turns its text into a box: Ctrl+Enter or Save
 keeps the change, Esc or Cancel drops it. The edited clip replaces the
@@ -17,7 +17,7 @@ the window, and an error when they fail instead of nothing. A plugin
 shows its name while it runs; its result is copied, shown in the window
 and announced. Plugin results also respect the secrets you taught.
 
-### Terms — a verdict first
+### Terms — a verdict first (`0.1.47`)
 
 The request for your assistant now asks for a header before the analysis:
 🔴 *Cuidado*, 🟡 *Revisalo* or 🟢 *Nada raro*, and the worst points in a
