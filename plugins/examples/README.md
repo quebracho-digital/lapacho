@@ -21,13 +21,18 @@ on the `PATH`.
 `terms-assistant.local.json` next to the script, written once:
 
 ```json
-{"endpoint": "http://localhost:8080", "model": "qwen3.8-27b", "token": ""}
+{"endpoint": "http://localhost:8080", "model": "35b-a3b-gguf:ud", "token": ""}
 ```
 
 For llama.cpp, Ollama or LM Studio, `endpoint` is the server's base URL
 (`http://localhost:8080`, `http://localhost:11434`), and `model` any part of
-its id when the server hosts several (`qwen3.8-27b` finds
-`unsloth/Qwen3.8-27B-GGUF:Q4_K_M`; if several match, the error lists them).
+its id when the server hosts several (`35b-a3b-gguf:ud` finds
+`unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_XL`; if several match, the error lists them).
+On a machine whose GPU shares RAM (an iGPU like minisforum's 890M), pick a
+mixture-of-experts model (the `A3B` in the name): it reads about a sixth of
+its weights per token. A dense 27B reads all of them, about 4.6 tokens/s
+against 21, and takes the memory bandwidth from everything else running
+there.
 For Drupal, the full analyze URL (`https://example.org/api/terms/analyze`),
 with `user:password` as the token if the site uses Basic auth. With a token
 in it, make the file readable only by you (`chmod 600`). Drupal checks every quote against the
