@@ -1,0 +1,8 @@
+{
+  "id": "fact-check",
+  "name": "Fact check with my model",
+  "description": "Rates each claim in the clip, with evidence for and against, using Fabric's analyze_claims on the model terms-assistant uses. From the model's knowledge; nothing is looked up",
+  "command": "python3",
+  "args": ["fact-check.py"],
+  "timeout_secs": 600
+}
