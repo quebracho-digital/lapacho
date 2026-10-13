@@ -44,6 +44,8 @@ import digital.quebracho.lapacho.installDictionary
 import digital.quebracho.lapacho.readDictionary
 import digital.quebracho.lapacho.installedDictionaries
 import digital.quebracho.lapacho.isMasked
+import digital.quebracho.lapacho.classify
+import digital.quebracho.lapacho.isSecret
 import digital.quebracho.lapacho.ClipboardItem
 import digital.quebracho.lapacho.HISTORY_MAX
 import digital.quebracho.lapacho.History
@@ -292,16 +294,63 @@ class MainActivity : AppCompatActivity() {
         backToKeyboard()
     }
 
-    /** The plugins [item] can go through: the built-ins, then the plugin apps. One tap picks one. */
+    /** Edit, then the plugins [item] can go through: the built-ins, then the plugin apps. One tap picks one. */
     private fun choosePlugin(item: ClipboardItem) {
         val plugins = builtinPlugins()
         val apps = pluginApps()
-        val names = plugins.map(::pluginName) + apps.map { getString(R.string.plugin_app_entry, it.loadLabel(packageManager)) }
+        val names = listOf(getString(R.string.edit)) + plugins.map(::pluginName) +
+            apps.map { getString(R.string.plugin_app_entry, it.loadLabel(packageManager)) }
         AlertDialog.Builder(this)
             .setTitle(R.string.plugins)
             .setItems(names.toTypedArray()) { _, i ->
-                if (i < plugins.size) askParams(item, plugins[i]) else runApp(item, apps[i - plugins.size])
+                when {
+                    i == 0 -> edit(item)
+                    i <= plugins.size -> askParams(item, plugins[i - 1])
+                    else -> runApp(item, apps[i - 1 - plugins.size])
+                }
             }
+            .setOnCancelListener { backToKeyboard() }
+            .show()
+    }
+
+    /**
+     * [item]'s text in a box to change. Saved, it replaces the clip, as on
+     * desktop: classified again, under the new text's id, name and pin kept.
+     * Text that turns into a password is refused, since the phone never
+     * stores one; empty text too (delete the clip instead).
+     */
+    private fun edit(item: ClipboardItem, typed: String? = null) {
+        val raw = typed ?: repo.raw(item) ?: return backToKeyboard()
+        val pad = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20f, resources.displayMetrics).toInt()
+        val field = EditText(this).apply { setText(raw); minLines = 3; maxLines = 12; gravity = android.view.Gravity.TOP }
+        val box = LinearLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(field, LinearLayout.LayoutParams(-1, -2)) }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.edit)
+            .setView(box)
+            .setPositiveButton(R.string.save) { _, _ ->
+                val text = field.text.toString()
+                when {
+                    text.isBlank() -> {
+                        Toast.makeText(this, R.string.edit_empty, Toast.LENGTH_LONG).show()
+                        edit(item, text)
+                    }
+                    classify(text).isSecret() -> {
+                        Toast.makeText(this, R.string.edit_secret, Toast.LENGTH_LONG).show()
+                        edit(item, text)
+                    }
+                    else -> {
+                        try {
+                            repo.edit(item.id, text)
+                            Toast.makeText(this, R.string.edit_done, Toast.LENGTH_SHORT).show()
+                        } catch (_: MobileException.NotFound) {
+                            Toast.makeText(this, R.string.edit_gone, Toast.LENGTH_LONG).show()
+                        }
+                        refresh()
+                        backToKeyboard()
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> backToKeyboard() }
             .setOnCancelListener { backToKeyboard() }
             .show()
     }

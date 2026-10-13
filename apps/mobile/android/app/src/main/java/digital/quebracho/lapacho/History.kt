@@ -73,6 +73,11 @@ class History(context: Context) {
             null
         }
 
+    /** Replaces item [id]'s text (see MobileCore.editText); throws NotFound if it is gone. */
+    fun edit(id: String, text: String) {
+        core.editText(id, text)
+    }
+
     fun contentId(text: String): String = core.contentId(text)
 
     fun clear() = core.clear()

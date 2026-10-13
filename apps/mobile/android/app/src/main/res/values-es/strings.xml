@@ -89,6 +89,11 @@
     <string name="no_results">(sin resultados)</string>
     <string name="empty_clip">(vacío)</string>
     <!-- Plugins: a held clip, in the app or from the keyboard -->
+    <string name="edit">✏️ Editar</string>
+    <string name="edit_done">Editado</string>
+    <string name="edit_empty">Texto vacío: no se guardó nada. Para quitar el clip, borrá el historial.</string>
+    <string name="edit_secret">Eso parece una contraseña, y el teléfono nunca guarda una: no se guardó.</string>
+    <string name="edit_gone">El clip ya no está: no se guardó nada.</string>
     <string name="plugins">Plugins</string>
     <string name="plugin_run">Aplicar</string>
     <string name="plugin_done">Guardado como clip nuevo</string>
