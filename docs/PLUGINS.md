@@ -136,7 +136,7 @@ Rust function through the bridge, with no process at all.
 | id | Name | What it does |
 |---|---|---|
 | `replace` | Search and replace | Every match of a text or a regular expression (`replace()`) |
-| `terms` | Analyse terms | Turns terms and conditions or a privacy policy into a request to paste into an AI assistant (`terms.rs`) |
+| `terms` | Terms: request for my assistant (Android: *Analyse terms…*) | Turns terms and conditions or a privacy policy into a request to paste into an AI assistant (`terms.rs`) |
 
 To add one:
 
