@@ -123,7 +123,7 @@ LM Studio, or a Drupal site with `ai_provider_universal_terms`) with
 write the server once beside them in `terms-assistant.local.json`:
 
 ```json
-{"endpoint": "http://localhost:8080", "model": "qwen3.8-27b", "token": ""}
+{"endpoint": "http://localhost:8080", "model": "35b-a3b-gguf:ud", "token": ""}
 ```
 
 `model` can be any part of the server's id; if several match, the error

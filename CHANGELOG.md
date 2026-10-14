@@ -4,6 +4,15 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Plugins — *Fact check with my model*
+
+A new example plugin, `fact-check`: Fabric's `analyze_claims` pattern on
+the server `terms-assistant` already points at (same settings file, same
+model matching), and the model's report as a new clip: each claim, the
+evidence for and against, a rating. The report is in the clip's language,
+and ends saying it comes from the model's own knowledge: nothing is looked
+up, so a confident detail can still be invented.
+
 ### Plugins — a result can replace its clip (`0.1.48`)
 
 A plugin's result was always a new clip. **Replace this clip**, a box next

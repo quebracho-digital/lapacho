@@ -5,7 +5,7 @@ The clip arrives on standard input; the report goes to standard output, and
 Lapacho saves it as a new clip. Settings live in `terms-assistant.local.json`
 next to this script, written once, so nothing is typed per run:
 
-  {"endpoint": "http://localhost:8080", "model": "qwen3.8-27b", "token": ""}
+  {"endpoint": "http://localhost:8080", "model": "35b-a3b-gguf:ud", "token": ""}
 
   endpoint  where to send it:
             - an OpenAI-compatible server (llama.cpp, Ollama, LM Studio, vLLM):
@@ -13,7 +13,7 @@ next to this script, written once, so nothing is typed per run:
             - a Drupal site with ai_provider_universal_terms: its analyze URL,
               e.g. https://example.org/api/terms/analyze
   model     the model, for an OpenAI-compatible server (llama.cpp's router
-            needs it): its id, or any part of it ("qwen3.8-27b"), matched
+            needs it): its id, or any part of it ("35b-a3b-gguf:ud"), matched
             against the server's /v1/models; ignored by Drupal, which has
             its own setting
   token     optional. "user:password" is sent as Basic auth, anything else as
