@@ -4,7 +4,19 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Plugins — *Fact check with my model*
+### Keyboard — fast typing keeps up, and holding `.` for `?` stays put (`0.1.49`)
+
+Every key used to refresh the strip right away: ask the app for the text
+before the cursor, look the word up, redraw. Between two fast keys that
+made the second feel late. The letter is still typed at once; the strip
+now follows 80 ms later, once per burst (#94).
+
+Holding `.` (or any key with alternates) opened a popup that took focus
+from the field, and some fields hide the keyboard when they lose it: the
+keyboard dropped on the way to `?`. The popup no longer takes focus (#93).
+Neither tried on a phone yet.
+
+### Plugins — *Fact check with my model* (`0.1.49`)
 
 A new example plugin, `fact-check`: Fabric's `analyze_claims` pattern on
 the server `terms-assistant` already points at (same settings file, same
