@@ -949,7 +949,9 @@ class LapachoIme : InputMethodService() {
             orientation = LinearLayout.VERTICAL
         }
 
-        private fun enabled() = layer == Layer.LETTERS && !searching && !privateField
+        // ponytail: swipe off — taps were being eaten as swipes. Restore the
+        // condition below (layer == LETTERS && !searching && !privateField) to bring it back.
+        private fun enabled() = false
 
         // A key with alternates asks its ancestors to keep their hands off
         // it (that is for the strip, which scrolls); these rows must still
