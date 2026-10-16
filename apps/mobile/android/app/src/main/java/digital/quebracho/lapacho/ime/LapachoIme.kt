@@ -330,7 +330,21 @@ class LapachoIme : InputMethodService() {
      * a copied password can still go into a password field without ever
      * entering the history.
      */
+    private val stripRefresh = Runnable { refreshStrip() }
+
+    /**
+     * The strip after a keystroke: a moment later, and once per burst. The
+     * letter is committed straight away; the strip asks the app for the text
+     * before the cursor and looks it up, and doing that between two fast
+     * keys is what made the next one feel late.
+     */
+    private fun refreshStripSoon() {
+        pasteStrip.removeCallbacks(stripRefresh)
+        pasteStrip.postDelayed(stripRefresh, STRIP_DEBOUNCE_MS)
+    }
+
     private fun refreshStrip() {
+        pasteStrip.removeCallbacks(stripRefresh)
         pasteStrip.removeAllViews()
         // Learning is otherwise invisible: the word stays where it was and the
         // strip goes back to the clips, so the only way to tell it worked was
@@ -571,22 +585,22 @@ class LapachoIme : InputMethodService() {
             commitText(if (swap) "$text " else text)
             // Kept after a swap, so "?" then "!" still lands as "hola?! ".
             autoSpace = swap
-            refreshStrip()
+            refreshStripSoon()
             return
         }
         query += text
-        refreshStrip()
+        refreshStripSoon()
     }
 
     private fun backspace() {
         if (!searching) {
             autoSpace = false
             currentInputConnection?.deleteSurroundingText(1, 0)
-            refreshStrip()
+            refreshStripSoon()
             return
         }
         query = query.dropLast(1)
-        refreshStrip()
+        refreshStripSoon()
     }
 
     /** Held backspace: the word before the cursor, and the spaces after it. */
@@ -1336,6 +1350,8 @@ class LapachoIme : InputMethodService() {
          */
         private const val REPEAT_EVERY_MS = 400L
         private const val ALTERNATES_TIMEOUT_MS = 5_000L
+        /** Shorter than a pause between words, longer than between fast keys. */
+        private const val STRIP_DEBOUNCE_MS = 80L
         private const val TAG = "LapachoIme"
         private const val TOP_N = 20
         private const val SUGGESTIONS = 3
