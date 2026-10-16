@@ -207,6 +207,18 @@ What to work on, in order. The sections below hold the detail.
 
 ## Pending
 
+### 🎨 Skins (idea 2026-10-16, agreed, not started)
+
+- [ ] **Skins: colours and block order, desktop and Android** — one
+  `skin.toml` both apps read: `[colors]` (background, key, text, accent;
+  each optional, missing = today's) and `[layout]` (keyboard: `strip`,
+  `keys`, `actions` top to bottom; desktop: `search`, `pinned`,
+  `history`; a block left out is hidden, `keys` never). Parser and
+  validation in `lapacho-core`. Android: the colour constants in
+  `LapachoIme.kt` read the skin, imported like a dictionary. Desktop: CSS
+  variables. Android first. Out for now: a visual editor, fonts, images,
+  key sizes, more than one skin at a time.
+
 ### 🧩 Plugins
 
 - [ ] **Read the terms before accepting them** (idea and plan, 2026-10-06) — turns a terms-and-conditions or privacy-policy text into a
