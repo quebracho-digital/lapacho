@@ -6,14 +6,14 @@ the source of truth and is never lost:** it is copied and sent to plugins
 intact, *rendered* sanitized, and on export threats are reported without
 altering it.
 
-## Current status (2026-10-11, `0.1.42`)
+## Current status (2026-10-16, `0.1.49`)
 
 - **Desktop** (verified on Linux): history
   encrypted at rest, classification and masking, tray with global shortcut,
   persistence levels and per-item vault, plugins. Details below.
 - **Android:** a "paste keyboard" with the history, prediction, correction
-  and swipe in seven languages, explicit learning, plugin apps (*Lapacho
-  Terms*). Since `763b72e` the history lives in `lapacho-core`, the same code
+  and swipe in seven languages, explicit learning, edit a clip in place,
+  plugin apps (*Lapacho Terms*, *Lapacho Voice* for dictation). Since `763b72e` the history lives in `lapacho-core`, the same code
   as desktop. APKs signed with a release key, distributed without Google.
 - **Sync:** the core works end to end over WebDAV (Rust, tested); no app
   uses it yet.
@@ -22,8 +22,9 @@ altering it.
 
 What to work on, in order. The sections below hold the detail.
 
-- **Now:** publish the official dictionaries; test the Android build on a
-  real Samsung; try the Fabric example plugins against a real model.
+- **Now:** test the Android build on a real Samsung (keyboard fixes of
+  `0.1.49`, swipe calibration); try the Fabric example plugins
+  (`terms-assistant`, `fact-check`) against a real model.
 - **Next:** multi-client sync (P4) — it blocks every watch and every second
   device; then a Wear OS viewer on a Galaxy Watch5 Pro, the watch we have.
 - **Later:** Lapacho Voice, *Lapacho Fabric* on Android, the terms
@@ -76,9 +77,7 @@ What to work on, in order. The sections below hold the detail.
   (with a field per declared param; a failure is shown next to Run).
 - The original vanilla UI is preserved as reference in `apps/desktop/legacy-ui/`.
 
-## Pending
-
-### 🎨 Frontend / UX
+### ✅ Frontend / UX
 
 - [x] **System tray (native menu) + global shortcut (Ctrl+Shift+Alt+L, Lapacho-exclusive), launching
   only to tray** (`src-tauri/src/tray.rs`). The list is a native indicator menu
@@ -148,7 +147,7 @@ What to work on, in order. The sections below hold the detail.
     (`replace_item` on desktop, `edit_text` on Android). Android: built-ins
     only; a plugin app's result doesn't know its clip yet.
 
-### 🐛 Bugs & Reactivity (HIGH PRIORITY — do in a dedicated session)
+### ✅ Bugs & Reactivity
 - [x] **SVG classification + capture** (false positive Personal on coords, plus HTML clipboard extraction for browsers) — fixed via `classify_sensitivity_graphics` + `looks_like_phone` + `svg_from_html` in monitor. SVG renders in list (thumb) and modal via safe `<img data:image/svg+xml;base64>`. Needs final GUI sign-off on copies from editors/browsers (use test-payloads/good-svg-test.svg).
 - [x] **Reactivity + consistency + identity** (HIGH) — re-audited 2026-07-20, 3 of 4 symptoms already resolved by prior work:
   - Duplicate secret at top: fixed — `item.id = repo.content_id(&item.raw_content)` (stable keyed hash, even for non-persisted Paranoia items) + dedup-by-id in `tray_recent_push_front`/UI merge.
@@ -157,7 +156,7 @@ What to work on, in order. The sections below hold the detail.
   - Tray update latency: mitigated (80ms debounce) but `rebuild` was decrypting the DB twice per cycle (`build_menu` + `tray_icon_for_top` each called `get_tray_items`/`repo.load()` independently) — fixed by loading history once in `rebuild`/`init` and threading the slice into both. (2026-07-20)
 - [x] Distinguish sensitive/secret items: both Credential and Secret now render with short safe hint `••••last4` (from raw) so different tokens are identifiable (list, tray, modal). Tray always recomputes preview from raw_content even for old persisted items. Updated in `mask_display`, `UIClipboardItem::from`, `item_label` + tests. (2026-06-22)
 
-### 🔐 Security
+### ✅ Security
 
 - [x] **(HIGH) Lowering the persistence level didn't purge what the new
   level forbids.** The level only governed *new* writes: switching to
@@ -205,6 +204,20 @@ What to work on, in order. The sections below hold the detail.
       click handler → `copy_raw` → `load_item` (checks `tray_recent` first, then DB).
       `state.last_seen` prevents re-capture. Manual test: copy something, click tray
       item → paste. Works end-to-end from locked arena.
+
+## Pending
+
+### 🎨 Skins (idea 2026-10-16, agreed, not started)
+
+- [ ] **Skins: colours and block order, desktop and Android** — one
+  `skin.toml` both apps read: `[colors]` (background, key, text, accent;
+  each optional, missing = today's) and `[layout]` (keyboard: `strip`,
+  `keys`, `actions` top to bottom; desktop: `search`, `pinned`,
+  `history`; a block left out is hidden, `keys` never). Parser and
+  validation in `lapacho-core`. Android: the colour constants in
+  `LapachoIme.kt` read the skin, imported like a dictionary. Desktop: CSS
+  variables. Android first. Out for now: a visual editor, fonts, images,
+  key sizes, more than one skin at a time.
 
 ### 🧩 Plugins
 
@@ -403,7 +416,7 @@ What to work on, in order. The sections below hold the detail.
     offer the runners-up in the strip. Tuned on synthetic swipes only:
     `SWIPE_SIGMA` wants retuning against real ones from a phone, and the
     shape channel is the next step if swipes drawn small or off-centre fail.
-  - [ ] **Publish official dictionaries** next to the APKs on `/lapacho`
+  - [x] **Publish official dictionaries** next to the APKs on `/lapacho` (2026-10-16, `0.1.49`)
     — English, Italian, Hebrew (`0.1.37`), Brazilian Portuguese, French,
     German and Russian are committed, built by `dictionaries/build.py`, and
     official in the app; every release attaches them and `publish.sh`
