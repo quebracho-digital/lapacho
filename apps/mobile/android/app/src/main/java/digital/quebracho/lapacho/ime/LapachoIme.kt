@@ -825,7 +825,11 @@ class LapachoIme : InputMethodService() {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(KEYBOARD_BG)
         }
-        val popup = PopupWindow(row, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        val popup = PopupWindow(row, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, false).apply {
+            // Not focusable: a focused popup takes the window focus from the
+            // app's field, and some fields hide the keyboard when they lose it.
+            isOutsideTouchable = true
+        }
         fill(row, popup)
         popup.showAsDropDown(anchor, 0, yOffset)
         // Dismissing an already dismissed popup does nothing, so the picked
