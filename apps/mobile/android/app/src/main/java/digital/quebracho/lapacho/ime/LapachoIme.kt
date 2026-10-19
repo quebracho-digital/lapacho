@@ -916,7 +916,7 @@ class LapachoIme : InputMethodService() {
                                 Shift.ONCE -> SHIFT_ONCE_COLOR
                                 Shift.OFF -> KEY_COLOR
                             }
-                            ((key.background as RippleDrawable).getDrawable(0) as GradientDrawable).setColor(tint)
+                            (((key.background as RippleDrawable).getDrawable(0) as InsetDrawable).drawable as GradientDrawable).setColor(tint)
                         }
                     },
                 )
