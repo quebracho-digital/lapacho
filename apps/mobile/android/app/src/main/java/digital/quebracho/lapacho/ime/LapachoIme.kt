@@ -14,6 +14,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.RippleDrawable
 import android.inputmethodservice.InputMethodService
 import android.os.Build
@@ -679,16 +680,16 @@ class LapachoIme : InputMethodService() {
             maxLines = 1
             setTextColor(Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_DIP, KEY_TEXT_DP)
+            // The gap between keys is drawn, not a margin: a margin is a strip
+            // no key owns, and a fast tap that landed there typed nothing.
+            val m = dp(2f).toInt()
             background = RippleDrawable(
                 ColorStateList.valueOf(Color.GRAY),
-                GradientDrawable().apply { setColor(color); cornerRadius = dp(6f) },
+                InsetDrawable(GradientDrawable().apply { setColor(color); cornerRadius = dp(6f) }, m),
                 null,
             )
             isClickable = true
-            layoutParams = LinearLayout.LayoutParams(0, dp(KEY_HEIGHT_DP).toInt(), weight).apply {
-                val m = dp(2f).toInt()
-                setMargins(m, m, m, m)
-            }
+            layoutParams = LinearLayout.LayoutParams(0, dp(KEY_HEIGHT_DP).toInt() + 2 * m, weight)
             if (alternates == null) {
                 pressable(this, onClick)
                 return@apply
@@ -712,7 +713,9 @@ class LapachoIme : InputMethodService() {
     private fun pressable(key: View, onTap: () -> Unit, onDown: () -> Unit = {}, onUp: () -> Unit = {}) {
         key.setOnTouchListener { v, event ->
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
+                // A second finger on the same key ("ll" with both thumbs) is a
+                // pointer-down, not a down.
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                     flushPendingTap()
                     v.drawableHotspotChanged(event.x, event.y)
                     v.isPressed = true
