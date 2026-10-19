@@ -4,6 +4,12 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Keyboard — opens again (`0.1.51`)
+
+0.1.50 crashed as soon as the keyboard came up: recoloring a key still
+expected the old background without the drawn gap. Fixed; checked on the
+emulator that it opens and types.
+
 ### Keyboard — no more dead strips between keys (`0.1.50`)
 
 Keys were spaced with margins, so the 4 dp between two keys or two rows
