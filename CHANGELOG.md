@@ -4,6 +4,14 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Keyboard — no more dead strips between keys (`0.1.50`)
+
+Keys were spaced with margins, so the 4 dp between two keys or two rows
+belonged to none: a fast tap landing there typed nothing. The gap is now
+only drawn, and every point of the keyboard is a key. A second thumb on a
+key already held ("ll") was ignored; it types too (#97). Not tried on a
+phone yet.
+
 ### Keyboard — fast typing keeps up, and holding `.` for `?` stays put (`0.1.49`)
 
 Every key used to refresh the strip right away: ask the app for the text
