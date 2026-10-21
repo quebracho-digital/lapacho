@@ -355,6 +355,25 @@ What to work on, in order. The sections below hold the detail.
     English clause classifiers (Legal-BERT on UNFAIR-ToS) with a few dozen
     downloads. The datasets are what's worth taking.
 
+- [ ] **GPG: decrypt and encrypt a clip** (asked 2026-10-21). A clip that is an
+  armored `-----BEGIN PGP MESSAGE-----` block offers *Decrypt*: the plaintext
+  shows inside Lapacho and becomes a new clip in the vault, never in the
+  plain history or the system clipboard unless the user copies it. The
+  armored original stays. *Encrypt* does the reverse, for a recipient
+  chosen from the imported public keys.
+  - **First user: Urunday**, Quebracho's agent for ARCA's tax mailbox (DFE).
+    Its alerts can carry the details encrypted with the accountant's key.
+    On iPhone there is no good free OpenPGP mail reader, so for those
+    accountants Lapacho on iOS (below) is the reader: copy the block, read
+    it in the keyboard.
+  - **Keys:** Lapacho imports a key, it does not generate one. The private
+    key stays on the device (Android Keystore, iOS Keychain); on Android,
+    OpenKeychain's API is an option, since it may already hold the key.
+  - **Crate:** rPGP (`pgp`, pure Rust) in `lapacho-core`, no `gpg` binary: it
+    has to run on Android and iOS, and one path for every platform is simpler.
+  - Open: a built-in plugin, or a plugin app like *Lapacho Terms* with its
+    own permissions.
+
 ### 📦 Project
 
 - [x] `LICENSE-APACHE` — full standard text present with copyright line filled in.
