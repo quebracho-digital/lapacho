@@ -36,6 +36,9 @@ import uniffi.lapacho_mobile_bridge.builtinPlugins
 import uniffi.lapacho_mobile_bridge.runPlugin
 import androidx.core.widget.doAfterTextChanged
 import digital.quebracho.lapacho.EXTRA_IS_SENSITIVE
+import digital.quebracho.lapacho.hasSkin
+import digital.quebracho.lapacho.installSkin
+import digital.quebracho.lapacho.removeSkin
 import digital.quebracho.lapacho.InstalledDict
 import digital.quebracho.lapacho.MAX_LANGUAGES
 import digital.quebracho.lapacho.PickedDict
@@ -117,6 +120,33 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    private val pickSkin = registerForActivityResult(OpenInDownloads()) { uri: Uri? ->
+        if (uri == null) return@registerForActivityResult
+        val message = try {
+            installSkin(this, uri)
+            getString(R.string.skin_added)
+        } catch (e: Exception) {
+            failureMessage(e)
+        }
+        AlertDialog.Builder(this).setMessage(message).setPositiveButton(R.string.got_it, null).show()
+    }
+
+    /** No skin yet: straight to the file. One in use: import another, or drop it. */
+    private fun chooseSkin() {
+        if (!hasSkin(this)) return pickSkin.launch(arrayOf("*/*"))
+        AlertDialog.Builder(this)
+            .setTitle(R.string.skin)
+            .setItems(arrayOf(getString(R.string.skin_import), getString(R.string.skin_remove))) { _, i ->
+                if (i == 0) {
+                    pickSkin.launch(arrayOf("*/*"))
+                } else {
+                    removeSkin(this)
+                    Toast.makeText(this, R.string.skin_removed, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .show()
+    }
+
     /**
      * Our own refusals carry a message for the user. Anything else — a
      * provider that will not open the file, a permission it revoked — is
@@ -170,6 +200,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.clear_button).setOnClickListener { confirmClear() }
         findViewById<Button>(R.id.words_button).setOnClickListener { showLexicon() }
         findViewById<Button>(R.id.languages_button).setOnClickListener { showLanguages() }
+        findViewById<Button>(R.id.skin_button).setOnClickListener { chooseSkin() }
 
         search = findViewById(R.id.search)
         search.doAfterTextChanged { applyFilter() }

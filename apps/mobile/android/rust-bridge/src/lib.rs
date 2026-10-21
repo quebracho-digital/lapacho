@@ -25,6 +25,9 @@ pub enum MobileError {
     /// meant for the user.
     #[error("{reason}")]
     Plugin { reason: String },
+    /// A `skin.toml` that does not parse or validate. `reason` is meant for the user.
+    #[error("{reason}")]
+    Skin { reason: String },
 }
 
 type Result<T> = std::result::Result<T, MobileError>;
@@ -99,6 +102,23 @@ pub fn builtin_plugins() -> Vec<PluginInfo> {
 pub fn run_plugin(id: String, input: String, params: std::collections::HashMap<String, String>) -> Result<String> {
     lapacho_core::plugins::run_builtin_with(&id, &input, |name| params.get(name).cloned().unwrap_or_default())
         .map_err(|reason| MobileError::Plugin { reason })
+}
+
+/// A `skin.toml`, parsed and checked by lapacho-core — see `skin.rs`.
+/// Colours are ARGB; `None` keeps the keyboard's own.
+#[derive(uniffi::Record)]
+pub struct SkinInfo {
+    pub background: Option<u32>,
+    pub key: Option<u32>,
+    pub text: Option<u32>,
+    pub accent: Option<u32>,
+    pub keyboard: Vec<String>,
+}
+
+#[uniffi::export]
+pub fn parse_skin(text: String) -> Result<SkinInfo> {
+    let s = lapacho_core::skin::parse(&text).map_err(|reason| MobileError::Skin { reason })?;
+    Ok(SkinInfo { background: s.background, key: s.key, text: s.text, accent: s.accent, keyboard: s.keyboard })
 }
 
 /// "Secret" — decided by the same ingest pipeline desktop runs, so a password

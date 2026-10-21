@@ -20,6 +20,8 @@ blake3 = { workspace = true }
 zeroize = { workspace = true }
 region = { workspace = true, optional = true }
 ammonia = { workspace = true }
+# Already in the tree through uniffi; enough for one small file.
+basic-toml = "0.1.10"
 
 [features]
 # Locks key material into RAM (mlock) so it can't be swapped to disk. Pulls in

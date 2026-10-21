@@ -53,6 +53,8 @@ import digital.quebracho.lapacho.searchEmoji
 import digital.quebracho.lapacho.classify
 import digital.quebracho.lapacho.currentWord
 import digital.quebracho.lapacho.dictionarySignature
+import digital.quebracho.lapacho.loadSkin
+import digital.quebracho.lapacho.skinSignature
 import digital.quebracho.lapacho.installedDictionaries
 import digital.quebracho.lapacho.InstalledDict
 import digital.quebracho.lapacho.keyAlternates
@@ -87,6 +89,13 @@ class LapachoIme : InputMethodService() {
     private lateinit var repo: History
     private lateinit var pasteStrip: LinearLayout
     private lateinit var keyRows: LinearLayout
+    // The skin's colours (see [onCreateInputView]); these defaults when it sets none.
+    private var bgColor = KEYBOARD_BG
+    private var keyColor = KEY_COLOR
+    private var textColor = Color.WHITE
+    private var accentColor = SHIFT_LOCKED_COLOR
+    private var swipeColor = SWIPE_COLOR
+    private var skinSig = 0L
     private var layer = Layer.LETTERS
     private lateinit var layerToggle: TextView
     private var shift = Shift.OFF
@@ -179,9 +188,16 @@ class LapachoIme : InputMethodService() {
 
     override fun onCreateInputView(): View {
         strings = appResources()
+        skinSig = skinSignature(this)
+        val skin = loadSkin(this)
+        bgColor = skin?.background?.toInt() ?: KEYBOARD_BG
+        keyColor = skin?.key?.toInt() ?: KEY_COLOR
+        textColor = skin?.text?.toInt() ?: Color.WHITE
+        accentColor = skin?.accent?.toInt() ?: SHIFT_LOCKED_COLOR
+        swipeColor = skin?.accent?.let { (it.toInt() and 0xFFFFFF) or (SWIPE_COLOR and 0xFF000000.toInt()) } ?: SWIPE_COLOR
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(KEYBOARD_BG)
+            setBackgroundColor(bgColor)
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -189,13 +205,15 @@ class LapachoIme : InputMethodService() {
         }
 
         pasteStrip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        root.addView(
-            HorizontalScrollView(this).apply { addView(pasteStrip) },
-        )
-
         keyRows = swipeRows()
-        root.addView(keyRows)
-        root.addView(buildActionRow())
+        // Every block is built, so the code that updates one never checks;
+        // the skin decides which are shown, top to bottom.
+        val blocks = mapOf(
+            "strip" to HorizontalScrollView(this).apply { addView(pasteStrip) },
+            "keys" to keyRows,
+            "actions" to buildActionRow(),
+        )
+        for (name in skin?.keyboard ?: listOf("strip", "keys", "actions")) root.addView(blocks.getValue(name))
         applyLayout()
         // Targeting API 35 draws edge-to-edge: without this the navigation
         // bar's buttons land on top of the bottom key row.
@@ -211,6 +229,8 @@ class LapachoIme : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        // A skin imported or removed in the companion since the view was built.
+        if (skinSignature(this) != skinSig) setInputView(onCreateInputView())
         autoSpace = false
         // Re-read top-N every time the keyboard becomes visible (docs §4.4:
         // "load from storage when the IME/app becomes active", not on every
@@ -671,14 +691,14 @@ class LapachoIme : InputMethodService() {
         label: String,
         weight: Float,
         alternates: String? = null,
-        color: Int = KEY_COLOR,
+        color: Int = keyColor,
         onClick: () -> Unit,
     ): TextView =
         TextView(this).apply {
             text = if (alternates == null) label else labelWithHint(label, alternates)
             gravity = Gravity.CENTER
             maxLines = 1
-            setTextColor(Color.WHITE)
+            setTextColor(textColor)
             setTextSize(TypedValue.COMPLEX_UNIT_DIP, KEY_TEXT_DP)
             // The gap between keys is drawn, not a margin: a margin is a strip
             // no key owns, and a fast tap that landed there typed nothing.
@@ -840,7 +860,7 @@ class LapachoIme : InputMethodService() {
     private fun popupNear(anchor: View, yOffset: Int, fill: (LinearLayout, PopupWindow) -> Unit) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(KEYBOARD_BG)
+            setBackgroundColor(bgColor)
         }
         val popup = PopupWindow(row, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, false).apply {
             // Not focusable: a focused popup takes the window focus from the
@@ -912,9 +932,9 @@ class LapachoIme : InputMethodService() {
                             // all: the colour is what says, at a glance, that the next
                             // letter is capital or every letter is.
                             val tint = when (shift) {
-                                Shift.LOCKED -> SHIFT_LOCKED_COLOR
+                                Shift.LOCKED -> accentColor
                                 Shift.ONCE -> SHIFT_ONCE_COLOR
-                                Shift.OFF -> KEY_COLOR
+                                Shift.OFF -> keyColor
                             }
                             (((key.background as RippleDrawable).getDrawable(0) as InsetDrawable).drawable as GradientDrawable).setColor(tint)
                         }
@@ -960,7 +980,7 @@ class LapachoIme : InputMethodService() {
         private val trail = Path()
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            color = SWIPE_COLOR
+            color = swipeColor
             strokeWidth = dp(4f)
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND

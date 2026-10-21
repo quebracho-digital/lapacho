@@ -4,6 +4,14 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Keyboard — skins
+
+A `skin.toml` imported from the app (**Skin**) sets the keyboard's
+background, key, text and accent colours and the order of the strip, the
+keys and the action row; a block left out is hidden, the keys never. Parsed
+and checked in `lapacho-core`, so desktop will read the same file. Android
+only for now. See `docs/USAGE_MOBILE.md`.
+
 ### Security — dependency fixes (`0.1.52`)
 
 TLS and HTML-sanitising libraries updated for published advisories:

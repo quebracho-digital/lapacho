@@ -315,6 +315,29 @@ if you touch anywhere else, or by itself after 5 seconds.
 Keys vibrate and click according to the phone's own settings (keyboard
 vibration, touch sounds); Lapacho has no setting of its own for that.
 
+## Skins
+
+A skin changes the keyboard's colours and the order of its blocks. It is
+one small text file, `skin.toml`; in the app, **Skin** imports it (and,
+with one in use, imports another or goes back to the default look). Open
+the keyboard again to see it.
+
+```toml
+[colors]           # each optional, #RRGGBB; a missing one keeps today's
+background = "#1E1E1E"
+key = "#3C3C3C"
+text = "#FFFFFF"
+accent = "#2E7D32" # caps lock and the swipe trail
+
+[layout]           # top to bottom; a block left out is hidden
+keyboard = ["strip", "keys", "actions"]
+```
+
+`keys` can't be left out. A file with a typo, an unknown block or a colour
+that isn't `#RRGGBB` is refused with the reason, and the skin in use stays.
+The same file will set the desktop app's look (`desktop = ["search",
+"pinned", "history"]`); desktop does not read it yet.
+
 ## The app
 
 The app is also the keyboard's settings: Android's keyboard list opens it from
