@@ -2607,7 +2607,7 @@ dependencies = [
 
 [[package]]
 name = "lapacho-core"
-version = "0.1.51"
+version = "0.1.52"
 dependencies = [
  "aes-gcm",
  "ammonia",
@@ -2625,7 +2625,7 @@ dependencies = [
 
 [[package]]
 name = "lapacho-desktop"
-version = "0.1.51"
+version = "0.1.52"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -2648,7 +2648,7 @@ dependencies = [
 
 [[package]]
 name = "lapacho-mobile-bridge"
-version = "0.1.51"
+version = "0.1.52"
 dependencies = [
  "lapacho-core",
  "lapacho-predict",
@@ -2661,14 +2661,14 @@ dependencies = [
 
 [[package]]
 name = "lapacho-predict"
-version = "0.1.51"
+version = "0.1.52"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "lapacho-sync"
-version = "0.1.51"
+version = "0.1.52"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -2684,7 +2684,7 @@ dependencies = [
 
 [[package]]
 name = "lapacho-voice"
-version = "0.1.51"
+version = "0.1.52"
 dependencies = [
  "bzip2 0.6.1",
  "sherpa-onnx",
@@ -2693,7 +2693,7 @@ dependencies = [
 
 [[package]]
 name = "lapacho-voice-bridge"
-version = "0.1.51"
+version = "0.1.52"
 dependencies = [
  "lapacho-voice",
  "thiserror 2.0.18",

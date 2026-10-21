@@ -4,6 +4,13 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Security — dependency fixes (`0.1.52`)
+
+TLS and HTML-sanitising libraries updated for published advisories:
+rustls-webpki 0.103.16 and webpki-roots 1.0.10 (RUSTSEC-2026-0381/0382),
+rustls 0.23.46 (RUSTSEC-2026-0346..0349), ammonia 4.2.4 (an XSS in the
+sanitiser). No behaviour change (#100).
+
 ### Keyboard — opens again (`0.1.51`)
 
 0.1.50 crashed as soon as the keyboard came up: recoloring a key still
