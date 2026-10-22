@@ -14,7 +14,7 @@ placed in the data folder; `[layout]` is the keyboard's only. See
 
 A `skin.toml` imported from the app (**Skin**) sets the keyboard's
 background, key, text and accent colours and the order of the strip, the
-keys and the action row; a block left out is hidden, the keys never. Parsed
+keys and the action row; the strip can be left out, the keys and the action row (space, enter) can't. Parsed
 and checked in `lapacho-core`, so desktop will read the same file. Android
 only for now. See `docs/USAGE_MOBILE.md`.
 
