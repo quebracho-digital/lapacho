@@ -221,7 +221,11 @@ What to work on, in order. The sections below hold the detail.
   - [x] **Core + Android** (2026-10-21): `lapacho-core/src/skin.rs`,
     `parse_skin` in the bridge, **Skin** in the app, the IME rebuilds on
     the next show. Checked on the emulator.
-  - [ ] **Desktop:** CSS variables and block order from the same file.
+  - [x] **Desktop colours** (2026-10-22): CSS variables from the same file
+    (`skin_css` command), checked in WebKitGTK offscreen.
+  - [ ] **Desktop block order:** the main window has no separate pinned
+    block (pinned items sit in the list with 📌); decide whether to split it
+    or drop `layout.desktop`.
 
 ### 🧩 Plugins
 

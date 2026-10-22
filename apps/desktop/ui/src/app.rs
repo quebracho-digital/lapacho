@@ -137,6 +137,8 @@ pub fn App() -> impl IntoView {
     let (view_raw, set_view_raw) = signal(false);
     // Search query (client-side filter on display_content for live list).
     let (search, set_search) = signal(String::new());
+    // The skin's colours, read once at start (see `skin_css` in the backend).
+    let (skin, set_skin) = signal(String::new());
     // Id of the item whose title is being edited inline, if any.
     let (editing, set_editing) = signal(None::<String>);
     // Id of a sensitive item whose vault button is armed and awaiting the
@@ -206,6 +208,7 @@ pub fn App() -> impl IntoView {
         set_plugins.set(bindings::list_plugins().await);
         set_version.set(bindings::app_version().await);
         set_ttl.set(bindings::get_sensitive_ttl().await);
+        set_skin.set(bindings::skin_css().await);
     });
 
     // Reload the list from the backend (session recent + DB). Used when the
@@ -326,6 +329,7 @@ pub fn App() -> impl IntoView {
     };
 
     view! {
+        <style>{move || skin.get()}</style>
         <header>
             "Lapacho " <small>"· secure clipboard"</small>
             <small class="version">{move || {

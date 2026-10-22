@@ -46,6 +46,16 @@ Every clip is captured automatically. Each row has these actions:
 
 **Search** filters the whole history, names included.
 
+## Skins
+
+The same `skin.toml` the Android keyboard reads (see
+[USAGE_MOBILE.md](USAGE_MOBILE.md#skins)) sets the window's colours: put it
+at `~/.local/share/digital.quebracho.lapacho/skin.toml` and open Lapacho
+again. `background`, `key` (buttons and menus), `text` and `accent` (the
+header and the main buttons), each optional. A file that doesn't parse is
+ignored with the reason on stderr, and the default look stays. The
+`[layout] desktop` order is read but not applied yet.
+
 ## Secrets
 
 Lapacho classifies every clip as none / personal / credential / secret, using
