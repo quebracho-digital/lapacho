@@ -7,7 +7,8 @@
 //! text = "#FFFFFF"
 //! accent = "#2E7D32"
 //!
-//! [layout]           # top to bottom; a block left out is hidden
+//! [layout]           # top to bottom; a block left out is hidden,
+//!                    # except the keys and the action row (space, enter)
 //! keyboard = ["strip", "keys", "actions"]
 //! desktop = ["search", "pinned", "history"]
 //! ```
@@ -58,8 +59,11 @@ struct Layout {
 pub fn parse(text: &str) -> Result<Skin, String> {
     let f: File = basic_toml::from_str(text).map_err(|e| e.to_string())?;
     let keyboard = blocks("keyboard", f.layout.keyboard, &KEYBOARD_BLOCKS)?;
-    if !keyboard.iter().any(|b| b == "keys") {
-        return Err("layout.keyboard must keep \"keys\"".into());
+    // Without the action row there is no space or enter: a keyboard, not a skin choice.
+    for must in ["keys", "actions"] {
+        if !keyboard.iter().any(|b| b == must) {
+            return Err(format!("layout.keyboard must keep \"{must}\""));
+        }
     }
     Ok(Skin {
         background: color("background", f.colors.background)?,
@@ -108,10 +112,10 @@ mod tests {
 
     #[test]
     fn colours_and_order() {
-        let s = parse("[colors]\nkey = \"#0a0B0c\"\n[layout]\nkeyboard = [\"keys\", \"strip\"]").unwrap();
+        let s = parse("[colors]\nkey = \"#0a0B0c\"\n[layout]\nkeyboard = [\"keys\", \"actions\"]").unwrap();
         assert_eq!(s.key, Some(0xFF0A0B0C));
         assert_eq!(s.text, None);
-        assert_eq!(s.keyboard, ["keys", "strip"]);
+        assert_eq!(s.keyboard, ["keys", "actions"]);
     }
 
     #[test]
@@ -120,7 +124,8 @@ mod tests {
             "[colors]\nkey = \"red\"",
             "[colors]\nkey = \"#12345\"",
             "[colors]\nbackgound = \"#000000\"",
-            "[layout]\nkeyboard = [\"strip\"]",
+            "[layout]\nkeyboard = [\"strip\", \"actions\"]",
+            "[layout]\nkeyboard = [\"keys\", \"strip\"]",
             "[layout]\nkeyboard = [\"keys\", \"keys\"]",
             "[layout]\ndesktop = [\"emoji\"]",
             "[colors",
