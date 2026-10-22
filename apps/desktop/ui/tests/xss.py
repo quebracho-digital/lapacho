@@ -30,7 +30,7 @@ UI = os.path.join(ROOT, "apps/desktop/ui")
 PAYLOADS = sorted(glob.glob(os.path.join(ROOT, "test-payloads/*")))
 PAYLOADS = [p for p in PAYLOADS if not p.endswith("README.md")]
 # What the page asks for by itself while listing and opening items.
-ALLOWED = {"get_history", "search_history", "get_persist_level", "get_sensitive_ttl", "app_version", "list_plugins"}
+ALLOWED = {"get_history", "search_history", "get_persist_level", "get_sensitive_ttl", "app_version", "list_plugins", "skin_css"}
 
 MOCK = """
 window.__calls = [];
