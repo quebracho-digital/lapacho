@@ -116,4 +116,9 @@
     <string name="setup_default">2. Make it the keyboard you type with</string>
     <string name="setup_voice">3. Optional: dictation, with Lapacho Voice (opens its download page)</string>
     <string name="setup_not_now">Not now</string>
+    <string name="skin">Skin</string>
+    <string name="skin_import">Import a skin…</string>
+    <string name="skin_remove">Back to the default look</string>
+    <string name="skin_added">Skin in use. Open the keyboard again to see it.</string>
+    <string name="skin_removed">Default look back.</string>
 </resources>

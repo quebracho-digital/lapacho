@@ -5,6 +5,7 @@ pub mod llm;
 pub mod locked_ring;
 pub mod plugins;
 pub mod security;
+pub mod skin;
 pub mod storage;
 pub mod terms;
 pub mod threats;

@@ -116,4 +116,9 @@
     <string name="setup_default">2. Elegilo como el teclado con el que escribís</string>
     <string name="setup_voice">3. Opcional: dictado, con Lapacho Voz (abre la página de descarga)</string>
     <string name="setup_not_now">Ahora no</string>
+    <string name="skin">Aspecto</string>
+    <string name="skin_import">Importar un aspecto…</string>
+    <string name="skin_remove">Volver al aspecto de siempre</string>
+    <string name="skin_added">Aspecto aplicado. Volvé a abrir el teclado para verlo.</string>
+    <string name="skin_removed">Volvió el aspecto de siempre.</string>
 </resources>

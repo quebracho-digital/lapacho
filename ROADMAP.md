@@ -207,7 +207,7 @@ What to work on, in order. The sections below hold the detail.
 
 ## Pending
 
-### 🎨 Skins (idea 2026-10-16, agreed, not started)
+### 🎨 Skins (idea 2026-10-16; Android done, desktop pending)
 
 - [ ] **Skins: colours and block order, desktop and Android** — one
   `skin.toml` both apps read: `[colors]` (background, key, text, accent;
@@ -218,6 +218,10 @@ What to work on, in order. The sections below hold the detail.
   `LapachoIme.kt` read the skin, imported like a dictionary. Desktop: CSS
   variables. Android first. Out for now: a visual editor, fonts, images,
   key sizes, more than one skin at a time.
+  - [x] **Core + Android** (2026-10-21): `lapacho-core/src/skin.rs`,
+    `parse_skin` in the bridge, **Skin** in the app, the IME rebuilds on
+    the next show. Checked on the emulator.
+  - [ ] **Desktop:** CSS variables and block order from the same file.
 
 ### 🧩 Plugins
 

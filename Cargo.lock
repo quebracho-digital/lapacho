@@ -2612,6 +2612,7 @@ dependencies = [
  "aes-gcm",
  "ammonia",
  "base64 0.22.1",
+ "basic-toml",
  "blake3",
  "getrandom 0.2.17",
  "regex",
