@@ -4,20 +4,20 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
-### Downloads — GitHub only
+### Downloads — GitHub only (`0.1.53`)
 
 The download page on web.fishman.work is retired: the APKs, plugins and
 dictionaries are on GitHub Releases, and Obtainium already installed from
 there. The app's *Getting started* step for Lapacho Voice now opens the README's
 install section instead of that page.
 
-### Desktop — skins
+### Desktop — skins (`0.1.53`)
 
 The window takes its colours from the same `skin.toml` as the keyboard,
 placed in the data folder; `[layout]` is the keyboard's only. See
 `docs/USAGE_DESKTOP.md`.
 
-### Keyboard — skins
+### Keyboard — skins (`0.1.53`)
 
 A `skin.toml` imported from the app (**Skin**) sets the keyboard's
 background, key, text and accent colours and the order of the strip, the
