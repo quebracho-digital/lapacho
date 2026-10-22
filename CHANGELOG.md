@@ -7,7 +7,7 @@ All notable changes to Lapacho are recorded here. Newest first.
 ### Desktop — skins
 
 The window takes its colours from the same `skin.toml` as the keyboard,
-placed in the data folder. Block order is not applied on desktop yet. See
+placed in the data folder; `[layout]` is the keyboard's only. See
 `docs/USAGE_DESKTOP.md`.
 
 ### Keyboard — skins

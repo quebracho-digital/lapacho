@@ -9,7 +9,6 @@
 //!
 //! [layout]           # top to bottom; a block left out is hidden
 //! keyboard = ["strip", "keys", "actions"]
-//! desktop = ["search", "pinned", "history"]
 //! ```
 
 use serde::Deserialize;
@@ -22,11 +21,9 @@ pub struct Skin {
     pub text: Option<u32>,
     pub accent: Option<u32>,
     pub keyboard: Vec<String>,
-    pub desktop: Vec<String>,
 }
 
 pub const KEYBOARD_BLOCKS: [&str; 3] = ["strip", "keys", "actions"];
-pub const DESKTOP_BLOCKS: [&str; 3] = ["search", "pinned", "history"];
 
 // deny_unknown_fields: a typo ("backgound") should say so, not be ignored.
 #[derive(Deserialize, Default)]
@@ -51,7 +48,6 @@ struct Colors {
 #[serde(deny_unknown_fields)]
 struct Layout {
     keyboard: Option<Vec<String>>,
-    desktop: Option<Vec<String>>,
 }
 
 /// Parses and validates a `skin.toml`. The error is meant for the user.
@@ -67,7 +63,6 @@ pub fn parse(text: &str) -> Result<Skin, String> {
         text: color("text", f.colors.text)?,
         accent: color("accent", f.colors.accent)?,
         keyboard,
-        desktop: blocks("desktop", f.layout.desktop, &DESKTOP_BLOCKS)?,
     })
 }
 
@@ -103,7 +98,6 @@ mod tests {
         let s = parse("").unwrap();
         assert_eq!(s.background, None);
         assert_eq!(s.keyboard, KEYBOARD_BLOCKS);
-        assert_eq!(s.desktop, DESKTOP_BLOCKS);
     }
 
     #[test]
@@ -122,7 +116,8 @@ mod tests {
             "[colors]\nbackgound = \"#000000\"",
             "[layout]\nkeyboard = [\"strip\"]",
             "[layout]\nkeyboard = [\"keys\", \"keys\"]",
-            "[layout]\ndesktop = [\"emoji\"]",
+            "[layout]\nkeyboard = [\"keys\", \"actions\", \"emoji\"]",
+            "[layout]\ndesktop = [\"history\"]",
             "[colors",
         ] {
             assert!(parse(bad).is_err(), "{bad}");

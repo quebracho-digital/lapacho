@@ -53,8 +53,7 @@ The same `skin.toml` the Android keyboard reads (see
 at `~/.local/share/digital.quebracho.lapacho/skin.toml` and open Lapacho
 again. `background`, `key` (buttons and menus), `text` and `accent` (the
 header and the main buttons), each optional. A file that doesn't parse is
-ignored with the reason on stderr, and the default look stays. The
-`[layout] desktop` order is read but not applied yet.
+ignored with the reason on stderr, and the default look stays. `[layout]` is the keyboard's only.
 
 ## Secrets
 
