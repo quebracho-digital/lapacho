@@ -390,7 +390,7 @@ What to work on, in order. The sections below hold the detail.
   APKs signed with a release key instead of the debug key (one forced
   reinstall); Obtainium links in the README.
 - [ ] **Own F-Droid repository** — `fdroidserver` builds the index from the
-  APKs we already sign and publish; host it on web.fishman.work, so F-Droid,
+  APKs we already sign and publish; host it on GitHub Pages, next to the releases, so F-Droid,
   Droid-ify or Neo Store users add one URL and get updates. Sidesteps
   F-Droid's main repo (it would rebuild and re-sign, and is still fighting
   the verification rule) and IzzyOnDroid (refuses apps substantially written

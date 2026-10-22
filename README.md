@@ -33,10 +33,8 @@ Part of the **Quebracho Digital** ecosystem. Replaces the prototypes
 > `.msi`, `.exe`, `.dmg`), each with its `.sha256`, and the official keyboard
 > dictionaries (`lapacho-dict-<lang>-<hash>.dict`; see [Mobile](#mobile)). The desktop installers are
 > unsigned: Windows shows SmartScreen, and macOS needs right-click → Open the
-> first time. The APK is also on [web.fishman.work](https://web.fishman.work/)
-> ([en español](https://web.fishman.work/es)), and
-> [Obtainium](#android-without-googles-permission) installs it from GitHub and
-> keeps it updated.
+> first time. [Obtainium](#android-without-googles-permission) installs the APK
+> from GitHub and keeps it updated.
 
 ## Android without Google's permission
 
@@ -57,8 +55,8 @@ will still work, and stay yours to decide:
   [add Lapacho Terms](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22digital.quebracho.lapacho.plugin.terms%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fquebracho-digital%2Flapacho%22%2C%22author%22%3A%22Quebracho%20Digital%22%2C%22name%22%3A%22Lapacho%20Terms%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%20%5C%22%5Elapacho-terms-plugin-.%2A%5B.%5Dapk%24%5C%22%7D%22%7D)
   and [add Lapacho Voice](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22digital.quebracho.lapacho.plugin.voice%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fquebracho-digital%2Flapacho%22%2C%22author%22%3A%22Quebracho%20Digital%22%2C%22name%22%3A%22Lapacho%20Voice%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%20%5C%22%5Elapacho-voice-plugin-.%2A%5B.%5Dapk%24%5C%22%7D%22%7D)
   (the plugins; all come out of the same release).
-- **The APK by hand**, from [Releases](https://github.com/quebracho-digital/lapacho/releases)
-  or [web.fishman.work](https://web.fishman.work/), checked against its `.sha256`.
+- **The APK by hand**, from [Releases](https://github.com/quebracho-digital/lapacho/releases/latest),
+  checked against its `.sha256`.
 - **Phones without Google's certification** — GrapheneOS, LineageOS without
   Google apps, /e/OS — are not affected at all.
 - **On a certified phone, after the change:** Android's "advanced flow" for
