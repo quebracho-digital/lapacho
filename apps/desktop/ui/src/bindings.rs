@@ -122,6 +122,10 @@ pub async fn search_history(query: &str) -> Vec<UIClipboardItem> {
     }
 }
 
+pub async fn skin_css() -> String {
+    invoke("skin_css", JsValue::NULL).await.ok().and_then(|v| v.as_string()).unwrap_or_default()
+}
+
 pub async fn get_persist_level() -> String {
     match invoke("get_persist_level", JsValue::NULL).await {
         Ok(v) => v.as_string().unwrap_or_else(|| "none".to_string()),

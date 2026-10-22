@@ -645,6 +645,27 @@ fn app_version() -> String {
     version_label()
 }
 
+/// The skin's colours as CSS (`:root { --bg: … }`), from `skin.toml` in the
+/// data dir next to `plugins/`. Empty with no skin; an invalid one is
+/// reported on stderr and ignored, so a typo never leaves a broken window.
+#[tauri::command]
+fn skin_css(app: AppHandle) -> String {
+    let Ok(path) = app.path().app_data_dir().map(|d| d.join("skin.toml")) else { return String::new() };
+    let Ok(text) = std::fs::read_to_string(&path) else { return String::new() };
+    let skin = match lapacho_core::skin::parse(&text) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[lapacho] {}: {e}", path.display());
+            return String::new();
+        }
+    };
+    let vars: String = [("bg", skin.background), ("key", skin.key), ("text", skin.text), ("accent", skin.accent)]
+        .into_iter()
+        .filter_map(|(name, c)| c.map(|c| format!("--{name}: #{:06x};", c & 0xFF_FFFF)))
+        .collect();
+    format!(":root {{ {vars} }}")
+}
+
 #[tauri::command]
 fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginDefinition>, String> {
     plugins::load_plugins(&state.plugins_dir)
@@ -1357,6 +1378,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_history,
+            skin_css,
             search_history,
             delete_item,
             clear_history,

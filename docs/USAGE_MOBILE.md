@@ -335,8 +335,8 @@ keyboard = ["strip", "keys", "actions"]
 
 `keys` and `actions` (space, enter) can't be left out; only the strip can. A file with a typo, an unknown block or a colour
 that isn't `#RRGGBB` is refused with the reason, and the skin in use stays.
-The same file will set the desktop app's look (`desktop = ["search",
-"pinned", "history"]`); desktop does not read it yet.
+The desktop app reads the same file for its colours (see
+[USAGE_DESKTOP.md](USAGE_DESKTOP.md#skins)).
 
 ## The app
 

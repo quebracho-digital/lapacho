@@ -212,8 +212,8 @@ What to work on, in order. The sections below hold the detail.
 - [ ] **Skins: colours and block order, desktop and Android** — one
   `skin.toml` both apps read: `[colors]` (background, key, text, accent;
   each optional, missing = today's) and `[layout]` (keyboard: `strip`,
-  `keys`, `actions` top to bottom; desktop: `search`, `pinned`,
-  `history`; a block left out is hidden, `keys` and `actions` never). Parser and
+  `keys`, `actions` top to bottom, keyboard only; a block left out is
+  hidden, `keys` never). Parser and
   validation in `lapacho-core`. Android: the colour constants in
   `LapachoIme.kt` read the skin, imported like a dictionary. Desktop: CSS
   variables. Android first. Out for now: a visual editor, fonts, images,
@@ -221,7 +221,11 @@ What to work on, in order. The sections below hold the detail.
   - [x] **Core + Android** (2026-10-21): `lapacho-core/src/skin.rs`,
     `parse_skin` in the bridge, **Skin** in the app, the IME rebuilds on
     the next show. Checked on the emulator.
-  - [ ] **Desktop:** CSS variables and block order from the same file.
+  - [x] **Desktop colours** (2026-10-22): CSS variables from the same file
+    (`skin_css` command), checked in WebKitGTK offscreen.
+  - [x] **No desktop block order** (decided 2026-10-22): the main window
+    has no separate pinned block, so `layout.desktop` was dropped rather
+    than promised. Back if someone asks to reorder.
 
 ### 🧩 Plugins
 

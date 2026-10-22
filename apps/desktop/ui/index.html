@@ -24,17 +24,21 @@
     <script src="mermaid-init.js"></script>
 
     <style>
-      :root { color-scheme: dark; }
+      :root {
+        color-scheme: dark;
+        /* A skin.toml overrides these; see docs/USAGE_DESKTOP.md. */
+        --bg: #16130f; --key: #2a241c; --text: #ece6dd; --accent: #c2185b;
+      }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         font: 14px/1.4 system-ui, sans-serif;
-        background: #16130f;
-        color: #ece6dd;
+        background: var(--bg);
+        color: var(--text);
       }
       header {
         padding: 12px 16px;
-        background: #c2185b; /* lapacho flower */
+        background: var(--accent); /* lapacho flower */
         color: #fff;
         font-weight: 600;
       }
@@ -47,7 +51,7 @@
         border-bottom: 1px solid #2a241c;
       }
       #controls select, #controls button {
-        background: #2a241c; color: #ece6dd;
+        background: var(--key); color: var(--text);
         border: 1px solid #3a3228; border-radius: 6px; padding: 4px 8px;
       }
       #controls button { cursor: pointer; }
@@ -78,7 +82,7 @@
         background: none; border: none; color: #8a8076; cursor: pointer; font-size: 13px;
         padding: 2px 4px;
       }
-      .row-actions button:hover { color: #ece6dd; }
+      .row-actions button:hover { color: var(--text); }
       #empty { padding: 24px 16px; opacity: 0.5; text-align: center; }
 
       /* ---- detail / export modal ---- */
@@ -106,19 +110,19 @@
       }
       .modal .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
       .modal .actions button, .modal .actions select {
-        background: #2a241c; color: #ece6dd; border: 1px solid #3a3228;
+        background: var(--key); color: var(--text); border: 1px solid #3a3228;
         border-radius: 6px; padding: 5px 10px; cursor: pointer;
       }
       .modal .actions input.plugin-param {
-        background: #1e1a15; color: #ece6dd; border: 1px solid #3a3228;
+        background: #1e1a15; color: var(--text); border: 1px solid #3a3228;
         border-radius: 6px; padding: 5px 8px; min-width: 9em;
       }
       .modal .actions label.plugin-param { display: flex; align-items: center; gap: 4px; }
       .modal .actions .plugin-err { color: #ef9a9a; align-self: center; white-space: pre-wrap; }
-      .modal .actions .primary { background: #c2185b; border-color: #c2185b; color: #fff; }
+      .modal .actions .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
       .close { margin-left: auto; }
       .modal h2 .nav, .modal h2 .close {
-        background: none; border: 1px solid #3a3228; color: #ece6dd;
+        background: none; border: 1px solid #3a3228; color: var(--text);
         border-radius: 6px; padding: 2px 10px; cursor: pointer; font-size: 16px;
       }
       .modal h2 .nav:first-of-type { margin-left: auto; }
@@ -220,10 +224,10 @@
       .purged { font-size: 11px; color: #d9b26a; }
       .toast {
         position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
-        background: #2a241c; color: #ece6dd; border: 1px solid #3a3228;
+        background: var(--key); color: var(--text); border: 1px solid #3a3228;
         border-radius: 6px; padding: 6px 14px; z-index: 20; max-width: 90vw;
       }
-      .modal textarea.edit { width: 100%; box-sizing: border-box; min-height: 40vh; color: #ece6dd; resize: vertical; }
+      .modal textarea.edit { width: 100%; box-sizing: border-box; min-height: 40vh; color: var(--text); resize: vertical; }
 
       /* ---- spotlight (frameless quick-search window) ---- */
       #spotlight {
@@ -233,7 +237,7 @@
       }
       #spotlight #search-input {
         border: none; border-bottom: 1px solid #3a3228; background: transparent;
-        color: #ece6dd; font-size: 18px; padding: 14px 16px; outline: none;
+        color: var(--text); font-size: 18px; padding: 14px 16px; outline: none;
       }
       #spotlight ul { flex: 1; overflow-y: auto; }
       #spotlight .row {
