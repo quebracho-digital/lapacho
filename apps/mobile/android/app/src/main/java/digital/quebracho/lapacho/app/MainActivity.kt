@@ -741,8 +741,8 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         /** The id of a clip the keyboard wants run through a plugin. */
-        // Where Lapacho Voice is offered: its Obtainium link and the APKs.
-        const val VOICE_URL = "https://web.fishman.work/lapacho"
+        // Where Lapacho Voice is offered: its Obtainium link and the Releases with the APKs.
+        const val VOICE_URL = "https://github.com/quebracho-digital/lapacho#android-without-googles-permission"
         const val EXTRA_PLUGIN_ITEM = "digital.quebracho.lapacho.PLUGIN_ITEM"
         /** The plugin-app contract (plugin-terms answers it): find by action, text in, text or error out. */
         const val PLUGIN_ACTION = "digital.quebracho.lapacho.action.RUN_PLUGIN"

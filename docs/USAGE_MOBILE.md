@@ -18,12 +18,13 @@ open the "add Lapacho" link in the
 [README](../README.md#android-without-googles-permission) on the phone. It
 installs from GitHub Releases and tells you when there is a new version. By hand:
 
-1. Download the APK on the phone from the download page —
-   [web.fishman.work](https://web.fishman.work/) in English,
-   [web.fishman.work/es](https://web.fishman.work/es) in Spanish — which lists
-   every build with its SHA-256, and the official dictionaries. The files
-   themselves are `https://web.fishman.work/sites/default/files/lapacho-<version>.apk`,
-   each with its checksum next to it (`lapacho-<version>.apk.sha256`).
+1. Download the APK on the phone from
+   [the latest release](https://github.com/quebracho-digital/lapacho/releases/latest):
+   `lapacho-<version>.apk`, with its checksum next to it
+   (`lapacho-<version>.apk.sha256`). The same release carries the plugins
+   (`lapacho-voice-plugin-…`, `lapacho-terms-plugin-…`) and the official
+   dictionaries (`lapacho-dict-<lang>-<hash>.dict`); older builds are under
+   [all releases](https://github.com/quebracho-digital/lapacho/releases).
 2. Optional, recommended: check the download against the `.sha256` file (any
    hash app on the phone, or `sha256sum` on a computer).
 3. Open the APK and allow the install from your browser when Android asks.
