@@ -333,7 +333,7 @@ accent = "#2E7D32" # caps lock and the swipe trail
 keyboard = ["strip", "keys", "actions"]
 ```
 
-`keys` can't be left out. A file with a typo, an unknown block or a colour
+`keys` and `actions` (space, enter) can't be left out; only the strip can. A file with a typo, an unknown block or a colour
 that isn't `#RRGGBB` is refused with the reason, and the skin in use stays.
 The same file will set the desktop app's look (`desktop = ["search",
 "pinned", "history"]`); desktop does not read it yet.
