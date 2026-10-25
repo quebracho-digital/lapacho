@@ -66,7 +66,9 @@ import digital.quebracho.lapacho.HISTORY_MAX
 import digital.quebracho.lapacho.History
 import digital.quebracho.lapacho.Sensitivity
 import digital.quebracho.lapacho.isSecret
+import digital.quebracho.lapacho.loadPhrases
 import digital.quebracho.lapacho.loadPredictor
+import uniffi.lapacho_mobile_bridge.PhraseBook
 import uniffi.lapacho_mobile_bridge.WordPredictor
 import digital.quebracho.lapacho.matchesQuery
 
@@ -121,6 +123,9 @@ class LapachoIme : InputMethodService() {
     // suggests from its own languages only. Dropped when a word is learned,
     // so the next lookup picks it up.
     private val predictors = HashMap<Int, WordPredictor>()
+    // The default phrases of a layout's languages, built like [predictors]
+    // but never touched by learning: they are the same for everyone.
+    private val phraseBooks = HashMap<Int, PhraseBook>()
     private var lexicon: List<String> = emptyList()
     // Which imported dictionaries the layouts, predictors and [longPress]
     // were built from; null until the first show, so that one always builds them.
@@ -151,6 +156,8 @@ class LapachoIme : InputMethodService() {
                 Log.i(TAG, "dictionary: ${it.size()} words in ${(System.nanoTime() - t0) / 1_000_000}ms")
             }
         }
+    private val phrases: PhraseBook
+        get() = phraseBooks.getOrPut(layoutIndex) { loadPhrases(this, keyLayouts[layoutIndex].second) }
     private var query = ""
     // The key under a finger that has not lifted yet; see [pressable].
     private var pendingTap: (() -> Unit)? = null
@@ -251,6 +258,7 @@ class LapachoIme : InputMethodService() {
         if (sig != dictSig) {
             dictSig = sig
             predictors.clear()
+            phraseBooks.clear()
             keyLayouts = layouts(installedDictionaries(this)) { it.header }
             // The same rows may have moved, or gone: start from the first.
             layoutIndex = 0
@@ -387,7 +395,28 @@ class LapachoIme : InputMethodService() {
         // finish the word and the clips come back. One row, three jobs — the
         // alternative is a keyboard one row taller for everyone.
         if (!privateField && showSuggestions()) return
+        if (!privateField) showPhrases()
         showClips()
+    }
+
+    /**
+     * What usually follows the words just typed ("buen " → día), ahead of the
+     * clips in the same row: the 🔍 and the clips are a swipe away. Nothing
+     * while a word is being typed (the suggestions have the strip then), after
+     * a full stop, or in a private field.
+     */
+    private fun showPhrases() {
+        val before = currentInputConnection?.getTextBeforeCursor(PHRASE_LOOKBEHIND, 0) ?: return
+        for (phrase in phrases.next(before.toString(), SUGGESTIONS.toUInt())) {
+            pasteStrip.addView(pasteButton(phrase) { commitPhrase(phrase) })
+        }
+    }
+
+    /** Types [phrase] and a space, and offers what comes after it in turn. */
+    private fun commitPhrase(phrase: String) {
+        commitText("$phrase ")
+        autoSpace = true
+        refreshStrip()
     }
 
     /**
@@ -1389,6 +1418,8 @@ class LapachoIme : InputMethodService() {
 
         /** Enough to hold the longest word anyone types before the cursor. */
         private const val WORD_LOOKBEHIND = 48
+        /** Two words of context and the space after them. */
+        private const val PHRASE_LOOKBEHIND = 64
         private const val LABEL_MAX = 24
         private const val KEY_TEXT_DP = 20f
         private const val KEY_HEIGHT_DP = 46f

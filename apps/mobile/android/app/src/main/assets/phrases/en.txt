@@ -1,0 +1,78 @@
+# Lapacho default phrases, English. Public and fixed: the same for everyone.
+# Format: docs/DICTIONARIES.md ("Phrases"). `context > phrase | phrase`, best
+# first, the strip shows the first three. Contexts are one or two words;
+# case does not matter.
+# Licence: MIT, like the rest of the repository.
+
+# Greetings and goodbyes
+hi > there | everyone | team
+hello > there | everyone | team
+good > morning | afternoon | evening
+good morning > everyone | team | how are you?
+good afternoon > everyone | team | how are you?
+good evening > everyone | team | how are you?
+good night > everyone | sleep well
+have a > great day | good one | nice weekend
+a nice > day | weekend | evening
+happy > birthday | new year | holidays
+merry > christmas
+see you > later | tomorrow | soon
+talk > soon | later | tomorrow
+how > are you? | is it going? | does that sound?
+how are > you? | you doing?
+how's > it going? | your day? | everything?
+what's > up | the plan | going on
+what time > works for you? | is it? | are you coming?
+best > regards | wishes | of luck
+kind > regards
+congratulations > on | to you | to everyone
+congrats > on | to you
+welcome > back | to the team | aboard
+you're > welcome | right | all set
+you are > welcome | right | all set
+
+# Thanks and sorry
+thanks > for | a lot | so much
+thank > you | you so much
+thank you > for | so much | very much
+thanks for > your help | the update | letting me know
+you for > your help | the update | your time
+sorry > for the delay | about that | to hear that
+sorry for > the delay | the late reply | the inconvenience
+no problem > at all | thanks
+no worries > at all
+sounds > good | great | like a plan
+sounds good > to me | thanks
+
+# Plans and where I am
+i'm > sorry | on my way | running late
+i am > sorry | on my way | running late
+on my > way | side
+i'll > be there | let you know | get back to you
+i will > be there | let you know | get back to you
+i'll be > there | right there | back | late
+i'll let > you know | you know when
+i'll get > back to you | it done | there
+get back > to you | to me
+let's > talk | go | meet
+let me > know | check | see
+me know > if you need anything | when you're free | if you have any questions
+looking > forward to it | into it | for
+looking forward > to it | to hearing from you | to seeing you
+as soon > as possible | as you can | as I can
+soon as > possible | I can | you can
+in the > morning | afternoon | evening
+on the > way | phone | other hand
+
+# Asking
+please > let me know | confirm | send me
+please find > attached
+can you > help me | send me | call me
+could you > please | send me | help me
+do you > have | know | want to
+are you > free | coming | okay
+i hope > you are well | you're doing well | this helps
+hope you > are well | are doing well | have a great day
+i was > wondering if | thinking | going to
+i wanted > to ask | to say | to check
+just > checking in | wanted to | a quick question

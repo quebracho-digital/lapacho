@@ -4,6 +4,21 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Keyboard — default phrases (`0.1.54`)
+
+After a finished word, the strip offers up to three phrases that usually
+follow it — `buen ` → *día*, `buen día ` → *¿cómo estás?*, `gracias por ` →
+*todo* — ahead of the clips, and tapping one chains to the next. They come from
+a fixed table, Spanish and English (about 100 and 65 contexts), the same for
+everyone: nothing typed is stored, so this changes none of what the keyboard
+promises about keystrokes. `PhraseBook` in `lapacho-predict`, a `phrases/<lang>.txt`
+asset per bundled language, format in `docs/DICTIONARIES.md`. A mistyped table
+line never fails to load, it just never matches, so a test checks the shape of
+every shipped line.
+
+Also written down, not built: a *learning mode* for personal phrases
+(`docs/DECISIONS.md`, "Learning mode"), awaiting a decision.
+
 ### Downloads — GitHub only (`0.1.53`)
 
 The download page on web.fishman.work is retired: the APKs, plugins and

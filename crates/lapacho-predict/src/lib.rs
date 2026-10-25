@@ -8,6 +8,9 @@
 //! `docs/DECISIONS.md`); when it lands it adds entries to this list, it does
 //! not turn this into something that watches you type.
 
+mod phrases;
+pub use phrases::PhraseBook;
+
 /// One dictionary entry, pointing into [`Predictor::text`]: its key, [`fold`]ed
 /// so that a prefix typed without accents still finds the word ("cancion" →
 /// "canción"), then the word itself — unless the word *is* its key (no accent,

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.annotation.StringRes
 import digital.quebracho.lapacho.app.R
+import uniffi.lapacho_mobile_bridge.PhraseBook
 import uniffi.lapacho_mobile_bridge.WordPredictor
 import java.io.File
 import java.nio.ByteBuffer
@@ -223,6 +224,16 @@ fun loadPredictor(
         dicts.map { d -> d.file?.readText() ?: bundledText(context, d.header.lang) },
         learned,
     )
+
+/**
+ * The default phrases of the languages in [dicts], from the `phrases/<lang>.txt`
+ * assets. Only the bundled languages have one: an imported dictionary brings
+ * words, and a language without a table simply has no phrases to offer.
+ */
+fun loadPhrases(context: Context, dicts: List<InstalledDict>): PhraseBook =
+    PhraseBook(dicts.mapNotNull { d ->
+        runCatching { context.assets.open("phrases/${d.header.lang}.txt").bufferedReader().use { it.readText() } }.getOrNull()
+    })
 
 /**
  * Long-press alternates from every active dictionary's header, on top of
