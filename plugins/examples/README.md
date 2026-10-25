@@ -11,6 +11,7 @@ for where it is on your system) and it appears the next time you open a clip.
 | `fabric-summarize.json` | One [Fabric](https://github.com/danielmiessler/fabric) pattern, fixed: no typing, so no typo |
 | `fabric-pattern.json` | Any Fabric pattern, by name |
 | `fact-check.json` + `.py` | Fabric's `analyze_claims` on the model `terms-assistant` uses: each claim with evidence for and against, and a rating. Imports `terms-assistant.py` and shares its settings, so copy those too. The model answers from what it knows; nothing is looked up |
+| `youtube-summary.json` + `.py` | Clip a YouTube link: downloads the transcript from your machine (`ytt`, or `yt-dlp`) and pipes it to Fabric's `summarize`. Needs `fabric` set up; nothing else of yours is reused |
 | `terms-assistant.json` + `.py` | A long-running plugin (`timeout_secs`) that reuses a built-in through `$LAPACHO_BIN`: it sends *Analyse terms*' request to a model you run (llama.cpp, Ollama, LM Studio), or the text to a Drupal site with `ai_provider_universal_terms`, and keeps the report. Copy both files |
 
 They use `tr`, `sh`, `wc` and `awk` (and `python3` for `terms-assistant`, `fabric` for the Fabric ones), so

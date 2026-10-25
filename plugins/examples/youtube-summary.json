@@ -1,0 +1,8 @@
+{
+  "id": "youtube-summary",
+  "name": "Summarize YouTube video",
+  "description": "Clip a YouTube link: downloads its transcript from your machine (ytt, or yt-dlp) and summarizes it with Fabric's summarize pattern",
+  "command": "python3",
+  "args": ["youtube-summary.py"],
+  "timeout_secs": 600
+}
