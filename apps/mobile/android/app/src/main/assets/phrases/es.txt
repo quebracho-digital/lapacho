@@ -1,0 +1,118 @@
+# Lapacho default phrases, Spanish. Public and fixed: the same for everyone.
+# Format: docs/DICTIONARIES.md ("Phrases"). `context > phrase | phrase`, best
+# first, the strip shows the first three. Contexts are one or two words;
+# case and accents do not matter. Rioplatense first where it differs.
+# Licence: MIT, like the rest of the repository.
+
+# Greetings and goodbyes
+hola > ¿cómo estás? | ¿cómo andás? | ¿todo bien?
+buen > día | fin de semana | provecho
+buenos > días | aires | días a todos
+buenas > tardes | noches | a todos
+buen dia > ¿cómo estás? | equipo | a todos
+buenos dias > ¿cómo estás? | equipo | a todos
+buenas tardes > ¿cómo estás? | equipo | a todos
+buenas noches > ¿cómo estás? | que descanses | equipo
+buen fin > de semana
+buena > suerte | idea | onda | semana
+hasta > luego | mañana | pronto
+nos > vemos | hablamos | escribimos
+nos vemos > mañana | pronto | luego
+hablamos > mañana | luego | pronto
+feliz > cumpleaños | día | fin de semana
+felices > fiestas | pascuas | vacaciones
+que tengas > un buen día | un lindo día | buen fin de semana
+que tal > estás | andás | te va
+que bueno > verte | saber de vos | que estés bien
+saludos > cordiales | a todos | y buen día
+cordiales > saludos
+un saludo > cordial | grande
+un abrazo > grande | fuerte
+
+# How are you
+como > estás | andás | te va
+como te > va | fue | sentís
+como va > todo | tu día | eso
+como estas > hoy | vos | todo bien
+
+# Thanks and sorry
+gracias > por todo | por avisar | por tu ayuda
+gracias por > todo | avisar | tu ayuda
+muchas > gracias | felicidades | veces
+muchas gracias > por todo | por avisar | por tu ayuda
+mil > gracias | disculpas
+mucho > gusto | éxito | cariño
+mucha > suerte | fuerza | paciencia
+perdon > por la demora | por la molestia | no había visto tu mensaje
+disculpa > la demora | la molestia | por la demora
+disculpas > por la demora | por la molestia
+lo > siento | antes posible | mejor
+no hay > problema | drama | apuro
+no pasa > nada
+no te > preocupes | olvides | pierdas
+sin > problema | duda | embargo
+
+# Short answers
+claro > que sí | que no | dale
+dale > gracias | perfecto | nos vemos
+perfecto > gracias | entonces | nos vemos
+listo > gracias | te aviso | ya está
+genial > gracias | me encanta | nos vemos
+ok > gracias | dale | perfecto
+todo > bien | listo | el día
+muy > bien | bueno | amable
+
+# Plans and where I am
+estoy > llegando | en camino | en casa | en reunión
+estoy en > camino | casa | reunión | la oficina
+ya > voy | estoy | te aviso
+ya estoy > llegando | en camino | en casa
+voy > para allá | en camino | llegando
+llego > en un rato | tarde | enseguida
+no puedo > ir | hablar ahora | hoy
+ahora > mismo | te aviso | no puedo
+hoy > no puedo | llego tarde | estoy
+mañana > te aviso | nos vemos | hablamos
+cuando > puedas | llegues | quieras
+en un > rato | momento | minuto | segundo
+en cuanto > pueda | llegue | tenga
+en seguida > te aviso | voy
+por la > mañana | tarde | noche
+a que > hora | hora nos vemos | hora llegás
+a partir > de hoy | de mañana | del lunes
+la semana > que viene | próxima | pasada
+el mes > que viene | próximo | pasado
+el año > que viene | próximo | pasado
+la proxima > semana | vez | reunión
+el proximo > lunes | mes | año
+tal si > nos vemos | lo hablamos | lo vemos mañana
+te parece > bien | si | mejor
+
+# Asking and answering
+por > favor | supuesto | eso
+por favor > avisame | confirmame | decime
+avisame > cuando llegues | si necesitás algo | apenas puedas
+decime > cuando | si | qué te parece
+confirmame > por favor | cuando puedas | si puede ser
+te aviso > cuando llegue | apenas sepa | mañana
+te llamo > mañana | después | en un rato
+te mando > el link | la info | el archivo
+te envio > el archivo | el link | la info
+te paso > el link | la info | los datos
+te adjunto > el archivo | la factura | el documento
+adjunto > el archivo | la factura | el documento
+te > aviso | llamo | escribo
+me > parece | gusta | avisás
+necesito > tu ayuda | que me ayudes | hablar con vos
+podes > ayudarme | mandarme | llamarme
+puedes > ayudarme | mandarme | llamarme
+queria > preguntarte | consultarte | saber si
+quiero > saber si | decirte | pedirte
+me gustaria > saber | pedirte | consultarte
+espero > que estés bien | tu respuesta | verte pronto
+espero que > estés bien | te sirva | puedas venir
+
+# Work mail
+quedo > atento | a la espera | a disposición
+quedo a > la espera | disposición
+quedamos > así | en eso | en contacto

@@ -121,6 +121,41 @@ what you want from jargon (typing `ku` should offer `kubectl`), but if a small
 list keeps pushing common words aside, give it real frequencies, or give its
 everyday words (the ones it shares with Spanish) low ones.
 
+## Phrases
+
+Separate from the word lists: what the strip offers after a *finished* word
+(`buen ` → **día**). The bundled languages each have a table,
+`app/src/main/assets/phrases/<lang>.txt`, loaded for every active dictionary
+with the same `#lang`. A language you import has no table — its dictionary
+brings words — and simply offers no phrases. Importing phrases is not
+supported yet.
+
+```text
+# comment
+buen > día | fin de semana | provecho
+buen día > ¿cómo estás? | equipo | a todos
+gracias por > todo | avisar | tu ayuda
+```
+
+- One line per context: `context > phrase | phrase | …`, **best first** — the
+  strip shows the first three.
+- A context is **one or two words**, the last words typed. The two-word
+  context answers first, then the one-word one, each phrase once.
+- Case and accents in the context do not matter (`mañana` and `Manana` are one
+  key), and a typographic apostrophe is the plain one (`I’m` = `i'm`).
+- A phrase is typed with a space after it, so it must not *start* with a mark;
+  it may contain words, `¿`/`¡`, and a closing `?` or `!`. Up to 32 characters.
+- A full stop, `?`, `!` or `…` after the last word, or a line break, ends the
+  context: nothing is offered.
+- Keep contexts to words that really are followed by the phrase. `de` or
+  `que` would offer something after nearly every sentence, and that hides
+  your clips for nothing.
+
+`crates/lapacho-predict/tests/phrases_assets.rs` checks the shape of every line
+of the shipped tables (context length, stray punctuation, a context written
+twice, a phrase that starts with a mark), because a mistyped line does not fail
+to load: it just never matches.
+
 ## Making one from a frequency list
 
 [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords)

@@ -160,6 +160,139 @@ words you teach it, one at a time, and you can see all of them.*
 The cost is real and accepted: no next-word prediction, and the keyboard stays
 worse than Gboard at guessing. That is the trade this product exists to make.
 
+**Since then (2026-10-25).** The half of next-word prediction that needs no
+model shipped: a fixed, public table of default phrases (`buen ` → *día*),
+the same for everyone — see `docs/DICTIONARIES.md#phrases`. The half that
+learns is *not* adopted; a way to have it without the objection above is
+proposed in [Learning mode](#learning-mode--a-keyboard-that-learns-only-while-it-is-red-proposed).
+
+---
+
+## Learning mode — a keyboard that learns only while it is red (proposed)
+
+|  |  |
+|---|---|
+| **Proposed** | 2026-10-25, after the default phrases shipped |
+| **Status** | **Open — not adopted, nothing built.** Needs the maintainer's decision, and a rewrite of the promise below if yes |
+| **Would partly replace** | [A keyboard that learns while you type](#a-keyboard-that-learns-while-you-type) |
+
+**What that entry objected to.** A personal model built in the background *is*
+a record of everything typed, in statistical form, and nobody can read their
+own n-gram table and tell what it gave away. The objection is about learning
+**invisibly and continuously**. It is not about learning as such, which is what
+makes a keyboard worth using.
+
+**The proposal.** Keep the table, remove the invisibility. Learning becomes a
+**mode** the user turns on, impossible to miss while it is on, limited to what
+can be shown in full, and off again by itself. The product line moves from
+*"keystrokes are never recorded"* to something just as checkable and a little
+weaker:
+
+> Lapacho records word pairs only while the keyboard is red; only pairs of
+> words it already knew; you can read all of them, and erase them.
+
+### The mode
+
+- **Off by default.** Turned on by one explicit tap (a key in the actions row;
+  where is open). There is no setting that leaves it on permanently.
+- **Visible while on.** The keyboard's background turns red and the strip
+  carries a fixed label, *● APRENDIENDO*. Red alone is not enough — it fails
+  for colour-blind users and is overridden by some skins — so the label is not
+  optional. Skins cannot hide either.
+- **Ends by itself:** when the screen turns off, and one hour after it was
+  turned on. A mode people forget is the failure that matters here, so the
+  default errs towards asking again. Closing the keyboard does **not** end it
+  (that would be unusable); a private field **pauses** it (below).
+
+### What it records
+
+- **Pairs only:** previous word → next word, plus a count. No triples, no
+  timestamp, no app name, no field type. A pair never spans a full stop, a
+  line break or a change of field: the context is reset there.
+- **Only words the keyboard already knew** — in the dictionary or in the
+  taught words. This is the strongest filter and costs nothing: passwords,
+  tokens, IDs, card and account numbers, and every random string are not
+  dictionary words, so they never become a pair. Digits are never recorded.
+  What it learns is how *you* chain ordinary words (`buen` → `equipo`), not
+  what you type that is yours alone.
+- **A pair is suggested only after it has been seen twice**, so something typed
+  once, ever, is stored at worst as an inert count and is never shown back.
+
+### Near private data
+
+A reminder after the fact does not un-record anything, so the protection comes
+first and the notice reports it:
+
+- In a private field (`privateField`: passwords, PINs, incognito, the same test
+  that already hides the clips) the mode **pauses**: nothing is recorded, the
+  strip turns grey with *⏸ pausado*, and it resumes by itself in the next
+  ordinary field.
+- A word the classifier reads as a secret (`classify()`, the same one the clip
+  history uses) is dropped, the context is reset, and the strip says briefly
+  *🔒 no aprendido*. The pair on either side of it goes with it.
+- Being red is the standing reminder; these two are the events.
+
+### Where it lives, and who can see it
+
+- A table next to the taught words in `lapacho-core`, written only while the
+  mode is on. App-private storage, `allowBackup="false"` (already set), never
+  in the log (counts only, as now) and **never in `lapacho-sync`** — a test
+  must fail if a sync payload could carry it.
+- The companion app lists **every** pair, searchable by first word, with a
+  delete button on each, and **Borrar todo**. If what the viewer shows and what
+  is stored can differ, the claim above is false; a test compares the row count
+  with what the viewer lists.
+- It ranks above the default phrases: a pair you taught beats the table's
+  guess, and the table fills in where you taught nothing.
+
+### What it costs
+
+- **A manual mode yields a small table.** Most people will not keep it on, so
+  this learns your own stock phrases (`buen día equipo`), not the continuous
+  adaptation of Gboard. That is the same trade as before, narrower.
+- **The promise gets weaker.** `docs/USAGE_MOBILE.md` ("Keystrokes are never
+  recorded; only copied clips are") and the README line change, and so does the
+  sentence in the entry above that this product is sold on. Existing users read
+  a different claim after the update, so it needs a line in the release notes,
+  not only here.
+- **A pair table is still a table of phrases.** The filters keep out secrets,
+  not meaning: *"me duele la"* is made of ordinary words. What stops that from
+  being a leak is that you chose to turn it on, saw it on, and can read it.
+
+### Alternative worth weighing first
+
+**Teach it from text you hand over**, instead of from keystrokes: pick a file
+or paste something you wrote (sent mail, notes), and the companion builds the
+pairs once, on the phone, and throws the text away. No keystroke is ever
+recorded, no mode to forget, and the same filters apply. It gives up
+learning *as you go*, and gains that the promise does not change at all. The
+two are not exclusive; this one is cheaper and could come first.
+
+### How it would be checked
+
+Unit tests, in this order of importance: nothing is recorded in a private
+field or with the mode off; a digit, a secret word or an unknown word records
+nothing and resets the context; the mode ends at screen-off and at the hour; a
+pair is not suggested before its second sighting; the viewer lists exactly
+what is stored; *Borrar todo* leaves no rows; a sync payload and a backup
+contain none of it. Then on a device, red and grey states by eye.
+
+### Open questions for the maintainer
+
+1. **Adopt, or do the "teach it from text" version first?** (Or neither.)
+2. Where does the toggle live — a key in the actions row, a long press on the
+   strip, or only in the companion?
+3. One hour, or shorter? End at screen-off, at keyboard close, or neither?
+4. Two sightings before a pair is suggested: right, or three?
+5. Encrypt the table with the Keystore key that already protects the history?
+   It does not make the table more honest, but a stolen file is useless.
+6. Are the words *APRENDIENDO* / *pausado* / *no aprendido* the right ones, in
+   a keyboard that is otherwise written in the phone's language?
+
+**When to reject for good.** If, a few weeks after it ships, the mode is
+almost never turned on, it is complexity and a weaker promise for nothing: take
+it out, and keep the default phrases.
+
 ---
 
 ## A swipe-typing library instead of our own decoder

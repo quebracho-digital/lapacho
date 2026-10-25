@@ -140,6 +140,20 @@ Accents are optional while typing: `cancion` offers **canción**, `porq` offers
 **porque** and **porqué**. If you start the word with a capital, the
 suggestion comes capitalized.
 
+### Phrases after a word
+
+Finish a word and the strip offers up to three phrases that usually come next,
+ahead of your clips (the 🔍 and the clips are a swipe away): `buen ` offers
+**día**, `buen día ` offers **¿cómo estás?**, `gracias por ` offers **todo**.
+Tap one and it is typed with a space after it, and the strip offers what comes
+after *that* — `buen` → `día` → `¿cómo estás?` is three taps.
+
+They come from a fixed table that ships with the keyboard, Spanish and English,
+the same for everyone: nothing you type is stored or counted to decide them.
+After a full stop, `?` or `!`, or on a new line, there is nothing to offer; in
+a password field the whole strip stays out of the way, as always. Languages you
+import bring words, not phrases ([format](DICTIONARIES.md#phrases)).
+
 **It only learns what you hand it.** The dictionary is the one that came with
 the app — 49 525 Spanish words ordered by how common they are — and it is the
 same for everybody. Nothing you type is recorded, counted or kept: suggestions

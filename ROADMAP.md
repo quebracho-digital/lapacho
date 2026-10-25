@@ -438,6 +438,14 @@ What to work on, in order. The sections below hold the detail.
     network permission, by decision.
   - [x] **Official vs custom** (`0.1.21`) — hashes of published dictionaries
     in the APK; a match imports silently, anything else asks first, per file.
+  - [x] **Default phrases** — `PhraseBook` (`crates/lapacho-predict/src/phrases.rs`):
+    after a finished word, the strip offers up to three phrases from a fixed
+    table (`buen ` → *día*, `gracias por ` → *todo*), ahead of the clips; a tap
+    chains to the next. `assets/phrases/{es,en}.txt`, one or two words of
+    context, no learning. Format: `docs/DICTIONARIES.md#phrases`.
+  - [ ] **Learning mode** (proposed, undecided) — personal word pairs recorded
+    only while the keyboard is visibly red; design and open questions in
+    `docs/DECISIONS.md`.
   - [x] **Swipe typing** — `Predictor::swipe` (SHARK2, location channel)
     over the same dictionaries; the IME's letter rows read the gesture and
     offer the runners-up in the strip. Tuned on synthetic swipes only:

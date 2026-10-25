@@ -314,6 +314,29 @@ impl WordPredictor {
     }
 }
 
+/// The default phrases: what usually follows the words just typed. A fixed
+/// table, like the dictionary — it reads no history and writes nothing.
+#[derive(uniffi::Object)]
+pub struct PhraseBook {
+    inner: lapacho_predict::PhraseBook,
+}
+
+#[uniffi::export]
+impl PhraseBook {
+    /// Each file is `context > phrase | phrase` lines (see `docs/DICTIONARIES.md`).
+    #[uniffi::constructor]
+    pub fn new(files: Vec<String>) -> Arc<Self> {
+        let files: Vec<&str> = files.iter().map(String::as_str).collect();
+        Arc::new(Self { inner: lapacho_predict::PhraseBook::new(&files) })
+    }
+
+    /// Phrases that continue `before` (the text up to the cursor), best first;
+    /// none while a word is still being typed.
+    pub fn next(&self, before: String, limit: u32) -> Vec<String> {
+        self.inner.next(&before, limit as usize)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
