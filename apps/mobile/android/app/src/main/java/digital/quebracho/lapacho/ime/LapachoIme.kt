@@ -887,8 +887,9 @@ class LapachoIme : InputMethodService() {
         keyHeightDp = KEY_HEIGHTS.getOrElse(KEY_HEIGHTS.indexOf(keyHeightDp) + 1) { KEY_HEIGHTS[0] }
         repo.setPreference(KEY_HEIGHT_KEY, keyHeightDp.toString())
         setInputView(onCreateInputView())
-        // The new toggle says "?123" whatever layer is on screen.
+        // The new toggle says "?123" whatever layer is on screen, and the new strip is empty.
         setLayer(layer)
+        refreshStrip()
     }
 
     /** A row of [keys] floating above [anchor]; a pick runs and closes it. */
