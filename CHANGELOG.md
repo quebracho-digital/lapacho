@@ -4,6 +4,13 @@ All notable changes to Lapacho are recorded here. Newest first.
 
 ## Unreleased
 
+### Keyboard — taller keys, wider space bar (`0.1.55`)
+
+Keys are taller (54 dp, was 46) and their height is a choice: hold the comma,
+now `, ⋯`, and ↕ steps compact (46) → normal (54) → large (62), kept for every
+app. ☺, 🌐 and 🎤 moved from the bottom row to that same `⋯` row, so the
+space bar grows from 40 % of the row to about half and stops landing on B.
+
 ### Keyboard — default phrases (`0.1.54`)
 
 After a finished word, the strip offers up to three phrases that usually
