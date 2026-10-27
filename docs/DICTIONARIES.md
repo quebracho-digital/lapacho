@@ -100,7 +100,7 @@ there is no language switch. Type `wh` with English imported and you get
 `what`, `who`, `why`; type `con` and Spanish still answers.
 
 A dictionary with its own `#rows` is a different **layout**, and a 🌐 key
-appears next to ?123 to cycle through them (it stays hidden while there is
+appears when you hold the , ⋯ key to cycle through them (it stays hidden while there is
 only one). Languages on the same rows share a layout: Spanish, English and
 Portuguese all live on QWERTY, so they never need the key; a French AZERTY
 does. Suggestions, corrections, swipe and long presses come only from the

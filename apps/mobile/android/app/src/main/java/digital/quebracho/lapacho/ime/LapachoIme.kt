@@ -136,8 +136,8 @@ class LapachoIme : InputMethodService() {
     // Which of [keyLayouts] is on screen. Kept from one field to the next:
     // whoever switched to French is still writing French in the next app.
     private var layoutIndex = 0
-    private lateinit var globeKey: TextView
-    private lateinit var micKey: TextView
+    // One of [KEY_HEIGHTS], chosen from the ⋯ panel; read on every build of the view.
+    private var keyHeightDp = KEY_HEIGHTS[1]
     // Long-press alternates: [BASE_LONG_PRESS] plus what the dictionaries
     // of the layout on screen add (ñ comes from Spanish's).
     private var longPress: Map<String, String> = BASE_LONG_PRESS
@@ -202,6 +202,7 @@ class LapachoIme : InputMethodService() {
         textColor = skin?.text?.toInt() ?: Color.WHITE
         accentColor = skin?.accent?.toInt() ?: SHIFT_LOCKED_COLOR
         swipeColor = skin?.accent?.let { (it.toInt() and 0xFFFFFF) or (SWIPE_COLOR and 0xFF000000.toInt()) } ?: SWIPE_COLOR
+        keyHeightDp = repo.getPreference(KEY_HEIGHT_KEY)?.toFloatOrNull() ?: KEY_HEIGHTS[1]
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(bgColor)
@@ -245,12 +246,6 @@ class LapachoIme : InputMethodService() {
         // after a Force Stop of either process, this must still show the
         // last items the companion saved.
         privateField = info != null && isPrivateField(info.inputType, info.imeOptions)
-        // 🎤 only with Lapacho Voice installed, and never where a password
-        // goes: dictating one would put it on the clipboard. Checked on every
-        // show: the app can be installed or removed meanwhile.
-        if (::micKey.isInitialized) {
-            micKey.visibility = if (!privateField && voiceIntent().resolveActivity(packageManager) != null) View.VISIBLE else View.GONE
-        }
         // A dictionary imported or removed in the companion since the last
         // show: new words, and possibly new keys to hold. Before the layer
         // is drawn below, so the hints are the new ones.
@@ -738,7 +733,7 @@ class LapachoIme : InputMethodService() {
                 null,
             )
             isClickable = true
-            layoutParams = LinearLayout.LayoutParams(0, dp(KEY_HEIGHT_DP).toInt() + 2 * m, weight)
+            layoutParams = LinearLayout.LayoutParams(0, dp(keyHeightDp).toInt() + 2 * m, weight)
             if (alternates == null) {
                 pressable(this, onClick)
                 return@apply
@@ -867,14 +862,44 @@ class LapachoIme : InputMethodService() {
      * ponytail: one flat row, no repositioning near the screen edge; the keys
      * with alternates today sit mid-row.
      */
-    private fun showAlternates(anchor: View, alternates: String) {
-        popupNear(anchor, -(anchor.height + dp(KEY_HEIGHT_DP + 8f)).toInt()) { row, popup ->
-            for (c in alternates) {
-                val key = if (shift != Shift.OFF) c.uppercase() else c.toString()
+    private fun showAlternates(anchor: View, alternates: String) =
+        popupKeys(anchor, alternates.map { c -> (if (shift != Shift.OFF) c.uppercase() else c.toString()).let { k -> k to { type(k) } } })
+
+    /**
+     * The keys that left the bottom row to make the space bar wider, opened
+     * by holding ⋯ (whose tap is a comma). 🌐 only with two layouts or more;
+     * 🎤 only with Lapacho Voice installed, and never where a password goes:
+     * dictating one would put it on the clipboard. Both decided on every
+     * open, so they are never stale.
+     */
+    private fun showMore(anchor: View) = popupKeys(
+        anchor,
+        buildList {
+            add("☺" to { toggleLayer(Layer.EMOJI) })
+            if (keyLayouts.size > 1) add("🌐" to ::nextLayout)
+            if (!privateField && voiceIntent().resolveActivity(packageManager) != null) add("🎤" to ::dictate)
+            add("↕" to ::nextKeyHeight)
+        },
+    )
+
+    /** ↕: the next key height, round, kept for every app and redrawn now. */
+    private fun nextKeyHeight() {
+        keyHeightDp = KEY_HEIGHTS.getOrElse(KEY_HEIGHTS.indexOf(keyHeightDp) + 1) { KEY_HEIGHTS[0] }
+        repo.setPreference(KEY_HEIGHT_KEY, keyHeightDp.toString())
+        setInputView(onCreateInputView())
+        // The new toggle says "?123" whatever layer is on screen, and the new strip is empty.
+        setLayer(layer)
+        refreshStrip()
+    }
+
+    /** A row of [keys] floating above [anchor]; a pick runs and closes it. */
+    private fun popupKeys(anchor: View, keys: List<Pair<String, () -> Unit>>) {
+        popupNear(anchor, -(anchor.height + dp(keyHeightDp + 8f)).toInt()) { row, popup ->
+            for ((label, action) in keys) {
                 row.addView(
-                    keyButton(key, 1f) { type(key); popup.dismiss() }.apply {
+                    keyButton(label, 1f) { popup.dismiss(); action() }.apply {
                         // Weighted widths collapse to 0 inside a WRAP_CONTENT parent.
-                        layoutParams = LinearLayout.LayoutParams(dp(44f).toInt(), dp(KEY_HEIGHT_DP).toInt())
+                        layoutParams = LinearLayout.LayoutParams(dp(44f).toInt(), dp(keyHeightDp).toInt())
                     },
                 )
             }
@@ -1248,7 +1273,7 @@ class LapachoIme : InputMethodService() {
                 override fun getView(i: Int, recycled: View?, parent: ViewGroup): View =
                     ((recycled as? TextView) ?: TextView(this@LapachoIme).apply {
                         gravity = Gravity.CENTER
-                        height = dp(KEY_HEIGHT_DP).toInt()
+                        height = dp(keyHeightDp).toInt()
                         setTextSize(TypedValue.COMPLEX_UNIT_DIP, EMOJI_TEXT_DP)
                     }).apply { text = all[i].glyph }
             }
@@ -1294,13 +1319,12 @@ class LapachoIme : InputMethodService() {
         (keyLayouts[layoutIndex].first ?: builtInRows(keyLayouts[layoutIndex].second.map { it.header })).map(::row)
 
     /**
-     * Puts the long-press alternates and 🌐 in line with [layoutIndex], and
+     * Puts the long-press alternates in line with [layoutIndex], and
      * redraws the keys.
      */
     private fun applyLayout() {
         longPress = keyAlternates(keyLayouts[layoutIndex].second.map { it.header }, BASE_LONG_PRESS)
-        if (!::globeKey.isInitialized) return
-        globeKey.visibility = if (keyLayouts.size > 1) View.VISIBLE else View.GONE
+        if (!::keyRows.isInitialized) return
         showLayer()
     }
 
@@ -1318,15 +1342,13 @@ class LapachoIme : InputMethodService() {
             orientation = LinearLayout.HORIZONTAL
             layerToggle = keyButton("?123", 1.4f) { setLayer(layerToggleTarget(layer)) }
             addView(layerToggle)
-            // Only with two layouts or more; see [applyLayout].
-            globeKey = keyButton("🌐", 1f) { nextLayout() }.apply { visibility = View.GONE }
-            addView(globeKey)
-            // See [onStartInputView] for when it shows.
-            micKey = keyButton("🎤", 1f) { dictate() }.apply { visibility = View.GONE }
-            addView(micKey)
-            addView(keyButton("☺", 1f) { toggleLayer(Layer.EMOJI) })
-            addView(keyButton(",", 1f) { type(",") })
-            addView(keyButton(strings.getString(R.string.key_space), 3.7f) { output(" ") })
+            addView(
+                keyButton(",", 1f) {}.apply {
+                    text = labelWithHint(",", "⋯")
+                    holdToOpen(this, LONG_PRESS_MS, onHold = { showMore(this) }, onTap = { type(",") })
+                },
+            )
+            addView(keyButton(strings.getString(R.string.key_space), 4.7f) { output(" ") })
             addView(keyButton(".", 1f, PUNCT_ALTERNATES) { type(".") })
             addView(keyButton("↵", 1.2f) { enter() })
         }
@@ -1422,7 +1444,9 @@ class LapachoIme : InputMethodService() {
         private const val PHRASE_LOOKBEHIND = 64
         private const val LABEL_MAX = 24
         private const val KEY_TEXT_DP = 20f
-        private const val KEY_HEIGHT_DP = 46f
+        /** Compact, normal, large: what ↕ in the ⋯ panel steps through. */
+        val KEY_HEIGHTS = listOf(46f, 54f, 62f)
+        private const val KEY_HEIGHT_KEY = "key_height_dp"
         private const val KEY_COLOR = 0xFF3C3C3C.toInt()
         private const val SHIFT_ONCE_COLOR = 0xFF5A5A5A.toInt()
         private const val SHIFT_LOCKED_COLOR = 0xFF2E7D32.toInt()
