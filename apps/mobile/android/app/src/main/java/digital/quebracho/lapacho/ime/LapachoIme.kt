@@ -18,6 +18,7 @@ import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.RippleDrawable
 import android.inputmethodservice.InputMethodService
 import android.os.Build
+import android.os.SystemClock
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
@@ -27,6 +28,7 @@ import android.text.style.SuperscriptSpan
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.SoundEffectConstants
@@ -138,6 +140,9 @@ class LapachoIme : InputMethodService() {
     private var layoutIndex = 0
     // One of [KEY_HEIGHTS], chosen from the ⋯ panel; read on every build of the view.
     private var keyHeightDp = KEY_HEIGHTS[1]
+    // Where on its key the last press landed, as fractions of its width and
+    // height; see [meantKey].
+    private var tapAt = 0.5f to 0.5f
     // Long-press alternates: [BASE_LONG_PRESS] plus what the dictionaries
     // of the layout on screen add (ñ comes from Spanish's).
     private var longPress: Map<String, String> = BASE_LONG_PRESS
@@ -761,6 +766,8 @@ class LapachoIme : InputMethodService() {
                 // pointer-down, not a down.
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                     flushPendingTap()
+                    // After the flush: a rolled key before this one reads its own.
+                    tapAt = event.getX(event.actionIndex) / v.width to event.getY(event.actionIndex) / v.height
                     v.drawableHotspotChanged(event.x, event.y)
                     v.isPressed = true
                     keyFeedback(v)
@@ -875,12 +882,29 @@ class LapachoIme : InputMethodService() {
     private fun showMore(anchor: View) = popupKeys(
         anchor,
         buildList {
+            add("↶" to ::undo)
             add("☺" to { toggleLayer(Layer.EMOJI) })
             if (keyLayouts.size > 1) add("🌐" to ::nextLayout)
             if (!privateField && voiceIntent().resolveActivity(packageManager) != null) add("🎤" to ::dictate)
             add("↕" to ::nextKeyHeight)
         },
     )
+
+    /**
+     * ↶: Ctrl+Z to the app, the undo its own field keeps — a TextView or a
+     * browser undoes what was typed, pasted or deleted, ours included. A
+     * field without an undo ignores it.
+     *
+     * ponytail: no undo stack of our own; one would only know our keys.
+     */
+    private fun undo() {
+        val ic = currentInputConnection ?: return
+        val meta = KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
+        val t = SystemClock.uptimeMillis()
+        ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Z, 0, meta))
+        ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_Z, 0, meta))
+        refreshStripSoon()
+    }
 
     /** ↕: the next key height, round, kept for every app and redrawn now. */
     private fun nextKeyHeight() {
@@ -995,11 +1019,11 @@ class LapachoIme : InputMethodService() {
                     },
                 )
             }
-            for (c in keys) {
+            for ((i, c) in keys.withIndex()) {
                 val alternates = longPress[c]
                 // Shift is read when the key is typed, not when it was drawn.
                 addView(
-                    keyButton(c, 1f, alternates) { type(shifted(c)) }.also { key ->
+                    keyButton(c, 1f, alternates) { typeMeant(c, keys.getOrNull(i - 1), keys.getOrNull(i + 1), withShift) }.also { key ->
                         // What a swipe reads the key as; see [swipeRows].
                         if (c.length == 1 && c[0].isLetter()) key.tag = c[0]
                         // Shifted too, so the hint on the key says what the row will
@@ -1201,6 +1225,26 @@ class LapachoIme : InputMethodService() {
         relabel()
     }
 
+    /**
+     * A letter key, read as the key the finger meant when it landed near an
+     * edge and the word it continues says so; see [meantKey]. Only the
+     * letter rows' bottom one sits over the space bar.
+     */
+    private fun typeMeant(key: String, left: String?, right: String?, overSpace: Boolean) {
+        if (searching || layer != Layer.LETTERS || key.length != 1) return type(shifted(key))
+        val word = currentWord(currentInputConnection?.getTextBeforeCursor(WORD_LOOKBEHIND, 0))
+        val p = predictor
+        val meant = meantKey(
+            word, key[0], tapAt.first, tapAt.second,
+            left?.singleOrNull(), right?.singleOrNull(), overSpace,
+            isPrefix = { p.knows(it) || p.suggest(it, 1u).isNotEmpty() },
+            knows = p::knows,
+        )
+        if (meant == key[0]) return type(shifted(key))
+        Log.i(TAG, "tap on ${key} read as '$meant'")
+        if (meant == ' ') output(" ") else type(shifted(meant.toString()))
+    }
+
     private fun type(key: String) {
         output(key)
         if (shift == Shift.ONCE) {
@@ -1369,6 +1413,41 @@ class LapachoIme : InputMethodService() {
             return before.length - i
         }
 
+        /**
+         * Which key a tap on [key] meant. The key itself whenever [word] plus
+         * it can still become a word — a name or a word the dictionary lacks
+         * is never touched. Otherwise, if the tap landed near an edge, the
+         * key across that edge when it fits better: the space bar below the
+         * bottom row once [word] is complete ("hola" + a low b is "hola "),
+         * or the neighbour beside it ("c" + p on its left edge is "co").
+         *
+         * ponytail: fixed edge bands and a yes/no prefix test, no touch
+         * model; a per-user offset learned from backspaces would go here.
+         */
+        fun meantKey(
+            word: String,
+            key: Char,
+            fx: Float,
+            fy: Float,
+            left: Char?,
+            right: Char?,
+            overSpace: Boolean,
+            isPrefix: (String) -> Boolean,
+            knows: (String) -> Boolean,
+        ): Char {
+            val lower = word.lowercase()
+            if (word.isEmpty() || isPrefix(lower + key)) return key
+            if (overSpace && fy > EDGE_LOW && knows(lower)) return ' '
+            if (left != null && fx < EDGE_SIDE && isPrefix(lower + left)) return left
+            if (right != null && fx > 1 - EDGE_SIDE && isPrefix(lower + right)) return right
+            return key
+        }
+
+        /** Below this fraction of a key's height, a tap is near the row under it. */
+        private const val EDGE_LOW = 0.6f
+        /** Within this fraction of a key's width from a side, near the key beside it. */
+        private const val EDGE_SIDE = 0.3f
+
         /** Tap: shift for one letter. Double tap: caps lock. Tap again: off. */
         fun nextShift(current: Shift, msSinceLastTap: Long): Shift = when (current) {
             Shift.OFF -> Shift.ONCE
@@ -1445,7 +1524,7 @@ class LapachoIme : InputMethodService() {
         private const val LABEL_MAX = 24
         private const val KEY_TEXT_DP = 20f
         /** Compact, normal, large: what ↕ in the ⋯ panel steps through. */
-        val KEY_HEIGHTS = listOf(46f, 54f, 62f)
+        val KEY_HEIGHTS = listOf(46f, 50f, 54f)
         private const val KEY_HEIGHT_KEY = "key_height_dp"
         private const val KEY_COLOR = 0xFF3C3C3C.toInt()
         private const val SHIFT_ONCE_COLOR = 0xFF5A5A5A.toInt()
