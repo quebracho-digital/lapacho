@@ -18,6 +18,7 @@ import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.RippleDrawable
 import android.inputmethodservice.InputMethodService
 import android.os.Build
+import android.os.SystemClock
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
@@ -27,6 +28,7 @@ import android.text.style.SuperscriptSpan
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.SoundEffectConstants
@@ -137,7 +139,7 @@ class LapachoIme : InputMethodService() {
     // whoever switched to French is still writing French in the next app.
     private var layoutIndex = 0
     // One of [KEY_HEIGHTS], chosen from the ⋯ panel; read on every build of the view.
-    private var keyHeightDp = KEY_HEIGHTS[0]
+    private var keyHeightDp = KEY_HEIGHTS[1]
     // Where on its key the last press landed, as fractions of its width and
     // height; see [meantKey].
     private var tapAt = 0.5f to 0.5f
@@ -205,7 +207,7 @@ class LapachoIme : InputMethodService() {
         textColor = skin?.text?.toInt() ?: Color.WHITE
         accentColor = skin?.accent?.toInt() ?: SHIFT_LOCKED_COLOR
         swipeColor = skin?.accent?.let { (it.toInt() and 0xFFFFFF) or (SWIPE_COLOR and 0xFF000000.toInt()) } ?: SWIPE_COLOR
-        keyHeightDp = repo.getPreference(KEY_HEIGHT_KEY)?.toFloatOrNull() ?: KEY_HEIGHTS[0]
+        keyHeightDp = repo.getPreference(KEY_HEIGHT_KEY)?.toFloatOrNull() ?: KEY_HEIGHTS[1]
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(bgColor)
@@ -880,12 +882,29 @@ class LapachoIme : InputMethodService() {
     private fun showMore(anchor: View) = popupKeys(
         anchor,
         buildList {
+            add("↶" to ::undo)
             add("☺" to { toggleLayer(Layer.EMOJI) })
             if (keyLayouts.size > 1) add("🌐" to ::nextLayout)
             if (!privateField && voiceIntent().resolveActivity(packageManager) != null) add("🎤" to ::dictate)
             add("↕" to ::nextKeyHeight)
         },
     )
+
+    /**
+     * ↶: Ctrl+Z to the app, the undo its own field keeps — a TextView or a
+     * browser undoes what was typed, pasted or deleted, ours included. A
+     * field without an undo ignores it.
+     *
+     * ponytail: no undo stack of our own; one would only know our keys.
+     */
+    private fun undo() {
+        val ic = currentInputConnection ?: return
+        val meta = KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
+        val t = SystemClock.uptimeMillis()
+        ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Z, 0, meta))
+        ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_Z, 0, meta))
+        refreshStripSoon()
+    }
 
     /** ↕: the next key height, round, kept for every app and redrawn now. */
     private fun nextKeyHeight() {
@@ -1505,7 +1524,7 @@ class LapachoIme : InputMethodService() {
         private const val LABEL_MAX = 24
         private const val KEY_TEXT_DP = 20f
         /** Compact, normal, large: what ↕ in the ⋯ panel steps through. */
-        val KEY_HEIGHTS = listOf(46f, 54f, 62f)
+        val KEY_HEIGHTS = listOf(46f, 50f, 54f)
         private const val KEY_HEIGHT_KEY = "key_height_dp"
         private const val KEY_COLOR = 0xFF3C3C3C.toInt()
         private const val SHIFT_ONCE_COLOR = 0xFF5A5A5A.toInt()

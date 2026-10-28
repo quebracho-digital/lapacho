@@ -10,8 +10,10 @@ A tap near the edge of a letter key that no word can follow is read as the key
 across that edge when the word says so: a low tap on b or n right after a
 complete word (`hola` + b) is the space bar, a tap on the left edge of p after
 `c` is the o. A word that can still go on with the key typed, and any word the
-dictionary lacks, is never touched. Keys are back to 46 dp by default — 54
-turned out too tall; ↕ in the `⋯` row still steps 46 → 54 → 62.
+dictionary lacks, is never touched. Keys default to 50 dp — 54 turned out
+too tall — and ↕ in the `⋯` row steps 46 → 50 → 54. The `⋯` row also gets ↶,
+undo: Ctrl+Z to the app, so the field's own undo takes back what was typed,
+pasted or deleted (a field without an undo ignores it).
 
 ### Keyboard — taller keys, wider space bar (`0.1.55`)
 
