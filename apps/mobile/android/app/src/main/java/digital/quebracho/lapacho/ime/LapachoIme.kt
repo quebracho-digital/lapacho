@@ -137,7 +137,10 @@ class LapachoIme : InputMethodService() {
     // whoever switched to French is still writing French in the next app.
     private var layoutIndex = 0
     // One of [KEY_HEIGHTS], chosen from the ⋯ panel; read on every build of the view.
-    private var keyHeightDp = KEY_HEIGHTS[1]
+    private var keyHeightDp = KEY_HEIGHTS[0]
+    // Where on its key the last press landed, as fractions of its width and
+    // height; see [meantKey].
+    private var tapAt = 0.5f to 0.5f
     // Long-press alternates: [BASE_LONG_PRESS] plus what the dictionaries
     // of the layout on screen add (ñ comes from Spanish's).
     private var longPress: Map<String, String> = BASE_LONG_PRESS
@@ -202,7 +205,7 @@ class LapachoIme : InputMethodService() {
         textColor = skin?.text?.toInt() ?: Color.WHITE
         accentColor = skin?.accent?.toInt() ?: SHIFT_LOCKED_COLOR
         swipeColor = skin?.accent?.let { (it.toInt() and 0xFFFFFF) or (SWIPE_COLOR and 0xFF000000.toInt()) } ?: SWIPE_COLOR
-        keyHeightDp = repo.getPreference(KEY_HEIGHT_KEY)?.toFloatOrNull() ?: KEY_HEIGHTS[1]
+        keyHeightDp = repo.getPreference(KEY_HEIGHT_KEY)?.toFloatOrNull() ?: KEY_HEIGHTS[0]
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(bgColor)
@@ -761,6 +764,8 @@ class LapachoIme : InputMethodService() {
                 // pointer-down, not a down.
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                     flushPendingTap()
+                    // After the flush: a rolled key before this one reads its own.
+                    tapAt = event.getX(event.actionIndex) / v.width to event.getY(event.actionIndex) / v.height
                     v.drawableHotspotChanged(event.x, event.y)
                     v.isPressed = true
                     keyFeedback(v)
@@ -995,11 +1000,11 @@ class LapachoIme : InputMethodService() {
                     },
                 )
             }
-            for (c in keys) {
+            for ((i, c) in keys.withIndex()) {
                 val alternates = longPress[c]
                 // Shift is read when the key is typed, not when it was drawn.
                 addView(
-                    keyButton(c, 1f, alternates) { type(shifted(c)) }.also { key ->
+                    keyButton(c, 1f, alternates) { typeMeant(c, keys.getOrNull(i - 1), keys.getOrNull(i + 1), withShift) }.also { key ->
                         // What a swipe reads the key as; see [swipeRows].
                         if (c.length == 1 && c[0].isLetter()) key.tag = c[0]
                         // Shifted too, so the hint on the key says what the row will
@@ -1201,6 +1206,26 @@ class LapachoIme : InputMethodService() {
         relabel()
     }
 
+    /**
+     * A letter key, read as the key the finger meant when it landed near an
+     * edge and the word it continues says so; see [meantKey]. Only the
+     * letter rows' bottom one sits over the space bar.
+     */
+    private fun typeMeant(key: String, left: String?, right: String?, overSpace: Boolean) {
+        if (searching || layer != Layer.LETTERS || key.length != 1) return type(shifted(key))
+        val word = currentWord(currentInputConnection?.getTextBeforeCursor(WORD_LOOKBEHIND, 0))
+        val p = predictor
+        val meant = meantKey(
+            word, key[0], tapAt.first, tapAt.second,
+            left?.singleOrNull(), right?.singleOrNull(), overSpace,
+            isPrefix = { p.knows(it) || p.suggest(it, 1u).isNotEmpty() },
+            knows = p::knows,
+        )
+        if (meant == key[0]) return type(shifted(key))
+        Log.i(TAG, "tap on ${key} read as '$meant'")
+        if (meant == ' ') output(" ") else type(shifted(meant.toString()))
+    }
+
     private fun type(key: String) {
         output(key)
         if (shift == Shift.ONCE) {
@@ -1368,6 +1393,41 @@ class LapachoIme : InputMethodService() {
             while (i > 0 && !before[i - 1].isWhitespace()) i--
             return before.length - i
         }
+
+        /**
+         * Which key a tap on [key] meant. The key itself whenever [word] plus
+         * it can still become a word — a name or a word the dictionary lacks
+         * is never touched. Otherwise, if the tap landed near an edge, the
+         * key across that edge when it fits better: the space bar below the
+         * bottom row once [word] is complete ("hola" + a low b is "hola "),
+         * or the neighbour beside it ("c" + p on its left edge is "co").
+         *
+         * ponytail: fixed edge bands and a yes/no prefix test, no touch
+         * model; a per-user offset learned from backspaces would go here.
+         */
+        fun meantKey(
+            word: String,
+            key: Char,
+            fx: Float,
+            fy: Float,
+            left: Char?,
+            right: Char?,
+            overSpace: Boolean,
+            isPrefix: (String) -> Boolean,
+            knows: (String) -> Boolean,
+        ): Char {
+            val lower = word.lowercase()
+            if (word.isEmpty() || isPrefix(lower + key)) return key
+            if (overSpace && fy > EDGE_LOW && knows(lower)) return ' '
+            if (left != null && fx < EDGE_SIDE && isPrefix(lower + left)) return left
+            if (right != null && fx > 1 - EDGE_SIDE && isPrefix(lower + right)) return right
+            return key
+        }
+
+        /** Below this fraction of a key's height, a tap is near the row under it. */
+        private const val EDGE_LOW = 0.6f
+        /** Within this fraction of a key's width from a side, near the key beside it. */
+        private const val EDGE_SIDE = 0.3f
 
         /** Tap: shift for one letter. Double tap: caps lock. Tap again: off. */
         fun nextShift(current: Shift, msSinceLastTap: Long): Shift = when (current) {
