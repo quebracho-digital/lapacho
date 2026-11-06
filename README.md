@@ -145,31 +145,6 @@ lapacho/
 `lapacho-core` does not depend on Tauri or any UI framework: it is reusable
 from any frontend.
 
-### Codebase map
-
-A generated knowledge graph lives at `.ua/knowledge-graph.json` (last built
-2026-09-23, before sync and the plugin apps): 310 nodes and
-558 edges across 9 architectural layers (security core, word prediction, mobile
-Rust bridge, desktop backend, desktop UI, Android app, tests and payloads,
-documentation, workspace config), plus an 18-step guided tour. The tour walks
-the security flow end to end (capture → type classification → sensitivity
-classification → masking → persistence policy → release on paste), then the
-Android keyboard, the uniffi bridge and word prediction. It is meant as the
-fastest way in for anyone new to the project.
-
-Explore it with the [understand-anything](https://github.com/Egonex-AI/Understand-Anything)
-plugin:
-
-```bash
-/understand-dashboard    # interactive graph viewer
-/understand              # refresh after changes (incremental)
-```
-
-The dictionary word lists are left out of the analysis (`.ua/.understandignore`):
-they are data, 50 000 lines each.
-
-The graph is a derived artifact: if it ever contradicts the code, the code wins.
-
 ## Mobile
 
 On Android, Lapacho is a keyboard (IME) rather than a background monitor:
